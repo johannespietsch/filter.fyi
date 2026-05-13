@@ -1,14 +1,21 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "filter-fyi",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-05-13",
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "./public"
+    "directory": "./public",
+    "binding": "ASSETS"
   },
-  "compatibility_flags": [
-    "nodejs_compat"
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "filter-fyi-waitlist",
+      "database_id": "REPLACE_ME_AFTER_WRANGLER_D1_CREATE"
+    }
   ]
 }

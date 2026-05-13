@@ -140,9 +140,10 @@
         <div id="form-body">
           <label class="form-label">Get early access — free to start</label>
           <div class="input-row">
-            <input class="email-input" type="email" id="email-input" placeholder="your@email.com" />
-            <button class="cta-btn" onclick="handleSubmit()">Join the list</button>
+            <input class="email-input" type="email" id="email-input" placeholder="your@email.com" autocomplete="email" />
+            <button class="cta-btn" id="submit-btn" onclick="handleSubmit()">Join the list</button>
           </div>
+          <input type="text" id="hp-1" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true" />
           <div class="survey-divider"><span>one quick question</span></div>
           <p class="survey-question">What's your biggest challenge keeping up with AI? <span style="color:var(--ink-faint);font-weight:400;">(tick all that apply)</span></p>
           <div class="survey-options">
@@ -287,9 +288,10 @@
       <h2 class="final-headline">Stop the tabs.<br>Start the habit.</h2>
       <p class="final-sub">Join the early access list. Free to start, no credit card needed.</p>
       <div class="final-form">
-        <input class="email-input" type="email" id="email-input-2" placeholder="your@email.com" style="flex:1;" />
-        <button class="cta-btn" onclick="handleSubmit2()">Join the list</button>
+        <input class="email-input" type="email" id="email-input-2" placeholder="your@email.com" autocomplete="email" style="flex:1;" />
+        <button class="cta-btn" id="submit-btn-2" onclick="handleSubmit2()">Join the list</button>
       </div>
+      <input type="text" id="hp-2" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true" />
       <p class="form-fine-print">No spam. Just a message when the doors open.</p>
     </section>
 
@@ -316,24 +318,78 @@
       boxes.forEach(b => b.checked = !allChecked);
       handleCheck();
     }
-    function handleSubmit() {
-      const inp = document.getElementById('email-input');
-      if (!inp.value || !inp.value.includes('@')) {
-        inp.style.borderColor = '#E24B4A';
-        inp.focus();
-        setTimeout(() => inp.style.borderColor = '', 1500);
-        return;
-      }
-      document.getElementById('form-body').style.display = 'none';
-      document.getElementById('success-state').style.display = 'block';
+    function getChallenges() {
+      return Array.from(document.querySelectorAll(
+        '#opt-0 input:checked, #opt-1 input:checked, #opt-2 input:checked, #opt-3 input:checked'
+      )).map(b => b.value);
     }
-    function handleSubmit2() {
+
+    function flashInvalid(inp) {
+      inp.style.borderColor = '#E24B4A';
+      inp.focus();
+      setTimeout(() => inp.style.borderColor = '', 1500);
+    }
+
+    async function postWaitlist(payload) {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error('submit-failed:' + res.status);
+      return res.json();
+    }
+
+    async function handleSubmit() {
+      const inp = document.getElementById('email-input');
+      const btn = document.getElementById('submit-btn');
+      const email = inp.value.trim();
+      if (!email || !email.includes('@')) return flashInvalid(inp);
+
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Submitting…';
+      try {
+        await postWaitlist({
+          email,
+          challenges: getChallenges(),
+          source: 'hero',
+          website: document.getElementById('hp-1').value,
+        });
+        document.getElementById('form-body').style.display = 'none';
+        document.getElementById('success-state').style.display = 'block';
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        flashInvalid(inp);
+      }
+    }
+
+    async function handleSubmit2() {
       const inp = document.getElementById('email-input-2');
-      if (!inp.value || !inp.value.includes('@')) { inp.focus(); return; }
-      inp.value = ''; inp.placeholder = '✓ You\'re on the list — talk soon.';
-      inp.disabled = true;
-      inp.nextElementSibling.disabled = true;
-      inp.nextElementSibling.style.opacity = '0.4';
+      const btn = document.getElementById('submit-btn-2');
+      const email = inp.value.trim();
+      if (!email || !email.includes('@')) return flashInvalid(inp);
+
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Submitting…';
+      try {
+        await postWaitlist({
+          email,
+          challenges: getChallenges(),
+          source: 'final-cta',
+          website: document.getElementById('hp-2').value,
+        });
+        inp.value = '';
+        inp.placeholder = '✓ You\'re on the list — talk soon.';
+        inp.disabled = true;
+        btn.style.opacity = '0.4';
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        flashInvalid(inp);
+      }
     }
   </script>
 </body>
