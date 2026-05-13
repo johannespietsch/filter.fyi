@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>filter.fyi — coming soon</title>
+  <meta name="description" content="filter.fyi tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.">
+  <meta property="og:title" content="filter.fyi — coming soon">
+  <meta property="og:description" content="Relevant, not reactive. A weekly signal for developers keeping up with AI.">
+  <meta property="og:type" content="website">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a1a18; --ink-muted: #6b6b67; --ink-faint: #a8a8a3;
+      --surface: #f7f5f0; --surface-card: #ffffff;
+      --accent: #1D9E75; --accent-dark: #0F6E56; --accent-light: #E1F5EE;
+      --border: rgba(26,26,24,0.1); --border-strong: rgba(26,26,24,0.18);
+      --serif: 'DM Serif Display', Georgia, serif;
+      --sans: 'DM Sans', system-ui, sans-serif;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+    }
+    .page-wrap {
+      max-width: 680px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    nav {
+      padding: 28px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .wordmark {
+      font-family: var(--serif);
+      font-size: 19px;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: baseline;
+      gap: 1px;
+    }
+    .wordmark .filter { color: var(--ink); }
+    .wordmark .dot { color: var(--accent); }
+    .wordmark .fyi { color: var(--ink-faint); font-size: 15px; }
+    .nav-pill {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-dark);
+      background: var(--accent-light);
+      border: 1px solid rgba(29,158,117,0.25);
+      padding: 5px 12px;
+      border-radius: 100px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 64px 0;
+    }
+    .hero-eyebrow {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      display: block;
+      width: 24px;
+      height: 1px;
+      background: var(--accent);
+    }
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(34px, 6vw, 50px);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      margin-bottom: 24px;
+      font-weight: 400;
+    }
+    h1 em { font-style: italic; color: var(--accent); }
+    .lede {
+      font-size: 17px;
+      line-height: 1.65;
+      color: var(--ink-muted);
+      max-width: 540px;
+      font-weight: 300;
+      margin-bottom: 32px;
+    }
+    .lede strong { color: var(--ink); font-weight: 500; }
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--ink-faint);
+    }
+    .meta .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
+    .footer {
+      padding: 24px 0 40px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer-wordmark { font-family: var(--serif); font-size: 15px; color: var(--ink-muted); }
+    .footer-tagline { font-size: 12px; color: var(--ink-faint); font-style: italic; }
+    @media (max-width: 540px) {
+      .footer { flex-direction: column; gap: 8px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <nav>
+      <div class="wordmark">
+        <span class="filter">filter</span><span class="dot">.</span><span class="fyi">fyi</span>
+      </div>
+      <div class="nav-pill">Coming soon</div>
+    </nav>
+
+    <main>
+      <div class="hero-eyebrow">For developers keeping up with AI</div>
+      <h1>Less noise.<br>More signal.<br><em>Soon.</em></h1>
+      <p class="lede"><strong>filter.fyi</strong> tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.</p>
+      <div class="meta">
+        <span>Early access opening shortly</span>
+        <span class="dot-sep"></span>
+        <span>Built in the Netherlands</span>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-wordmark">filter.fyi</div>
+      <div class="footer-tagline">relevant, not reactive.</div>
+    </footer>
+  </div>
+</body>
+</html>
