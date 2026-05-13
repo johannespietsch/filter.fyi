@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>filter.fyi — coming soon</title>
+  <title>filter.fyi — relevant, not reactive</title>
   <meta name="description" content="filter.fyi tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.">
-  <meta property="og:title" content="filter.fyi — coming soon">
-  <meta property="og:description" content="Relevant, not reactive. A weekly signal for developers keeping up with AI.">
+  <meta property="og:title" content="filter.fyi — relevant, not reactive">
+  <meta property="og:description" content="For developers keeping up with AI. Less noise, more signal — a weekly digest of what's actually worth your time.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://filter.fyi">
+  <meta name="twitter:card" content="summary_large_image">
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,121 +18,107 @@
       --surface: #f7f5f0; --surface-card: #ffffff;
       --accent: #1D9E75; --accent-dark: #0F6E56; --accent-light: #E1F5EE;
       --border: rgba(26,26,24,0.1); --border-strong: rgba(26,26,24,0.18);
-      --serif: 'DM Serif Display', Georgia, serif;
-      --sans: 'DM Sans', system-ui, sans-serif;
+      --serif: 'DM Serif Display', Georgia, serif; --sans: 'DM Sans', system-ui, sans-serif;
     }
-    html, body { height: 100%; }
-    body {
-      font-family: var(--sans);
-      background: var(--surface);
-      color: var(--ink);
-      font-size: 16px;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      display: flex;
-      flex-direction: column;
-    }
-    .page-wrap {
-      max-width: 680px;
-      width: 100%;
-      margin: 0 auto;
-      padding: 0 24px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-    nav {
-      padding: 28px 0 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .wordmark {
-      font-family: var(--serif);
-      font-size: 19px;
-      color: var(--ink);
-      letter-spacing: -0.01em;
-      display: flex;
-      align-items: baseline;
-      gap: 1px;
-    }
+    body { font-family: var(--sans); background: var(--surface); color: var(--ink); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .page-wrap { max-width: 680px; margin: 0 auto; padding: 0 24px; }
+    nav { padding: 28px 0 0; display: flex; align-items: center; justify-content: space-between; }
+    .wordmark { font-family: var(--serif); font-size: 19px; color: var(--ink); letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 1px; }
     .wordmark .filter { color: var(--ink); }
     .wordmark .dot { color: var(--accent); }
     .wordmark .fyi { color: var(--ink-faint); font-size: 15px; }
-    .nav-pill {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--accent-dark);
-      background: var(--accent-light);
-      border: 1px solid rgba(29,158,117,0.25);
-      padding: 5px 12px;
-      border-radius: 100px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 64px 0;
-    }
-    .hero-eyebrow {
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .hero-eyebrow::before {
-      content: '';
-      display: block;
-      width: 24px;
-      height: 1px;
-      background: var(--accent);
-    }
-    h1 {
-      font-family: var(--serif);
-      font-size: clamp(34px, 6vw, 50px);
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-      color: var(--ink);
-      margin-bottom: 24px;
-      font-weight: 400;
-    }
-    h1 em { font-style: italic; color: var(--accent); }
-    .lede {
-      font-size: 17px;
-      line-height: 1.65;
-      color: var(--ink-muted);
-      max-width: 540px;
-      font-weight: 300;
-      margin-bottom: 32px;
-    }
-    .lede strong { color: var(--ink); font-weight: 500; }
-    .meta {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      color: var(--ink-faint);
-    }
-    .meta .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
-    .footer {
-      padding: 24px 0 40px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
+    .nav-pill { font-size: 12px; font-weight: 500; color: var(--accent-dark); background: var(--accent-light); border: 1px solid rgba(29,158,117,0.25); padding: 5px 12px; border-radius: 100px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .hero { padding: 72px 0 56px; border-bottom: 1px solid var(--border); }
+    .hero-eyebrow { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+    .hero-eyebrow::before { content: ''; display: block; width: 24px; height: 1px; background: var(--accent); }
+    .hero-headline { font-family: var(--serif); font-size: clamp(34px, 6vw, 50px); line-height: 1.1; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 20px; }
+    .hero-headline em { font-style: italic; color: var(--accent); }
+    .hero-sub { font-size: 17px; line-height: 1.65; color: var(--ink-muted); max-width: 520px; margin-bottom: 40px; font-weight: 300; }
+    .hero-sub strong { color: var(--ink); font-weight: 500; }
+    .form-card { background: var(--surface-card); border: 1px solid var(--border-strong); border-radius: 16px; padding: 28px; margin-bottom: 16px; }
+    .form-label { font-size: 13px; font-weight: 500; color: var(--ink-muted); margin-bottom: 8px; display: block; }
+    .input-row { display: flex; gap: 10px; margin-bottom: 20px; }
+    .email-input { flex: 1; height: 44px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 8px; font-family: var(--sans); font-size: 15px; background: var(--surface); color: var(--ink); outline: none; transition: border-color 0.15s; }
+    .email-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(29,158,117,0.12); }
+    .email-input::placeholder { color: var(--ink-faint); }
+    .cta-btn { height: 44px; padding: 0 20px; background: var(--accent); color: white; border: none; border-radius: 8px; font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background 0.15s, transform 0.1s; }
+    .cta-btn:hover { background: var(--accent-dark); }
+    .cta-btn:active { transform: scale(0.98); }
+    .survey-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .survey-divider::before, .survey-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .survey-divider span { font-size: 12px; color: var(--ink-faint); letter-spacing: 0.05em; text-transform: uppercase; font-weight: 500; }
+    .survey-question { font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 12px; line-height: 1.4; }
+    .survey-options { display: flex; flex-direction: column; gap: 8px; }
+    .survey-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.12s, background 0.12s; background: var(--surface); }
+    .survey-option:hover { border-color: rgba(29,158,117,0.4); background: var(--accent-light); }
+    .survey-option.checked { border-color: var(--accent); background: var(--accent-light); }
+    .survey-option input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; width: 15px; height: 15px; }
+    .survey-option-text { font-size: 13.5px; color: var(--ink); line-height: 1.4; }
+    .all-of-above { border-style: dashed; border-color: rgba(29,158,117,0.4); }
+    .all-of-above.checked { border-style: solid; border-color: var(--accent); background: var(--accent-light); }
+    .all-of-above-text { font-size: 13px; color: var(--accent-dark); font-style: italic; }
+    .multi-hint { display: none; font-size: 12px; color: var(--accent-dark); margin-top: 10px; padding: 8px 12px; background: var(--accent-light); border-radius: 6px; border-left: 3px solid var(--accent); }
+    .multi-hint.visible { display: block; }
+    .form-fine-print { font-size: 12px; color: var(--ink-faint); text-align: center; margin-top: 12px; }
+    .success-state { display: none; text-align: center; padding: 32px 24px; }
+    .success-icon { width: 48px; height: 48px; background: var(--accent-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 22px; color: var(--accent); }
+    .success-title { font-family: var(--serif); font-size: 22px; color: var(--ink); margin-bottom: 8px; }
+    .success-sub { font-size: 14px; color: var(--ink-muted); max-width: 300px; margin: 0 auto; }
+    .problem-section { padding: 64px 0 48px; border-bottom: 1px solid var(--border); }
+    .section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 28px; }
+    .problem-list { list-style: none; display: flex; flex-direction: column; gap: 16px; }
+    .problem-item { display: flex; gap: 16px; align-items: flex-start; padding: 18px 20px; background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px; }
+    .problem-num { font-family: var(--serif); font-size: 20px; color: var(--ink-faint); line-height: 1; flex-shrink: 0; width: 24px; padding-top: 2px; }
+    .problem-text { font-size: 15px; color: var(--ink); line-height: 1.55; }
+    .problem-text strong { font-weight: 500; }
+    .how-section { padding: 64px 0 48px; border-bottom: 1px solid var(--border); }
+    .section-headline { font-family: var(--serif); font-size: 28px; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 8px; line-height: 1.2; }
+    .section-sub { font-size: 15px; color: var(--ink-muted); margin-bottom: 36px; font-weight: 300; }
+    .steps { display: flex; flex-direction: column; }
+    .step { display: grid; grid-template-columns: 48px 1fr; gap: 16px; padding-bottom: 32px; }
+    .step:last-child { padding-bottom: 0; }
+    .step-left { display: flex; flex-direction: column; align-items: center; }
+    .step-dot { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-light); border: 1.5px solid rgba(29,158,117,0.35); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 16px; color: var(--accent-dark); flex-shrink: 0; }
+    .step-line { width: 1px; flex: 1; background: var(--border); margin-top: 6px; }
+    .step:last-child .step-line { display: none; }
+    .step-content { padding-top: 6px; }
+    .step-title { font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: var(--ink-muted); line-height: 1.55; }
+    .step-tag { display: inline-block; font-size: 11px; font-weight: 500; color: var(--accent-dark); background: var(--accent-light); border: 1px solid rgba(29,158,117,0.2); padding: 2px 8px; border-radius: 100px; margin-top: 6px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .about-section { padding: 64px 0 48px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+    .about-body { font-size: 14px; color: var(--ink-muted); line-height: 1.65; font-weight: 300; margin-top: 12px; }
+    .about-card { background: var(--surface-card); border: 1px solid var(--border-strong); border-radius: 14px; padding: 20px; }
+    .about-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, #9FE1CB, #1D9E75); display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 18px; color: white; margin-bottom: 14px; }
+    .about-name { font-size: 15px; font-weight: 500; color: var(--ink); margin-bottom: 2px; }
+    .about-role { font-size: 12px; color: var(--ink-faint); margin-bottom: 16px; }
+    .about-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .about-tag { font-size: 11px; color: var(--ink-muted); background: var(--surface); border: 1px solid var(--border); padding: 4px 10px; border-radius: 100px; }
+    .pricing-section { padding: 64px 0 48px; border-bottom: 1px solid var(--border); }
+    .pricing-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 32px; }
+    .pricing-card { background: var(--surface-card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+    .pricing-card.featured { border: 2px solid var(--accent); position: relative; }
+    .pricing-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 500; color: var(--accent-dark); background: var(--accent-light); border: 1px solid rgba(29,158,117,0.3); padding: 3px 12px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+    .pricing-tier { font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 12px; }
+    .pricing-price { font-family: var(--serif); font-size: 34px; color: var(--ink); letter-spacing: -0.02em; line-height: 1; margin-bottom: 4px; }
+    .pricing-price sup { font-size: 18px; vertical-align: super; font-family: var(--sans); }
+    .pricing-price .was { font-size: 16px; color: var(--ink-faint); text-decoration: line-through; margin-left: 6px; font-family: var(--sans); font-weight: 300; }
+    .pricing-cadence { font-size: 12px; color: var(--ink-faint); margin-bottom: 6px; }
+    .pricing-deadline { font-size: 11px; color: var(--accent-dark); background: var(--accent-light); display: inline-block; padding: 3px 8px; border-radius: 4px; margin-bottom: 16px; font-weight: 500; }
+    .pricing-features { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .pricing-feature { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink-muted); line-height: 1.4; }
+    .pricing-feature::before { content: '✓'; color: var(--accent); font-size: 12px; flex-shrink: 0; margin-top: 1px; font-weight: 700; }
+    .pricing-feature.locked { color: var(--ink-faint); }
+    .pricing-feature.locked::before { content: '–'; color: var(--ink-faint); font-weight: 400; }
+    .final-cta { padding: 72px 0 80px; text-align: center; }
+    .final-headline { font-family: var(--serif); font-size: clamp(26px, 4vw, 36px); color: var(--ink); letter-spacing: -0.02em; margin-bottom: 12px; line-height: 1.2; }
+    .final-sub { font-size: 15px; color: var(--ink-muted); margin-bottom: 32px; font-weight: 300; }
+    .final-form { display: flex; gap: 10px; max-width: 420px; margin: 0 auto 12px; }
+    .footer { padding: 24px 0 40px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
     .footer-wordmark { font-family: var(--serif); font-size: 15px; color: var(--ink-muted); }
     .footer-tagline { font-size: 12px; color: var(--ink-faint); font-style: italic; }
     @media (max-width: 540px) {
-      .footer { flex-direction: column; gap: 8px; align-items: flex-start; }
+      .about-section, .pricing-cards { grid-template-columns: 1fr; }
+      .input-row, .final-form { flex-direction: column; }
     }
   </style>
 </head>
@@ -140,24 +128,213 @@
       <div class="wordmark">
         <span class="filter">filter</span><span class="dot">.</span><span class="fyi">fyi</span>
       </div>
-      <div class="nav-pill">Coming soon</div>
+      <div class="nav-pill">Early access</div>
     </nav>
 
-    <main>
+    <section class="hero">
       <div class="hero-eyebrow">For developers keeping up with AI</div>
-      <h1>Less noise.<br>More signal.<br><em>Soon.</em></h1>
-      <p class="lede"><strong>filter.fyi</strong> tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.</p>
-      <div class="meta">
-        <span>Early access opening shortly</span>
-        <span class="dot-sep"></span>
-        <span>Built in the Netherlands</span>
+      <h1 class="hero-headline">You save links.<br>You act on <em>almost none.</em><br>Let's fix that.</h1>
+      <p class="hero-sub">Too many tabs, too many channels, not enough signal. <strong>filter.fyi</strong> tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.</p>
+
+      <div class="form-card">
+        <div id="form-body">
+          <label class="form-label">Get early access — free to start</label>
+          <div class="input-row">
+            <input class="email-input" type="email" id="email-input" placeholder="your@email.com" />
+            <button class="cta-btn" onclick="handleSubmit()">Join the list</button>
+          </div>
+          <div class="survey-divider"><span>one quick question</span></div>
+          <p class="survey-question">What's your biggest challenge keeping up with AI? <span style="color:var(--ink-faint);font-weight:400;">(tick all that apply)</span></p>
+          <div class="survey-options">
+            <label class="survey-option" id="opt-0">
+              <input type="checkbox" value="volume" onchange="handleCheck()">
+              <span class="survey-option-text">Too much content, not enough time to read it all</span>
+            </label>
+            <label class="survey-option" id="opt-1">
+              <input type="checkbox" value="relevance" onchange="handleCheck()">
+              <span class="survey-option-text">Hard to know what's actually relevant to my work vs. hype</span>
+            </label>
+            <label class="survey-option" id="opt-2">
+              <input type="checkbox" value="fragmentation" onchange="handleCheck()">
+              <span class="survey-option-text">My sources are spread across too many apps — I forget to check half of them</span>
+            </label>
+            <label class="survey-option" id="opt-3">
+              <input type="checkbox" value="action" onchange="handleCheck()">
+              <span class="survey-option-text">I save things but never act on them — no system, just guilt</span>
+            </label>
+            <label class="survey-option all-of-above" id="opt-all" onclick="selectAll()">
+              <span class="survey-option-text all-of-above-text">✓ Honestly? All of the above.</span>
+            </label>
+          </div>
+          <div class="multi-hint" id="multi-hint">Checked more than one? This is definitely built for you.</div>
+        </div>
+        <div class="success-state" id="success-state">
+          <div class="success-icon">✓</div>
+          <div class="success-title">You're on the list.</div>
+          <p class="success-sub">I'll be in touch with early access. Thanks for answering — it genuinely helps shape the product.</p>
+        </div>
       </div>
-    </main>
+      <p class="form-fine-print">No spam. No newsletter. Just a message when early access opens.</p>
+    </section>
+
+    <section class="problem-section">
+      <p class="section-label">Sound familiar?</p>
+      <ul class="problem-list">
+        <li class="problem-item">
+          <span class="problem-num">1</span>
+          <span class="problem-text"><strong>You scroll X, LinkedIn, YouTube in the evenings.</strong> You call it research. Mostly it's anxiety with a good UI. The useful stuff gets saved and quietly forgotten.</span>
+        </li>
+        <li class="problem-item">
+          <span class="problem-num">2</span>
+          <span class="problem-text"><strong>Monday arrives and you've got nothing to show for it.</strong> Someone in sprint planning mentions agent frameworks. You've heard of them. Vaguely. You stay quiet.</span>
+        </li>
+        <li class="problem-item">
+          <span class="problem-num">3</span>
+          <span class="problem-text"><strong>The restructuring news doesn't help.</strong> Your job is probably fine. But "probably fine" stops feeling fine when you're not sure if you're keeping pace with where the industry is heading.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="how-section">
+      <h2 class="section-headline">How it works</h2>
+      <p class="section-sub">A simple weekly ritual. Not another app to manage.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-left"><div class="step-dot">1</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <div class="step-title">Share anything, get an instant verdict</div>
+            <p class="step-desc">Paste a URL or share directly from your phone. You get back: the main idea, why it matters for your work specifically, what to do with it, and how long it'll actually take.</p>
+            <span class="step-tag">Free tier</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-dot">2</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <div class="step-title">Your trusted channels, on autopilot</div>
+            <p class="step-desc">Add the YouTube channels, Substacks, and blogs you already follow. filter.fyi monitors them and surfaces new drops ranked by relevance — no app-switching, no forgotten feeds.</p>
+            <span class="step-tag">Pro</span>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left"><div class="step-dot">3</div><div class="step-line"></div></div>
+          <div class="step-content">
+            <div class="step-title">Friday digest. Weekend clarity. Monday confidence.</div>
+            <p class="step-desc">A weekly digest ranks everything by relevance, clusters related topics, and flags what actually lasted vs. what was a 3-day hype cycle. Read it over coffee. Show up prepared.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="about-section">
+      <div class="about-left">
+        <h2 class="section-headline" style="margin-bottom:4px;">Built by someone who's been through it.</h2>
+        <p class="about-body" style="margin-top:16px;">After 20+ years in software, my company was restructured. New ownership, cost cuts, a push toward automation. I watched the writing on the wall — and I wasn't the only one.</p>
+        <p class="about-body">I built this tool for myself while navigating that transition. I've been using it every day since. At some point I started asking myself why I hadn't shared it yet.</p>
+        <p class="about-body">This won't guarantee your job. But it will end the feeling of falling behind — and that's worth something.</p>
+      </div>
+      <div>
+        <div class="about-card">
+          <div class="about-avatar">J</div>
+          <div class="about-name">Johannes</div>
+          <div class="about-role">Builder · AI practitioner · Netherlands</div>
+          <div class="about-tags">
+            <span class="about-tag">20+ yrs software</span>
+            <span class="about-tag">AI consulting</span>
+            <span class="about-tag">Daily user</span>
+            <span class="about-tag">Built this for me first</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing-section">
+      <p class="section-label">Pricing</p>
+      <h2 class="section-headline">Less than two coffees a week.</h2>
+      <p class="section-sub">Free to try. Pay when it earns its place in your routine.</p>
+      <div class="pricing-cards">
+        <div class="pricing-card">
+          <div class="pricing-tier">Free</div>
+          <div class="pricing-price"><sup>€</sup>0</div>
+          <div class="pricing-cadence">forever</div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">Paste any URL, get a verdict instantly</li>
+            <li class="pricing-feature">Main idea, relevance, next step, time needed</li>
+            <li class="pricing-feature">Weekly digest email</li>
+            <li class="pricing-feature locked">Channel monitoring</li>
+            <li class="pricing-feature locked">Topic evolution tracking</li>
+            <li class="pricing-feature locked">Push alerts for new drops</li>
+          </ul>
+        </div>
+        <div class="pricing-card featured">
+          <div class="pricing-badge">Early access — limited spots</div>
+          <div class="pricing-tier">Pro</div>
+          <div class="pricing-price"><sup>€</sup>9<span class="was">€25</span></div>
+          <div class="pricing-cadence">per month · or €90/year</div>
+          <div class="pricing-deadline">Early access price — until end of summer 2026</div>
+          <ul class="pricing-features">
+            <li class="pricing-feature">Everything in free</li>
+            <li class="pricing-feature">Auto-monitor your trusted channels</li>
+            <li class="pricing-feature">Push alerts for relevant new drops</li>
+            <li class="pricing-feature">Topic evolution — hype vs. lasting signal</li>
+            <li class="pricing-feature">Dashboard for your saved content</li>
+            <li class="pricing-feature">Lock in early price forever</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta">
+      <h2 class="final-headline">Stop the tabs.<br>Start the habit.</h2>
+      <p class="final-sub">Join the early access list. Free to start, no credit card needed.</p>
+      <div class="final-form">
+        <input class="email-input" type="email" id="email-input-2" placeholder="your@email.com" style="flex:1;" />
+        <button class="cta-btn" onclick="handleSubmit2()">Join the list</button>
+      </div>
+      <p class="form-fine-print">No spam. Just a message when the doors open.</p>
+    </section>
 
     <footer class="footer">
       <div class="footer-wordmark">filter.fyi</div>
       <div class="footer-tagline">relevant, not reactive.</div>
     </footer>
   </div>
+
+  <script>
+    function handleCheck() {
+      const boxes = document.querySelectorAll('#opt-0 input, #opt-1 input, #opt-2 input, #opt-3 input');
+      let checked = 0;
+      boxes.forEach(b => {
+        b.closest('.survey-option').classList.toggle('checked', b.checked);
+        if (b.checked) checked++;
+      });
+      document.getElementById('multi-hint').classList.toggle('visible', checked >= 2);
+      document.getElementById('opt-all').classList.toggle('checked', checked === 4);
+    }
+    function selectAll() {
+      const boxes = document.querySelectorAll('#opt-0 input, #opt-1 input, #opt-2 input, #opt-3 input');
+      const allChecked = Array.from(boxes).every(b => b.checked);
+      boxes.forEach(b => b.checked = !allChecked);
+      handleCheck();
+    }
+    function handleSubmit() {
+      const inp = document.getElementById('email-input');
+      if (!inp.value || !inp.value.includes('@')) {
+        inp.style.borderColor = '#E24B4A';
+        inp.focus();
+        setTimeout(() => inp.style.borderColor = '', 1500);
+        return;
+      }
+      document.getElementById('form-body').style.display = 'none';
+      document.getElementById('success-state').style.display = 'block';
+    }
+    function handleSubmit2() {
+      const inp = document.getElementById('email-input-2');
+      if (!inp.value || !inp.value.includes('@')) { inp.focus(); return; }
+      inp.value = ''; inp.placeholder = '✓ You\'re on the list — talk soon.';
+      inp.disabled = true;
+      inp.nextElementSibling.disabled = true;
+      inp.nextElementSibling.style.opacity = '0.4';
+    }
+  </script>
 </body>
 </html>
