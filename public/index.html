@@ -50,7 +50,6 @@
     .eyebrow::before { content: '— '; color: var(--green); }
     h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.1; letter-spacing: -0.035em;
          font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
-    h1 .strike { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--ink-2); }
     .lede { font-size: 16px; color: var(--ink-2); margin-bottom: 30px; max-width: 560px; line-height: 1.6; }
     .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px; }
 
@@ -198,7 +197,7 @@
 
     <section class="hero">
       <div class="eyebrow">For developers keeping up with AI</div>
-      <h1>You save links.<br>You act on <span class="strike">almost</span> <span class="hl">none.</span><br>Let's fix that.</h1>
+      <h1>So much noise.<br>Where's the signal?<br>Let's <span class="hl">filter.</span></h1>
       <p class="lede">Too many tabs, too many channels, not enough signal. <b>filter.fyi</b> tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.</p>
 
       <div class="form-card">
@@ -216,7 +215,7 @@
               <label class="survey-option" id="opt-0">
                 <input type="checkbox" value="volume" onchange="handleCheck()">
                 <span class="box" aria-hidden="true">[ ]</span>
-                <span>Too much content, not enough time to read it all</span>
+                <span>Too much content, not enough time to read/watch/listen to it all</span>
               </label>
               <label class="survey-option" id="opt-1">
                 <input type="checkbox" value="relevance" onchange="handleCheck()">
@@ -226,12 +225,12 @@
               <label class="survey-option" id="opt-2">
                 <input type="checkbox" value="fragmentation" onchange="handleCheck()">
                 <span class="box" aria-hidden="true">[ ]</span>
-                <span>Sources spread across too many apps — I forget half</span>
+                <span>Sources spread across too many apps — I forget half of the opened notifications</span>
               </label>
               <label class="survey-option" id="opt-3">
                 <input type="checkbox" value="action" onchange="handleCheck()">
                 <span class="box" aria-hidden="true">[ ]</span>
-                <span>I save things but never act on them — no system, just guilt</span>
+                <span>I do save things but never act on them — no system, just guilt</span>
               </label>
               <div class="survey-option all-of-above" id="opt-all" role="button" tabindex="0" aria-pressed="false" onclick="selectAll(event)" onkeydown="handleOptAllKey(event)">
                 <span class="box" aria-hidden="true">[*]</span>
@@ -263,7 +262,7 @@
       </div>
       <div class="prob">
         <div class="prob-n">03</div>
-        <p><b>The restructuring news doesn't help.</b> <span>Your job is probably fine. But "probably fine" stops feeling fine when you're not sure if you're keeping pace with where the industry is heading.</span></p>
+        <p><b>The restructuring news doesn't help.</b> <span>Your job is probably fine. But it's hard to stay calm when you're not sure you're keeping pace with where the industry is heading.</span></p>
       </div>
     </section>
 
@@ -282,15 +281,15 @@
         <div class="step">
           <div class="step-n">02</div>
           <div>
-            <div class="step-t">Your trusted channels, on autopilot<span class="step-tag">pro</span></div>
-            <div class="step-d">Add the YouTube channels, Substacks, and blogs you already follow. filter.fyi monitors them and surfaces new drops ranked by relevance — no app-switching, no forgotten feeds.</div>
+            <div class="step-t">Friday digest. Weekend clarity. Monday confidence.<span class="step-tag free">free</span></div>
+            <div class="step-d">A weekly digest ranks everything by relevance, clusters related topics, and flags what actually lasted vs. what was a 3-day hype cycle. Read it over coffee. Show up prepared.</div>
           </div>
         </div>
         <div class="step">
           <div class="step-n">03</div>
           <div>
-            <div class="step-t">Friday digest. Weekend clarity. Monday confidence.</div>
-            <div class="step-d">A weekly digest ranks everything by relevance, clusters related topics, and flags what actually lasted vs. what was a 3-day hype cycle. Read it over coffee. Show up prepared.</div>
+            <div class="step-t">Your trusted channels, on autopilot, 24/7<span class="step-tag">pro</span></div>
+            <div class="step-d">Add the YouTube channels, Substacks, and blogs you already follow. <b>filter.fyi</b> monitors them and surfaces new drops ranked by relevance — no app-switching, no forgotten feeds.</div>
           </div>
         </div>
       </div>
@@ -301,24 +300,24 @@
       <h2>Built by someone who's <span class="hl">been through it.</span></h2>
       <div class="about" style="margin-top: 20px;">
         <div>
-          <p>After 20+ years in software, my company was restructured. New ownership, cost cuts, a push toward automation. I watched the writing on the wall — and I wasn't the only one.</p>
-          <p>I built this tool for myself while navigating that transition. I've been using it every day since. At some point I started asking myself why I hadn't shared it yet.</p>
-          <p><b>This won't guarantee your job.</b> But it will end the feeling of falling behind — and that's worth something.</p>
+          <p>After 20+ years in software, my company was restructured. New ownership, several rounds of cost cuts, a push toward automation. I watched the writing on the wall — and I wasn't the only one.</p>
+          <p>I built this tool for myself while navigating this huge shift in the industry. I've been using it every day since. At some point I started asking myself why I hadn't shared it yet.</p>
+          <p><b>This won't guarantee your job.</b> But it will end the feeling of falling behind — <b><span class="hl">and that's worth something.</span></b></p>
         </div>
         <div class="about-card">
           <div class="name">Johannes</div>
           <div class="role">Builder · NL</div>
           <div class="kv"><b>experience</b><span>20+ yrs</span></div>
           <div class="kv"><b>discipline</b><span>software</span></div>
-          <div class="kv"><b>uses</b><span>daily</span></div>
-          <div class="kv"><b>built for</b><span>self first</span></div>
+          <div class="kv"><b>degree</b><span>Computational Linguistics</span></div>
+          <div class="kv"><b>interests</b><span>AI tooling · NLP · indie building</span></div>
         </div>
       </div>
     </section>
 
     <section class="section">
       <div class="section-label">Pricing</div>
-      <h2>Less than <span class="hl">two coffees</span> a week.</h2>
+      <h2>Less than <span class="hl">two double espressos</span> a week.</h2>
       <p class="section-sub">Free to try. Pay when it earns its place in your routine.</p>
       <div class="price-wrap">
         <div class="price">
@@ -335,8 +334,8 @@
         </div>
         <div class="price">
           <div class="price-tier">PRO · EARLY ACCESS</div>
-          <div class="price-fig"><sup>€</sup>9<span class="was">€25</span></div>
-          <div class="price-cadence">per month · or €90/year</div>
+          <div class="price-fig"><sup>€</sup>8<span class="was">€25</span></div>
+          <div class="price-cadence">per month · or €80/year</div>
           <div class="price-deadline">→ early price until end of summer 2026</div>
           <div class="price-feat">Everything in free</div>
           <div class="price-feat">Auto-monitor your trusted channels</div>
