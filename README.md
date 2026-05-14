@@ -60,7 +60,8 @@ npm run db:list:remote
 
 Confirmation and notification emails are sent via Resend. Config:
 
-- `FROM_EMAIL` — set in `wrangler.jsonc` (`vars`); must be an address on a Resend-verified domain
+- `FROM_EMAIL` — set in `wrangler.jsonc` (`vars`); must be an address on a Resend-verified domain (`mail.filter.fyi`)
+- `REPLY_TO_EMAIL` — set in `wrangler.jsonc` (`vars`); a human address on the root domain that replies route to
 - `RESEND_API_KEY` — secret: `npx wrangler secret put RESEND_API_KEY`
 - `NOTIFY_EMAIL` — secret: `npx wrangler secret put NOTIFY_EMAIL` (where new-signup pings go)
 

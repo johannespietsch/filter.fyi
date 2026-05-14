@@ -2,6 +2,7 @@ interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   FROM_EMAIL?: string;
+  REPLY_TO_EMAIL?: string;
   RESEND_API_KEY?: string;
   NOTIFY_EMAIL?: string;
 }
@@ -144,6 +145,7 @@ async function sendEmail(
         to: msg.to,
         subject: msg.subject,
         html: msg.html,
+        ...(env.REPLY_TO_EMAIL ? { reply_to: env.REPLY_TO_EMAIL } : {}),
       }),
     });
     if (!res.ok) {

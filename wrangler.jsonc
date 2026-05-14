@@ -10,7 +10,8 @@
 		"enabled": true
 	},
 	"vars": {
-		"FROM_EMAIL": "filter.fyi <hello@filter.fyi>"
+		"FROM_EMAIL": "filter.fyi <hello@mail.filter.fyi>",
+		"REPLY_TO_EMAIL": "hello@filter.fyi"
 	},
 	"assets": {
 		"directory": "./public",
