@@ -113,6 +113,7 @@ async function sendNotifications(env: Env, signup: Signup): Promise<void> {
       to: signup.email,
       subject: "You're on the filter.fyi list",
       html: confirmationEmail(),
+      text: confirmationEmailText(),
     }),
   ];
 
@@ -122,6 +123,7 @@ async function sendNotifications(env: Env, signup: Signup): Promise<void> {
         to: env.NOTIFY_EMAIL,
         subject: `New filter.fyi signup — ${signup.email}`,
         html: notificationEmail(signup),
+        text: notificationEmailText(signup),
       })
     );
   }
@@ -131,7 +133,7 @@ async function sendNotifications(env: Env, signup: Signup): Promise<void> {
 
 async function sendEmail(
   env: Env,
-  msg: { to: string; subject: string; html: string }
+  msg: { to: string; subject: string; html: string; text: string }
 ): Promise<void> {
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -145,6 +147,7 @@ async function sendEmail(
         to: msg.to,
         subject: msg.subject,
         html: msg.html,
+        text: msg.text,
         ...(env.REPLY_TO_EMAIL ? { reply_to: env.REPLY_TO_EMAIL } : {}),
       }),
     });
@@ -201,6 +204,35 @@ function notificationEmail(signup: Signup): string {
     <p style="margin:0 0 6px;color:#5e5e58;"><b style="color:#1c1c1a;">challenges</b></p>
     <ul style="margin:0;padding-left:18px;color:#5e5e58;">${challengeList}</ul>
   `);
+}
+
+function confirmationEmailText(): string {
+  return [
+    "You're on the list.",
+    "",
+    "Thanks for signing up for early access to filter.fyi.",
+    "",
+    "I'll be in touch when early access opens — no spam, no newsletter,",
+    "just one message when there's something real to show you.",
+    "",
+    "— Johannes",
+    "",
+    "filter.fyi — relevant, not reactive.",
+  ].join("\n");
+}
+
+function notificationEmailText(signup: Signup): string {
+  const challenges = signup.challenges.length
+    ? signup.challenges.map((c) => `  - ${CHALLENGE_LABELS[c] ?? c}`).join("\n")
+    : "  (none selected)";
+  return [
+    "New signup",
+    "",
+    `email:   ${signup.email}`,
+    `source:  ${signup.source}`,
+    "challenges:",
+    challenges,
+  ].join("\n");
 }
 
 function escapeHtml(s: string): string {

@@ -10,7 +10,7 @@
 		"enabled": true
 	},
 	"vars": {
-		"FROM_EMAIL": "filter.fyi <hello@mail.filter.fyi>",
+		"FROM_EMAIL": "Johannes from filter.fyi <hello@mail.filter.fyi>",
 		"REPLY_TO_EMAIL": "hello@filter.fyi"
 	},
 	"assets": {
