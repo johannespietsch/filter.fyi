@@ -1,14 +1,27 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "filter-fyi",
-  "compatibility_date": "2026-05-13",
-  "observability": {
-    "enabled": true
-  },
-  "assets": {
-    "directory": "./public"
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "filter-fyi",
+	"main": "src/worker.ts",
+	"compatibility_date": "2026-05-13",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"FROM_EMAIL": "filter.fyi <hello@mail.filter.fyi>",
+		"REPLY_TO_EMAIL": "hello@filter.fyi"
+	},
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "filter-fyi-waitlist",
+			"database_id": "e9b7aa24-9b69-4e77-8569-b7cc7f065fcf"
+		}
+	]
 }

@@ -1,0 +1,6 @@
+# Copy to .dev.vars and fill in for local development (`npm run dev`).
+# In deployed environments these are set with `npx wrangler secret put <NAME>`.
+# .dev.vars is gitignored; this example file is committed.
+
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+NOTIFY_EMAIL=you@example.com
