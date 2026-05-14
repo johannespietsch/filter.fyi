@@ -58,10 +58,12 @@ npm run db:list:remote
 
 ## Email
 
-Confirmation and notification emails are sent via Resend. Config:
+Confirmation and notification emails are sent via Resend. Sending originates from the `mail.filter.fyi` subdomain, so transactional volume never touches the root domain's reputation.
 
-- `FROM_EMAIL` — set in `wrangler.jsonc` (`vars`); must be an address on a Resend-verified domain (`mail.filter.fyi`)
-- `REPLY_TO_EMAIL` — set in `wrangler.jsonc` (`vars`); a human address on the root domain that replies route to
+Config:
+
+- `FROM_EMAIL` — `wrangler.jsonc` (`vars`): `filter.fyi <hello@mail.filter.fyi>`
+- `REPLY_TO_EMAIL` — `wrangler.jsonc` (`vars`): `hello@filter.fyi` — a human address replies route to
 - `RESEND_API_KEY` — secret: `npx wrangler secret put RESEND_API_KEY`
 - `NOTIFY_EMAIL` — secret: `npx wrangler secret put NOTIFY_EMAIL` (where new-signup pings go)
 
@@ -69,9 +71,19 @@ For local dev, put `RESEND_API_KEY` and `NOTIFY_EMAIL` in `.dev.vars`.
 
 If `RESEND_API_KEY` is unset, signups still succeed — email sending is skipped gracefully. Only brand-new signups trigger emails; re-submissions just update the row.
 
+### DNS & deliverability
+
+All records live in the `filter.fyi` Cloudflare zone:
+
+- **Resend** (outbound, `mail.filter.fyi`) — SPF + DKIM + a return-path MX on `send.mail`
+- **Cloudflare Email Routing** (inbound) — `hello@filter.fyi` forwards to a real inbox; this is what makes `REPLY_TO_EMAIL` deliverable
+- **DMARC** — `_dmarc` TXT, currently `p=none` (monitor-only); reports aggregate to Cloudflare's DMARC dashboard. **Follow-up: tighten to `p=quarantine`, then `p=reject`,** once the dashboard confirms legit mail is passing alignment.
+
 ## Deployment
 
 Pushes to `main` auto-deploy via Cloudflare's GitHub integration. Feature branches and PRs get preview URLs — keep `main` shippable and do non-trivial work on a branch.
+
+Secrets (`RESEND_API_KEY`, `NOTIFY_EMAIL`) are set on the production Worker with `wrangler secret put` — this only works *after* the Worker has been deployed at least once. Preview deployments don't carry the secrets, so they exercise the graceful-degradation path (signups stored, email skipped).
 
 ## Not yet wired up
 
