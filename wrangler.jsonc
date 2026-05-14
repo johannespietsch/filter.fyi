@@ -9,6 +9,9 @@
 	"observability": {
 		"enabled": true
 	},
+	"vars": {
+		"FROM_EMAIL": "filter.fyi <hello@filter.fyi>"
+	},
 	"assets": {
 		"directory": "./public",
 		"binding": "ASSETS"
