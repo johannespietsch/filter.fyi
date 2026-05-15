@@ -30,6 +30,34 @@ npm run dev
 
 `wrangler dev` uses a local D1 database by default — dev queries never touch production data.
 
+### Local mock backend (`research-companion`)
+
+The URL→analysis logic lives in a separate repo. For frontend/Worker development you don't need the real backend running — `dev/mock-bot.mjs` is a zero-dep Node script that speaks the agreed `/api/try` contract.
+
+```bash
+npm run mock-bot          # in a second terminal, listens on :8788
+npm run dev               # main worker on :8787
+```
+
+Defaults in `.dev.vars.example` point `BOT_API_URL` at the mock. Trigger edge cases by adding a query flag to the submitted URL:
+
+| URL contains | Mock response |
+|---|---|
+| `?mock=no-transcript` *or* path `/no-transcript` | `422 {error:"no-transcript"}` — Worker maps to a friendly 415 |
+| `?mock=500` | `500 {error:"bot-error"}` |
+| `?mock=slow` | 3s delay then success |
+| `?mock=invalid` | `400 {error:"invalid-url"}` |
+| anything else | `200` with a sample analysis; `source_type` inferred from the URL (article / youtube / social / pdf) |
+
+Smoke-test the mock directly:
+
+```bash
+curl -sX POST http://localhost:8788/api/try \
+  -H 'content-type: application/json' \
+  -H 'x-filter-fyi-secret: local-dev-secret' \
+  -d '{"url":"https://example.com/post"}' | jq
+```
+
 ## Database
 
 The `waitlist` table:

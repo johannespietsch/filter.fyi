@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "mock-bot": "node dev/mock-bot.mjs",
     "deploy": "wrangler deploy",
     "db:init:local": "wrangler d1 execute filter-fyi-waitlist --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./schema.sql",
