@@ -7,6 +7,7 @@
 //   ?mock=no-transcript   → 422 {error:"no-transcript"} (Worker maps to 415)
 //   ?mock=500             → 500 server error
 //   ?mock=slow            → 3s delay, then success
+//   ?mock=hang            → 30s delay (for testing Worker fetch timeout)
 //   ?mock=invalid         → 400 {error:"invalid-url"}
 
 import { createServer } from "node:http";
@@ -32,7 +33,11 @@ function classify(url) {
   return "article";
 }
 
+// Mirror the real backend's current quirk: PDFs come back with
+// source_type="article" because the Python fetcher returns that. The
+// Worker is expected to normalize on its side.
 function buildSuccess(url, sourceType) {
+  const reportedSourceType = sourceType === "pdf" ? "article" : sourceType;
   const samples = {
     article: {
       title: "The unreasonable effectiveness of small models for relevance ranking",
@@ -87,7 +92,7 @@ function buildSuccess(url, sourceType) {
   return {
     url,
     title: a.title,
-    source_type: sourceType,
+    source_type: reportedSourceType,
     image_urls:
       sourceType === "youtube"
         ? ["https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"]
@@ -164,6 +169,9 @@ const server = createServer(async (req, res) => {
   }
   if (/mock=slow\b/.test(url)) {
     await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (/mock=hang\b/.test(url)) {
+    await new Promise((r) => setTimeout(r, 30000));
   }
 
   return send(res, 200, buildSuccess(url, classify(url)));

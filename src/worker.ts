@@ -7,6 +7,7 @@ interface Env {
   NOTIFY_EMAIL?: string;
   BOT_API_URL?: string;
   BOT_API_KEY?: string;
+  BOT_TIMEOUT_MS?: string;
 }
 
 interface Signup {
@@ -28,6 +29,9 @@ const CHALLENGE_LABELS: Record<string, string> = {
 const ANON_COOKIE = "fyi_anon";
 const ANON_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1y
 const ANON_DAILY_LIMIT = 2;
+const IP_DAILY_LIMIT = 10; // higher than anon so a shared NAT doesn't lock everyone out
+const BOT_TIMEOUT_MS_DEFAULT = 25_000;
+const RATE_LIMIT_CLEANUP_PROBABILITY = 0.01; // ~1% of /api/try calls sweep old rows
 const SLOW_SOURCE_TYPES = new Set(["video"]); // Phase 1 bounces these before calling the bot
 
 export default {
@@ -41,7 +45,7 @@ export default {
 
     if (url.pathname === "/api/try") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
-      return handleTry(req, env);
+      return handleTry(req, env, ctx);
     }
 
     return env.ASSETS.fetch(req);
@@ -286,18 +290,16 @@ interface BotResponse {
   };
 }
 
-async function handleTry(req: Request, env: Env): Promise<Response> {
+async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   // Get or mint anonymous device id (so a single browser's pre-signup
   // summaries can later be claimed by an account in Phase 2).
   const cookies = parseCookies(req.headers.get("cookie"));
-  let anonId = cookies[ANON_COOKIE];
-  let mintedCookie = false;
-  if (!anonId || !isValidAnonId(anonId)) {
-    anonId = crypto.randomUUID();
-    mintedCookie = true;
-  }
+  const existing = cookies[ANON_COOKIE];
+  const mintedCookie = !existing || !isValidAnonId(existing);
+  const anonId = mintedCookie ? crypto.randomUUID() : existing;
+
   const respond = (body: unknown, status = 200) =>
-    json(body, status, mintedCookie ? { "set-cookie": anonCookieHeader(anonId!) } : undefined);
+    json(body, status, mintedCookie ? { "set-cookie": anonCookieHeader(anonId) } : undefined);
 
   if (!req.headers.get("content-type")?.includes("application/json")) {
     return respond({ error: "expected-json" }, 415);
@@ -315,8 +317,8 @@ async function handleTry(req: Request, env: Env): Promise<Response> {
     return respond({ error: "invalid-url", message: "Please paste a full http(s) URL." }, 400);
   }
 
-  const sourceType = classifyUrl(url);
-  if (SLOW_SOURCE_TYPES.has(sourceType)) {
+  const ourSourceType = classifyUrl(url);
+  if (SLOW_SOURCE_TYPES.has(ourSourceType)) {
     return respond(
       {
         error: "unsupported-source",
@@ -335,25 +337,35 @@ async function handleTry(req: Request, env: Env): Promise<Response> {
     );
   }
 
-  // Rate limit: atomic upsert returns the resulting count. We accept that
-  // over-limit attempts still consume a slot — that's the anti-abuse shape we want.
+  // Dual rate limit: cookie can be cleared trivially, so we also track per-IP.
+  // IP cap is higher than anon so a shared NAT doesn't lock everyone out.
+  // Over-limit attempts still consume a slot — that's the anti-abuse shape we want.
   const today = new Date().toISOString().slice(0, 10);
-  const rateKey = `anon:${anonId}`;
-  let count: number;
+  const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+  let anonCount = 0;
+  let ipCount = 0;
   try {
-    const row = await env.DB.prepare(
+    const anonRow = await env.DB.prepare(
       `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
        ON CONFLICT (key, day) DO UPDATE SET count = count + 1
        RETURNING count`
     )
-      .bind(rateKey, today)
+      .bind(`anon:${anonId}`, today)
       .first<{ count: number }>();
-    count = row?.count ?? 0;
+    anonCount = anonRow?.count ?? 0;
+    const ipRow = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+       RETURNING count`
+    )
+      .bind(`ip:${ip}`, today)
+      .first<{ count: number }>();
+    ipCount = ipRow?.count ?? 0;
   } catch (err) {
     console.error("rate_limits upsert failed", err);
     return respond({ error: "storage-error" }, 500);
   }
-  if (count > ANON_DAILY_LIMIT) {
+  if (anonCount > ANON_DAILY_LIMIT) {
     return respond(
       {
         error: "rate-limited",
@@ -363,8 +375,28 @@ async function handleTry(req: Request, env: Env): Promise<Response> {
       429
     );
   }
+  if (ipCount > IP_DAILY_LIMIT) {
+    return respond(
+      {
+        error: "rate-limited",
+        message: "Too many tries from this network today. Try again tomorrow.",
+        limit: IP_DAILY_LIMIT,
+      },
+      429
+    );
+  }
 
-  // Call bot
+  // Opportunistic cleanup so rate_limits doesn't grow forever. Cheap; runs on
+  // ~1% of calls. Replace with a cron worker once we have one.
+  if (Math.random() < RATE_LIMIT_CLEANUP_PROBABILITY) {
+    ctx.waitUntil(
+      env.DB.prepare("DELETE FROM rate_limits WHERE day < date('now', '-30 days')")
+        .run()
+        .catch((err) => console.error("rate_limits cleanup failed", err))
+    );
+  }
+
+  // Call bot — with timeout so a hung backend doesn't hang the Worker.
   let botRes: Response;
   try {
     botRes = await fetch(env.BOT_API_URL, {
@@ -374,8 +406,20 @@ async function handleTry(req: Request, env: Env): Promise<Response> {
         "x-filter-fyi-secret": env.BOT_API_KEY,
       },
       body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(Number(env.BOT_TIMEOUT_MS) || BOT_TIMEOUT_MS_DEFAULT),
     });
   } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      console.error("bot fetch timed out");
+      return respond(
+        {
+          error: "upstream-timeout",
+          message: "The summarizer took too long. Try again in a moment.",
+        },
+        504
+      );
+    }
     console.error("bot fetch threw", err);
     return respond(
       {
@@ -414,6 +458,13 @@ async function handleTry(req: Request, env: Env): Promise<Response> {
   } catch (err) {
     console.error("bot response not json", err);
     return respond({ error: "upstream-error" }, 502);
+  }
+
+  // Backend's PDF fetcher currently returns source_type="article" — our URL
+  // classifier is authoritative for PDFs so the badge stays consistent. Remove
+  // when the backend is fixed.
+  if (ourSourceType === "pdf" && summary.source_type !== "pdf") {
+    summary.source_type = "pdf";
   }
 
   const nowIso = new Date().toISOString();
