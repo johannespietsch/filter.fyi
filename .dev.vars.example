@@ -9,5 +9,5 @@ NOTIFY_EMAIL=you@example.com
 # For local dev, run `npm run mock-bot` in another terminal — it serves
 # the contract on http://localhost:8788. In prod, set BOT_API_URL to the
 # real deployment and put BOT_API_KEY via `npx wrangler secret put`.
-BOT_API_URL=http://localhost:8788
+BOT_API_URL=http://localhost:8788/api/try
 BOT_API_KEY=local-dev-secret
