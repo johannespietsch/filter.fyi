@@ -460,13 +460,6 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     return respond({ error: "upstream-error" }, 502);
   }
 
-  // Backend's PDF fetcher currently returns source_type="article" — our URL
-  // classifier is authoritative for PDFs so the badge stays consistent. Remove
-  // when the backend is fixed.
-  if (ourSourceType === "pdf" && summary.source_type !== "pdf") {
-    summary.source_type = "pdf";
-  }
-
   const nowIso = new Date().toISOString();
   let summaryId: number | undefined;
   try {

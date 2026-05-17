@@ -33,11 +33,7 @@ function classify(url) {
   return "article";
 }
 
-// Mirror the real backend's current quirk: PDFs come back with
-// source_type="article" because the Python fetcher returns that. The
-// Worker is expected to normalize on its side.
 function buildSuccess(url, sourceType) {
-  const reportedSourceType = sourceType === "pdf" ? "article" : sourceType;
   const samples = {
     article: {
       title: "The unreasonable effectiveness of small models for relevance ranking",
@@ -92,7 +88,7 @@ function buildSuccess(url, sourceType) {
   return {
     url,
     title: a.title,
-    source_type: reportedSourceType,
+    source_type: sourceType,
     image_urls:
       sourceType === "youtube"
         ? ["https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"]
