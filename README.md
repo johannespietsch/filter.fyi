@@ -77,6 +77,8 @@ npm run db:init:local    # for `npm run dev`
 npm run db:init:remote   # for deployed environments
 ```
 
+> **Heads up:** the Worker auto-deploys on merge to `main`, but D1 schema does not. Any PR that edits `schema.sql` needs `npm run db:init:remote` after the merge or the new tables/columns won't exist in prod — the Worker will throw `storage-error` 500s on any code path that touches them. The script is idempotent (`IF NOT EXISTS` everywhere), so re-running it is always safe.
+
 Inspect signups:
 
 ```bash
