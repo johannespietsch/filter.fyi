@@ -36,8 +36,10 @@
     .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; }
     .mark .dot { color: var(--green); }
     .mark .fyi { color: var(--ink-3); }
-    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); }
+    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
     .nav-meta b { color: var(--ink); font-weight: 500; }
+    .nav-meta a { color: var(--ink); text-decoration: none; padding: 3px 8px; border: 1px solid var(--ink); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green-soft); color: var(--green); border-color: var(--green); }
     .nav-meta .dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%;
                      display: inline-block; margin-right: 6px; vertical-align: middle;
                      animation: pulse 1.6s ease-in-out infinite; }
@@ -191,7 +193,7 @@
       <div class="mark">filter<span class="dot">.</span><span class="fyi">fyi</span></div>
       <div class="nav-meta">
         <span><span class="dot"></span>v0.4 · build 0117</span>
-        <span><b>early access</b></span>
+        <a href="/try">try it →</a>
       </div>
     </nav>
 

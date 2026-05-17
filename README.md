@@ -32,7 +32,7 @@ npm run dev
 
 ### Local mock backend (`research-companion`)
 
-The URL→analysis logic lives in a separate repo. For frontend/Worker development you don't need the real backend running — `dev/mock-bot.mjs` is a zero-dep Node script that speaks the agreed `/api/try` contract.
+The URL→analysis logic lives in a sibling repo (`filter.fyi-backend`, deployed to Fly.io in prod). For frontend/Worker development you don't need the real backend running — `dev/mock-bot.mjs` is a zero-dep Node script that speaks the agreed `/api/try` contract.
 
 ```bash
 npm run mock-bot          # in a second terminal, listens on :8788
@@ -111,7 +111,16 @@ All records live in the `filter.fyi` Cloudflare zone:
 
 Pushes to `main` auto-deploy via Cloudflare's GitHub integration. Feature branches and PRs get preview URLs — keep `main` shippable and do non-trivial work on a branch.
 
-Secrets (`RESEND_API_KEY`, `NOTIFY_EMAIL`) are set on the production Worker with `wrangler secret put` — this only works *after* the Worker has been deployed at least once. Preview deployments don't carry the secrets, so they exercise the graceful-degradation path (signups stored, email skipped).
+Secrets set on the production Worker via `wrangler secret put` (only works *after* the Worker has been deployed at least once):
+
+| Secret           | What it's for                                                 |
+|------------------|---------------------------------------------------------------|
+| `RESEND_API_KEY` | Outbound email (waitlist confirmations + new-signup pings)    |
+| `NOTIFY_EMAIL`   | Where new-signup pings go                                     |
+| `BOT_API_URL`    | Full URL of the backend, e.g. `https://filter-fyi-backend.fly.dev/api/try` |
+| `BOT_API_KEY`    | Shared secret — must match the backend's `FILTER_FYI_TRY_SECRET` |
+
+Preview deployments don't carry the secrets, so they exercise the graceful-degradation path (signups stored, email skipped; `/api/try` returns `service-unavailable`).
 
 ## Not yet wired up
 

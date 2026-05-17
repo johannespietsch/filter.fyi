@@ -5,6 +5,9 @@ interface Env {
   REPLY_TO_EMAIL?: string;
   RESEND_API_KEY?: string;
   NOTIFY_EMAIL?: string;
+  BOT_API_URL?: string;
+  BOT_API_KEY?: string;
+  BOT_TIMEOUT_MS?: string;
 }
 
 interface Signup {
@@ -23,6 +26,14 @@ const CHALLENGE_LABELS: Record<string, string> = {
   action: "Saves things but never acts on them",
 };
 
+const ANON_COOKIE = "fyi_anon";
+const ANON_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1y
+const ANON_DAILY_LIMIT = 2;
+const IP_DAILY_LIMIT = 10; // higher than anon so a shared NAT doesn't lock everyone out
+const BOT_TIMEOUT_MS_DEFAULT = 25_000;
+const RATE_LIMIT_CLEANUP_PROBABILITY = 0.01; // ~1% of /api/try calls sweep old rows
+const SLOW_SOURCE_TYPES = new Set(["video"]); // Phase 1 bounces these before calling the bot
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -30,6 +41,11 @@ export default {
     if (url.pathname === "/api/waitlist") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleWaitlist(req, env, ctx);
+    }
+
+    if (url.pathname === "/api/try") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleTry(req, env, ctx);
     }
 
     return env.ASSETS.fetch(req);
@@ -247,12 +263,275 @@ function isValidEmail(s: string): boolean {
   return s.length > 0 && s.length <= 254 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-    },
+function json(body: unknown, status = 200, extra?: Record<string, string>): Response {
+  const headers = new Headers({
+    "content-type": "application/json",
+    "cache-control": "no-store",
   });
+  if (extra) for (const [k, v] of Object.entries(extra)) headers.set(k, v);
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+// --- /api/try ---------------------------------------------------------------
+
+interface BotResponse {
+  url: string;
+  title?: string;
+  source_type?: string;
+  image_urls?: string[];
+  content_preview?: string;
+  verdict?: string;
+  analysis?: {
+    main_idea?: string;
+    why_it_matters?: string;
+    category?: string;
+    suggested_experiment?: string;
+    time_required?: string;
+  };
+}
+
+async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  // Get or mint anonymous device id (so a single browser's pre-signup
+  // summaries can later be claimed by an account in Phase 2).
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const existing = cookies[ANON_COOKIE];
+  const mintedCookie = !existing || !isValidAnonId(existing);
+  const anonId = mintedCookie ? crypto.randomUUID() : existing;
+
+  const respond = (body: unknown, status = 200) =>
+    json(body, status, mintedCookie ? { "set-cookie": anonCookieHeader(anonId) } : undefined);
+
+  if (!req.headers.get("content-type")?.includes("application/json")) {
+    return respond({ error: "expected-json" }, 415);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return respond({ error: "invalid-json" }, 400);
+  }
+
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+  if (!isValidHttpUrl(url)) {
+    return respond({ error: "invalid-url", message: "Please paste a full http(s) URL." }, 400);
+  }
+
+  const ourSourceType = classifyUrl(url);
+  if (SLOW_SOURCE_TYPES.has(ourSourceType)) {
+    return respond(
+      {
+        error: "unsupported-source",
+        message:
+          "Long-form video transcription is supported in the full product — join the waitlist and we'll let you know.",
+      },
+      415
+    );
+  }
+
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("bot not configured (BOT_API_URL / BOT_API_KEY missing)");
+    return respond(
+      { error: "service-unavailable", message: "The summarizer isn't configured yet." },
+      503
+    );
+  }
+
+  // Dual rate limit: cookie can be cleared trivially, so we also track per-IP.
+  // IP cap is higher than anon so a shared NAT doesn't lock everyone out.
+  // Over-limit attempts still consume a slot — that's the anti-abuse shape we want.
+  const today = new Date().toISOString().slice(0, 10);
+  const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+  let anonCount = 0;
+  let ipCount = 0;
+  try {
+    const anonRow = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+       RETURNING count`
+    )
+      .bind(`anon:${anonId}`, today)
+      .first<{ count: number }>();
+    anonCount = anonRow?.count ?? 0;
+    const ipRow = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+       RETURNING count`
+    )
+      .bind(`ip:${ip}`, today)
+      .first<{ count: number }>();
+    ipCount = ipRow?.count ?? 0;
+  } catch (err) {
+    console.error("rate_limits upsert failed", err);
+    return respond({ error: "storage-error" }, 500);
+  }
+  if (anonCount > ANON_DAILY_LIMIT) {
+    return respond(
+      {
+        error: "rate-limited",
+        message: "You've hit today's free limit — sign up to save and get more.",
+        limit: ANON_DAILY_LIMIT,
+      },
+      429
+    );
+  }
+  if (ipCount > IP_DAILY_LIMIT) {
+    return respond(
+      {
+        error: "rate-limited",
+        message: "Too many tries from this network today. Try again tomorrow.",
+        limit: IP_DAILY_LIMIT,
+      },
+      429
+    );
+  }
+
+  // Opportunistic cleanup so rate_limits doesn't grow forever. Cheap; runs on
+  // ~1% of calls. Replace with a cron worker once we have one.
+  if (Math.random() < RATE_LIMIT_CLEANUP_PROBABILITY) {
+    ctx.waitUntil(
+      env.DB.prepare("DELETE FROM rate_limits WHERE day < date('now', '-30 days')")
+        .run()
+        .catch((err) => console.error("rate_limits cleanup failed", err))
+    );
+  }
+
+  // Call bot — with timeout so a hung backend doesn't hang the Worker.
+  let botRes: Response;
+  try {
+    botRes = await fetch(env.BOT_API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-filter-fyi-secret": env.BOT_API_KEY,
+      },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(Number(env.BOT_TIMEOUT_MS) || BOT_TIMEOUT_MS_DEFAULT),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      console.error("bot fetch timed out");
+      return respond(
+        {
+          error: "upstream-timeout",
+          message: "The summarizer took too long. Try again in a moment.",
+        },
+        504
+      );
+    }
+    console.error("bot fetch threw", err);
+    return respond(
+      {
+        error: "upstream-unreachable",
+        message: "Couldn't reach the summarizer. Try again in a moment.",
+      },
+      502
+    );
+  }
+
+  if (!botRes.ok) {
+    let payload: { error?: string; message?: string } = {};
+    try {
+      payload = (await botRes.json()) as { error?: string; message?: string };
+    } catch {}
+    if (payload.error === "no-transcript") {
+      return respond(
+        {
+          error: "unsupported-source",
+          message:
+            "This video doesn't have a transcript yet — full video support is coming in the product.",
+        },
+        415
+      );
+    }
+    console.error("bot returned non-ok", botRes.status, payload);
+    return respond(
+      { error: "upstream-error", message: "The summarizer had a problem. Try a different URL?" },
+      502
+    );
+  }
+
+  let summary: BotResponse;
+  try {
+    summary = (await botRes.json()) as BotResponse;
+  } catch (err) {
+    console.error("bot response not json", err);
+    return respond({ error: "upstream-error" }, 502);
+  }
+
+  const nowIso = new Date().toISOString();
+  let summaryId: number | undefined;
+  try {
+    const row = await env.DB.prepare(
+      `INSERT INTO summaries (anon_id, url, source_type, title, verdict, payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`
+    )
+      .bind(
+        anonId,
+        url,
+        typeof summary.source_type === "string" ? summary.source_type : null,
+        typeof summary.title === "string" ? summary.title : null,
+        typeof summary.verdict === "string" ? summary.verdict : null,
+        JSON.stringify(summary),
+        nowIso
+      )
+      .first<{ id: number }>();
+    summaryId = row?.id;
+  } catch (err) {
+    // Don't fail the user-facing response — they still got a usable result.
+    console.error("summaries insert failed", err);
+  }
+
+  return respond({ ok: true, id: summaryId, summary });
+}
+
+function parseCookies(header: string | null): Record<string, string> {
+  if (!header) return {};
+  const out: Record<string, string> = {};
+  for (const pair of header.split(";")) {
+    const idx = pair.indexOf("=");
+    if (idx < 0) continue;
+    const k = pair.slice(0, idx).trim();
+    const v = pair.slice(idx + 1).trim();
+    if (k) out[k] = decodeURIComponent(v);
+  }
+  return out;
+}
+
+function anonCookieHeader(anonId: string): string {
+  return `${ANON_COOKIE}=${encodeURIComponent(anonId)}; Path=/; Max-Age=${ANON_COOKIE_MAX_AGE}; SameSite=Lax; Secure; HttpOnly`;
+}
+
+function isValidAnonId(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+function isValidHttpUrl(s: string): boolean {
+  if (s.length === 0 || s.length > 2048) return false;
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function classifyUrl(raw: string): string {
+  let host = "";
+  let path = "";
+  try {
+    const u = new URL(raw);
+    host = u.hostname.toLowerCase();
+    path = u.pathname.toLowerCase();
+  } catch {
+    return "article";
+  }
+  if (host === "youtu.be" || /(^|\.)youtube\.com$/.test(host)) return "youtube";
+  if (host === "twitter.com" || host === "x.com" || /(^|\.)twitter\.com$/.test(host)) return "social";
+  if (path.endsWith(".pdf")) return "pdf";
+  if (host === "vimeo.com" || /(^|\.)vimeo\.com$/.test(host)) return "video";
+  if (/streamyard|loom\.com|wistia/.test(host)) return "video";
+  return "article";
 }

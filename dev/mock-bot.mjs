@@ -7,6 +7,7 @@
 //   ?mock=no-transcript   → 422 {error:"no-transcript"} (Worker maps to 415)
 //   ?mock=500             → 500 server error
 //   ?mock=slow            → 3s delay, then success
+//   ?mock=hang            → 30s delay (for testing Worker fetch timeout)
 //   ?mock=invalid         → 400 {error:"invalid-url"}
 
 import { createServer } from "node:http";
@@ -164,6 +165,9 @@ const server = createServer(async (req, res) => {
   }
   if (/mock=slow\b/.test(url)) {
     await new Promise((r) => setTimeout(r, 3000));
+  }
+  if (/mock=hang\b/.test(url)) {
+    await new Promise((r) => setTimeout(r, 30000));
   }
 
   return send(res, 200, buildSuccess(url, classify(url)));
