@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>filter.fyi — relevant, not reactive</title>
+  <title>filter.fyi — relevant, not noise</title>
   <meta name="description" content="Paste any URL — article, tweet, YouTube, PDF — get a verdict in seconds. filter.fyi tells you whether it's worth your time.">
-  <meta property="og:title" content="filter.fyi — relevant, not reactive">
-  <meta property="og:description" content="For developers keeping up with AI. Less noise, more signal — a verdict for everything you paste.">
+  <meta property="og:title" content="filter.fyi — relevant, not noise">
+  <meta property="og:description" content="For everyone trying to keep up with AI. Less noise, more signal — a verdict for everything you paste.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://filter.fyi">
   <meta name="twitter:card" content="summary_large_image">
@@ -51,6 +51,9 @@
 
     /* hero */
     .hero { padding: 52px 0 36px; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 22px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
     h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.18; letter-spacing: -0.035em;
          font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
     h1 .quiet { font-weight: 400; color: var(--ink-2); }
@@ -165,6 +168,7 @@
     </nav>
 
     <section class="hero">
+      <div class="eyebrow">For everyone trying to keep up with AI</div>
       <h1>So many <span class="rot" id="rot-word" aria-live="polite">open tabs</span><br><span class="quiet">So little time</span><br>Let's <span class="hl">filter.</span></h1>
       <p class="lede"><span class="brand">filter.fyi</span> tells you what's actually worth your time —&nbsp;and quietly monitors the sources you trust, so <b>nothing&nbsp;important&nbsp;slips&nbsp;through</b>.</p>
 
@@ -217,7 +221,7 @@
     </section>
 
     <footer>
-      <span>filter.fyi — relevant, not reactive.</span>
+      <span>filter.fyi — relevant, not noise.</span>
       <a href="/join">join filter.fyi →</a>
     </footer>
   </div>
