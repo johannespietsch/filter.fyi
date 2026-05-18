@@ -190,7 +190,7 @@ function emailShell(inner: string): string {
             </td>
           </tr>
         </table>
-        <p style="margin:16px 0 0;font-family:${mono};font-size:11px;color:#9b9b91;">filter.fyi — relevant, not reactive.</p>
+        <p style="margin:16px 0 0;font-family:${mono};font-size:11px;color:#9b9b91;">filter.fyi — relevant, not noise.</p>
       </td>
     </tr>
   </table>
@@ -233,7 +233,7 @@ function confirmationEmailText(): string {
     "",
     "— Johannes",
     "",
-    "filter.fyi — relevant, not reactive.",
+    "filter.fyi — relevant, not noise.",
   ].join("\n");
 }
 
