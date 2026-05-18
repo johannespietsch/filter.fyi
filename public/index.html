@@ -162,8 +162,8 @@
   <div class="wrap">
     <nav>
       <div class="mark"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></div>
-      <div class="nav-meta">
-        <a href="/join">join →</a>
+      <div class="nav-meta" id="nav-meta">
+        <a href="/join" id="nav-join">join →</a>
       </div>
     </nav>
 
@@ -198,7 +198,7 @@
           <b>try this →</b><span id="experiment"></span>
         </div>
         <div class="result-meta" id="result-meta"></div>
-        <p class="result-save">Saving these to an account is coming next — <a href="/join">join the waitlist</a> to be there for it.</p>
+        <p class="result-save" id="result-save">Saving these to an account is coming next — <a href="/join">join the waitlist</a> to be there for it.</p>
       </article>
 
       <div class="nudge" id="nudge-waitlist" role="status">
@@ -241,6 +241,33 @@
           el.classList.remove('out');
         }, 350);
       }, 2400);
+    })();
+
+    // Reflect signed-in state in the nav + result-save copy. /api/me is cheap
+    // (one indexed lookup), so call it on every page load. Anonymous returns
+    // 401 and leaves the default DOM unchanged.
+    (() => {
+      fetch('/api/me', { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (!data?.user?.email) return;
+          const navMeta = document.getElementById('nav-meta');
+          if (navMeta) {
+            navMeta.innerHTML = '<a href="/me">your library →</a>';
+          }
+          const save = document.getElementById('result-save');
+          if (save) {
+            save.innerHTML = 'Saved to <a href="/me">your library</a>.';
+          }
+          const nudge = document.getElementById('nudge-waitlist');
+          if (nudge) nudge.remove();
+          const noticeRl = document.getElementById('notice-ratelimit');
+          if (noticeRl) {
+            const p = noticeRl.querySelector('p');
+            if (p) p.innerHTML = "You've hit today's limit. Resets tomorrow.";
+          }
+        })
+        .catch(() => {});
     })();
 
     (() => {

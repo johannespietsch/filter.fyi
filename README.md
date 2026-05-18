@@ -60,15 +60,16 @@ curl -sX POST http://localhost:8788/api/try \
 
 ## Database
 
-The `waitlist` table:
+All tables live in the same D1 (`filter-fyi-waitlist`):
 
-| column      | notes                                   |
-|-------------|-----------------------------------------|
-| id          | autoincrement primary key               |
-| email       | unique — re-signups upsert in place     |
-| challenges  | JSON array of survey answers            |
-| source      | `hero` or `final-cta`                   |
-| created_at  | ISO timestamp (set on insert only)      |
+| table          | what it holds                                                          |
+|----------------|------------------------------------------------------------------------|
+| `waitlist`     | early-access email signups + survey answers                            |
+| `summaries`    | one row per `/api/try` call — anon rows have `anon_id`, signed-in rows have `user_id` (or both, when a signed-in user submits on a device that previously used anon) |
+| `rate_limits`  | per-day counters keyed by `anon:<uuid>` / `ip:<addr>` / `user:<id>` / `login:<email>` / `login-ip:<addr>` |
+| `users`        | magic-link accounts                                                    |
+| `login_tokens` | single-use email sign-in tokens (15-minute TTL)                        |
+| `sessions`     | browser sessions backing the `fyi_session` HttpOnly cookie (30-day TTL) |
 
 Local and remote D1 are separate stores — apply the schema to both:
 
@@ -82,9 +83,26 @@ npm run db:init:remote   # for deployed environments
 Inspect signups:
 
 ```bash
-npm run db:list:local
+npm run db:list:local       # waitlist
 npm run db:list:remote
+npm run db:users:local      # registered users
+npm run db:users:remote
 ```
+
+## Auth (magic link)
+
+Sign-in is passwordless: user posts an email to `/api/login`, the Worker mints a single-use token, sends it via Resend, and the link at `/login/verify?token=…` validates the token, creates the user if needed, claims any anon summaries on that device, and sets a 30-day session cookie.
+
+| route               | method | what it does                                                                 |
+|---------------------|--------|------------------------------------------------------------------------------|
+| `POST /api/login`   | POST   | `{ email }` → send a magic link (rate-limited per email + per IP)            |
+| `GET  /login/verify`| GET    | `?token=…` → set session cookie, redirect to `/me`                           |
+| `POST /api/logout`  | POST   | clears the session cookie + DB row                                           |
+| `GET  /api/me`      | GET    | returns `{ user, summaries[] }` or 401                                       |
+
+Signed-in `/api/try` calls write `user_id` on the new `summaries` row and use a higher daily cap (`USER_DAILY_LIMIT = 25`) instead of the anon caps (3/day cookie, 10/day IP).
+
+If `RESEND_API_KEY` is not set, `/api/login` succeeds and logs the link to stdout — handy during local dev.
 
 ## Email
 

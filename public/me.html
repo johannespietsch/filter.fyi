@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your library — filter.fyi</title>
+  <meta name="description" content="Your saved verdicts on filter.fyi.">
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --amber:#b8780a; --amber-soft:#f3e7c8;
+      --red:#a83a2a;   --red-soft:#efd6d0;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
+           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    .hl { color: var(--green); }
+    ::selection { background: var(--ink); color: var(--bg-2); }
+    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
+
+    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 28px 48px; }
+    nav { display: flex; justify-content: space-between; align-items: center;
+          padding-bottom: 14px; border-bottom: 1px solid var(--ink); gap: 12px; flex-wrap: wrap; }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
+            color: var(--ink); display: inline-flex; align-items: center; }
+    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                        display: inline-block; margin-right: 8px;
+                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .nav-meta { display: flex; gap: 12px; font-size: 11px; color: var(--ink-2); align-items: center; }
+    .nav-meta a, .nav-meta button {
+      color: var(--green); text-decoration: none; padding: 3px 8px;
+      border: 1px solid var(--green); background: var(--green-soft);
+      transition: 0.15s; font: inherit; font-size: 11px; cursor: pointer;
+    }
+    .nav-meta a:hover, .nav-meta button:hover { background: var(--green); color: var(--bg-2); }
+    .nav-meta .signout { color: var(--ink-2); border-color: var(--ink-2); background: transparent; }
+    .nav-meta .signout:hover { background: var(--ink); color: var(--bg-2); border-color: var(--ink); }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    .hero { padding: 36px 0 24px; border-bottom: 1px dashed var(--ink); }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 14px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
+    h1 { font-size: clamp(24px, 4vw, 30px); line-height: 1.2; letter-spacing: -0.03em;
+         font-weight: 700; margin-bottom: 6px; text-wrap: balance; }
+    .who { font-size: 13px; color: var(--ink-2); }
+    .who b { color: var(--ink); font-weight: 500; }
+
+    .loading { padding: 24px 22px; color: var(--ink-2); font-size: 13px; }
+    .loading-dot { display: inline-block; width: 8px; height: 8px; background: var(--green);
+                   border-radius: 50%; margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; vertical-align: middle; }
+
+    .empty { padding: 36px 22px; text-align: center; color: var(--ink-2); font-size: 13px;
+             background: var(--bg-2); border: 1px solid var(--ink); margin-top: 24px; }
+    .empty h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .empty a { color: var(--green); }
+
+    .list { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .item { background: var(--bg-2); border: 1px solid var(--ink); padding: 16px 18px; }
+    .item-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+                 font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--ink-3); margin-bottom: 8px; }
+    .badge { display: inline-block; padding: 2px 7px; font-size: 10.5px; font-weight: 700;
+             letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--ink); background: var(--bg); }
+    .badge.verdict-watch { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+    .badge.verdict-skim  { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+    .badge.verdict-skip  { background: var(--red-soft);   border-color: var(--red);   color: var(--red); }
+    .item-title { font-size: 15px; line-height: 1.35; letter-spacing: -0.015em; font-weight: 700;
+                  margin-bottom: 6px; text-wrap: balance; }
+    .item-title a { text-decoration: none; color: var(--ink); }
+    .item-title a:hover { color: var(--green); }
+    .item-meta { font-size: 11px; color: var(--ink-3); }
+    .item-meta b { color: var(--ink-2); font-weight: 500; }
+
+    .item details { margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--ink); }
+    .item summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em;
+                    text-transform: uppercase; color: var(--ink-2); list-style: none;
+                    user-select: none; padding: 2px 0; }
+    .item summary::-webkit-details-marker { display: none; }
+    .item summary::before { content: '+ '; color: var(--green); font-weight: 700; }
+    .item details[open] summary::before { content: '− '; }
+    .item summary:hover { color: var(--green); }
+    .body { margin-top: 10px; font-size: 13.5px; color: var(--ink); }
+    .body p { margin-bottom: 10px; }
+    .body .why { color: var(--ink-2); }
+    .body .exp { margin-top: 10px; padding: 10px 12px; background: var(--green-soft);
+                 border-left: 2px solid var(--green); font-size: 13px; color: var(--ink); }
+    .body .exp b { display: block; font-size: 10.5px; letter-spacing: 0.14em;
+                   text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
+
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+
+    @media (max-width: 540px) {
+      .wrap { padding: 16px 18px 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/">← try another</a>
+        <button class="signout" id="signout-btn" type="button">sign out</button>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">Your library</div>
+      <h1>Saved verdicts.</h1>
+      <p class="who">Signed in as <b id="user-email">…</b></p>
+    </section>
+
+    <div class="loading" id="loading"><span class="loading-dot"></span>Loading your library…</div>
+
+    <div class="empty" id="empty" hidden>
+      <h2>Nothing here yet.</h2>
+      <p><a href="/">Paste a URL on the home page</a> — anything you submit while signed in will land here.</p>
+    </div>
+
+    <div class="list" id="list" hidden></div>
+
+    <footer>
+      <span>filter.fyi — relevant, not noise.</span>
+      <a href="/">← home</a>
+    </footer>
+  </div>
+
+  <script>
+    (() => {
+      const loading = document.getElementById('loading');
+      const empty = document.getElementById('empty');
+      const list = document.getElementById('list');
+      const userEmail = document.getElementById('user-email');
+      const signoutBtn = document.getElementById('signout-btn');
+
+      function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g,
+          (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      function hostOf(url) {
+        try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+      }
+
+      function fmtDate(iso) {
+        try {
+          const d = new Date(iso);
+          return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch { return iso; }
+      }
+
+      function renderItem(row) {
+        const s = row.summary || {};
+        const a = s.analysis || {};
+        const verdict = String(row.verdict || s.verdict || '').toLowerCase();
+        const badgeClass = ['watch','skim','skip'].includes(verdict) ? `verdict-${verdict}` : '';
+        const title = row.title || s.title || row.url;
+        const sourceType = row.source_type || s.source_type || '';
+        const time = a.time_required || '';
+        const category = a.category || '';
+        const host = hostOf(row.url);
+
+        const headBits = [
+          `<span class="badge ${badgeClass}">${escapeHtml(verdict || 'verdict')}</span>`,
+          sourceType ? `<span>· ${escapeHtml(sourceType)}</span>` : '',
+          time ? `<span>· ${escapeHtml(time)}</span>` : '',
+          `<span style="margin-left:auto;">${escapeHtml(fmtDate(row.created_at))}</span>`,
+        ].filter(Boolean).join('');
+
+        const metaBits = [
+          category ? `<b>category</b> ${escapeHtml(category)}` : '',
+          host ? `<b>source</b> <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>` : '',
+        ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+        const mainIdea = a.main_idea
+          ? `<p><b>${escapeHtml(a.main_idea)}</b></p>` : '';
+        const why = a.why_it_matters
+          ? `<p class="why">${escapeHtml(a.why_it_matters)}</p>` : '';
+        const exp = a.suggested_experiment
+          ? `<div class="exp"><b>try this →</b>${escapeHtml(a.suggested_experiment)}</div>` : '';
+
+        return `
+          <article class="item">
+            <div class="item-head">${headBits}</div>
+            <h2 class="item-title"><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
+            <div class="item-meta">${metaBits}</div>
+            ${mainIdea || why || exp ? `
+              <details>
+                <summary>Show analysis</summary>
+                <div class="body">${mainIdea}${why}${exp}</div>
+              </details>` : ''}
+          </article>
+        `;
+      }
+
+      async function load() {
+        let res, payload;
+        try {
+          res = await fetch('/api/me', { credentials: 'same-origin' });
+          payload = await res.json().catch(() => ({}));
+        } catch {
+          loading.textContent = 'Network problem. Refresh to retry.';
+          return;
+        }
+        if (res.status === 401) {
+          location.replace('/login');
+          return;
+        }
+        if (!res.ok) {
+          loading.textContent = 'Something went wrong loading your library.';
+          return;
+        }
+        userEmail.textContent = payload.user?.email || '';
+        loading.hidden = true;
+        const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
+        if (rows.length === 0) {
+          empty.hidden = false;
+          return;
+        }
+        list.innerHTML = rows.map(renderItem).join('');
+        list.hidden = false;
+      }
+
+      signoutBtn.addEventListener('click', async () => {
+        signoutBtn.disabled = true;
+        try {
+          await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+        } catch {}
+        location.replace('/');
+      });
+
+      load();
+    })();
+  </script>
+</body>
+</html>

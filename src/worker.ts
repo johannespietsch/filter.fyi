@@ -34,6 +34,13 @@ const BOT_TIMEOUT_MS_DEFAULT = 25_000;
 const RATE_LIMIT_CLEANUP_PROBABILITY = 0.01; // ~1% of /api/try calls sweep old rows
 const SLOW_SOURCE_TYPES = new Set(["video"]); // Phase 1 bounces these before calling the bot
 
+const SESSION_COOKIE = "fyi_session";
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const USER_DAILY_LIMIT = 25;
+const LOGIN_DAILY_LIMIT_PER_EMAIL = 5;
+const LOGIN_DAILY_LIMIT_PER_IP = 20;
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
@@ -46,6 +53,26 @@ export default {
     if (url.pathname === "/api/try") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleTry(req, env, ctx);
+    }
+
+    if (url.pathname === "/api/login") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleLogin(req, env, ctx);
+    }
+
+    if (url.pathname === "/login/verify") {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleLoginVerify(req, env, ctx);
+    }
+
+    if (url.pathname === "/api/logout") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleLogout(req, env);
+    }
+
+    if (url.pathname === "/api/me") {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleMe(req, env);
     }
 
     return env.ASSETS.fetch(req);
@@ -291,9 +318,13 @@ interface BotResponse {
 }
 
 async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  // Get or mint anonymous device id (so a single browser's pre-signup
-  // summaries can later be claimed by an account in Phase 2).
+  // Detect signed-in user up front — when present, summaries get the user_id
+  // and rate limits are higher. Anon cookie is still managed so pre-signup
+  // history on this device remains claimable; signed-in writes also stamp
+  // anon_id when available, purely for device traceability.
   const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+
   const existing = cookies[ANON_COOKIE];
   const mintedCookie = !existing || !isValidAnonId(existing);
   const anonId = mintedCookie ? crypto.randomUUID() : existing;
@@ -337,53 +368,79 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     );
   }
 
-  // Dual rate limit: cookie can be cleared trivially, so we also track per-IP.
-  // IP cap is higher than anon so a shared NAT doesn't lock everyone out.
-  // Over-limit attempts still consume a slot — that's the anti-abuse shape we want.
+  // Rate limiting:
+  // - Signed-in: per-user counter (USER_DAILY_LIMIT). No anon/IP gate — they
+  //   identified themselves and we know who to throttle.
+  // - Anonymous: dual counter (cookie + IP). Cookie can be cleared trivially,
+  //   so IP is the backstop; IP cap is higher so a shared NAT doesn't lock
+  //   everyone out. Over-limit attempts still consume a slot — that's the
+  //   anti-abuse shape we want.
   const today = new Date().toISOString().slice(0, 10);
   const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
-  let anonCount = 0;
-  let ipCount = 0;
+  let limitInfo: { used: number; limit: number };
   try {
-    const anonRow = await env.DB.prepare(
-      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
-       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
-       RETURNING count`
-    )
-      .bind(`anon:${anonId}`, today)
-      .first<{ count: number }>();
-    anonCount = anonRow?.count ?? 0;
-    const ipRow = await env.DB.prepare(
-      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
-       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
-       RETURNING count`
-    )
-      .bind(`ip:${ip}`, today)
-      .first<{ count: number }>();
-    ipCount = ipRow?.count ?? 0;
+    if (session) {
+      const userRow = await env.DB.prepare(
+        `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+         ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+         RETURNING count`
+      )
+        .bind(`user:${session.userId}`, today)
+        .first<{ count: number }>();
+      const used = userRow?.count ?? 0;
+      if (used > USER_DAILY_LIMIT) {
+        return respond(
+          {
+            error: "rate-limited",
+            message: "You've hit today's limit. Resets tomorrow.",
+            limit: USER_DAILY_LIMIT,
+          },
+          429
+        );
+      }
+      limitInfo = { used, limit: USER_DAILY_LIMIT };
+    } else {
+      const anonRow = await env.DB.prepare(
+        `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+         ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+         RETURNING count`
+      )
+        .bind(`anon:${anonId}`, today)
+        .first<{ count: number }>();
+      const anonCount = anonRow?.count ?? 0;
+      const ipRow = await env.DB.prepare(
+        `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+         ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+         RETURNING count`
+      )
+        .bind(`ip:${ip}`, today)
+        .first<{ count: number }>();
+      const ipCount = ipRow?.count ?? 0;
+      if (anonCount > ANON_DAILY_LIMIT) {
+        return respond(
+          {
+            error: "rate-limited",
+            message: "You've hit today's free limit — sign up to save and get more.",
+            limit: ANON_DAILY_LIMIT,
+          },
+          429
+        );
+      }
+      if (ipCount > IP_DAILY_LIMIT) {
+        return respond(
+          {
+            error: "rate-limited",
+            message: "Too many tries from this network today. Try again tomorrow.",
+            limit: IP_DAILY_LIMIT,
+          },
+          429
+        );
+      }
+      limitInfo = { used: anonCount, limit: ANON_DAILY_LIMIT };
+    }
   } catch (err) {
     console.error("rate_limits upsert failed", err);
     return respond({ error: "storage-error" }, 500);
-  }
-  if (anonCount > ANON_DAILY_LIMIT) {
-    return respond(
-      {
-        error: "rate-limited",
-        message: "You've hit today's free limit — sign up to save and get more.",
-        limit: ANON_DAILY_LIMIT,
-      },
-      429
-    );
-  }
-  if (ipCount > IP_DAILY_LIMIT) {
-    return respond(
-      {
-        error: "rate-limited",
-        message: "Too many tries from this network today. Try again tomorrow.",
-        limit: IP_DAILY_LIMIT,
-      },
-      429
-    );
   }
 
   // Opportunistic cleanup so rate_limits doesn't grow forever. Cheap; runs on
@@ -464,11 +521,12 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   let summaryId: number | undefined;
   try {
     const row = await env.DB.prepare(
-      `INSERT INTO summaries (anon_id, url, source_type, title, verdict, payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO summaries (user_id, anon_id, url, source_type, title, verdict, payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`
     )
       .bind(
+        session?.userId ?? null,
         anonId,
         url,
         typeof summary.source_type === "string" ? summary.source_type : null,
@@ -488,8 +546,9 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     ok: true,
     id: summaryId,
     summary,
-    tries_used: anonCount,
-    tries_limit: ANON_DAILY_LIMIT,
+    tries_used: limitInfo.used,
+    tries_limit: limitInfo.limit,
+    signed_in: !!session,
   });
 }
 
@@ -540,4 +599,335 @@ function classifyUrl(raw: string): string {
   if (host === "vimeo.com" || /(^|\.)vimeo\.com$/.test(host)) return "video";
   if (/streamyard|loom\.com|wistia/.test(host)) return "video";
   return "article";
+}
+
+// --- auth -------------------------------------------------------------------
+
+interface Session {
+  id: string;
+  userId: number;
+  email: string;
+}
+
+async function loadSession(sessionId: string | undefined, env: Env): Promise<Session | null> {
+  if (!sessionId || !isValidToken(sessionId)) return null;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT s.id, s.user_id, s.expires_at, u.email
+       FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id = ?`
+    )
+      .bind(sessionId)
+      .first<{ id: string; user_id: number; expires_at: string; email: string }>();
+    if (!row) return null;
+    if (new Date(row.expires_at).getTime() <= Date.now()) return null;
+    return { id: row.id, userId: row.user_id, email: row.email };
+  } catch (err) {
+    console.error("session lookup failed", err);
+    return null;
+  }
+}
+
+async function handleLogin(
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
+  if (!req.headers.get("content-type")?.includes("application/json")) {
+    return json({ error: "expected-json" }, 415);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!isValidEmail(email)) {
+    return json({ error: "invalid-email", message: "Please enter a valid email address." }, 400);
+  }
+
+  // Per-email + per-IP daily caps stop someone from spamming login emails or
+  // mass-mailing a list of addresses through us.
+  const today = new Date().toISOString().slice(0, 10);
+  const ip = req.headers.get("cf-connecting-ip") ?? "unknown";
+  try {
+    const emailRow = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+       RETURNING count`
+    )
+      .bind(`login:${email}`, today)
+      .first<{ count: number }>();
+    if ((emailRow?.count ?? 0) > LOGIN_DAILY_LIMIT_PER_EMAIL) {
+      return json(
+        { error: "rate-limited", message: "Too many login attempts for that email today." },
+        429
+      );
+    }
+    const ipRow = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+       RETURNING count`
+    )
+      .bind(`login-ip:${ip}`, today)
+      .first<{ count: number }>();
+    if ((ipRow?.count ?? 0) > LOGIN_DAILY_LIMIT_PER_IP) {
+      return json(
+        { error: "rate-limited", message: "Too many login attempts from this network today." },
+        429
+      );
+    }
+  } catch (err) {
+    console.error("login rate limit upsert failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+
+  const token = randomTokenHex(32);
+  const nowIso = new Date().toISOString();
+  const expiresIso = new Date(Date.now() + LOGIN_TOKEN_TTL_MS).toISOString();
+  try {
+    await env.DB.prepare(
+      `INSERT INTO login_tokens (token, email, expires_at, created_at)
+       VALUES (?, ?, ?, ?)`
+    )
+      .bind(token, email, expiresIso, nowIso)
+      .run();
+  } catch (err) {
+    console.error("login_tokens insert failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+
+  const origin = new URL(req.url).origin;
+  const link = `${origin}/login/verify?token=${token}`;
+
+  if (env.RESEND_API_KEY && env.FROM_EMAIL) {
+    ctx.waitUntil(
+      sendEmail(env, {
+        to: email,
+        subject: "Sign in to filter.fyi",
+        html: magicLinkEmail(link),
+        text: magicLinkEmailText(link),
+      })
+    );
+  } else {
+    // Dev convenience: surface the link in logs when email isn't configured.
+    console.log(`[dev] magic link for ${email}: ${link}`);
+  }
+
+  return json({ ok: true });
+}
+
+async function handleLoginVerify(
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const url = new URL(req.url);
+  const token = url.searchParams.get("token") ?? "";
+  if (!isValidToken(token)) {
+    return Response.redirect(`${url.origin}/login?error=invalid-link`, 302);
+  }
+
+  let tokenRow: { email: string; expires_at: string; used_at: string | null } | null;
+  try {
+    tokenRow = await env.DB.prepare(
+      `SELECT email, expires_at, used_at FROM login_tokens WHERE token = ?`
+    )
+      .bind(token)
+      .first<{ email: string; expires_at: string; used_at: string | null }>();
+  } catch (err) {
+    console.error("login_tokens lookup failed", err);
+    return Response.redirect(`${url.origin}/login?error=storage`, 302);
+  }
+
+  if (!tokenRow) {
+    return Response.redirect(`${url.origin}/login?error=invalid-link`, 302);
+  }
+  if (tokenRow.used_at) {
+    return Response.redirect(`${url.origin}/login?error=used-link`, 302);
+  }
+  if (new Date(tokenRow.expires_at).getTime() <= Date.now()) {
+    return Response.redirect(`${url.origin}/login?error=expired-link`, 302);
+  }
+
+  const email = tokenRow.email;
+  const nowIso = new Date().toISOString();
+
+  let userId: number;
+  try {
+    // Mark token used immediately so a second click can't double-spend it,
+    // even if the rest of this handler is slow.
+    await env.DB.prepare(`UPDATE login_tokens SET used_at = ? WHERE token = ?`)
+      .bind(nowIso, token)
+      .run();
+
+    const upserted = await env.DB.prepare(
+      `INSERT INTO users (email, created_at, last_login_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET last_login_at = excluded.last_login_at
+       RETURNING id`
+    )
+      .bind(email, nowIso, nowIso)
+      .first<{ id: number }>();
+    if (!upserted) throw new Error("user upsert returned no row");
+    userId = upserted.id;
+  } catch (err) {
+    console.error("user upsert failed", err);
+    return Response.redirect(`${url.origin}/login?error=storage`, 302);
+  }
+
+  // Claim anon summaries produced on this device pre-signup, if any.
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const anonId = cookies[ANON_COOKIE];
+  if (anonId && isValidAnonId(anonId)) {
+    ctx.waitUntil(
+      env.DB.prepare(
+        `UPDATE summaries SET user_id = ? WHERE anon_id = ? AND user_id IS NULL`
+      )
+        .bind(userId, anonId)
+        .run()
+        .catch((err) => console.error("claim summaries failed", err))
+    );
+  }
+
+  const sessionId = randomTokenHex(32);
+  const sessionExpires = new Date(Date.now() + SESSION_MAX_AGE * 1000).toISOString();
+  try {
+    await env.DB.prepare(
+      `INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
+    )
+      .bind(sessionId, userId, sessionExpires, nowIso)
+      .run();
+  } catch (err) {
+    console.error("sessions insert failed", err);
+    return Response.redirect(`${url.origin}/login?error=storage`, 302);
+  }
+
+  const headers = new Headers({
+    location: `${url.origin}/me`,
+    "set-cookie": sessionCookieHeader(sessionId),
+    "cache-control": "no-store",
+  });
+  return new Response(null, { status: 302, headers });
+}
+
+async function handleLogout(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const sessionId = cookies[SESSION_COOKIE];
+  if (sessionId && isValidToken(sessionId)) {
+    try {
+      await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(sessionId).run();
+    } catch (err) {
+      console.error("session delete failed", err);
+    }
+  }
+  return json({ ok: true }, 200, { "set-cookie": clearSessionCookieHeader() });
+}
+
+async function handleMe(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+
+  let summaries: Array<{
+    id: number;
+    url: string;
+    source_type: string | null;
+    title: string | null;
+    verdict: string | null;
+    payload: string;
+    created_at: string;
+  }> = [];
+  try {
+    const res = await env.DB.prepare(
+      `SELECT id, url, source_type, title, verdict, payload, created_at
+       FROM summaries
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT 100`
+    )
+      .bind(session.userId)
+      .all<{
+        id: number;
+        url: string;
+        source_type: string | null;
+        title: string | null;
+        verdict: string | null;
+        payload: string;
+        created_at: string;
+      }>();
+    summaries = res.results ?? [];
+  } catch (err) {
+    console.error("/api/me query failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+
+  return json({
+    ok: true,
+    user: { email: session.email },
+    summaries: summaries.map((row) => ({
+      id: row.id,
+      url: row.url,
+      source_type: row.source_type,
+      title: row.title,
+      verdict: row.verdict,
+      created_at: row.created_at,
+      summary: safeParseJson(row.payload),
+    })),
+  });
+}
+
+function safeParseJson(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+function randomTokenHex(bytes: number): string {
+  const buf = new Uint8Array(bytes);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function isValidToken(s: string): boolean {
+  return /^[0-9a-f]{32,128}$/.test(s);
+}
+
+function sessionCookieHeader(sessionId: string): string {
+  return `${SESSION_COOKIE}=${sessionId}; Path=/; Max-Age=${SESSION_MAX_AGE}; SameSite=Lax; Secure; HttpOnly`;
+}
+
+function clearSessionCookieHeader(): string {
+  return `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax; Secure; HttpOnly`;
+}
+
+function magicLinkEmail(link: string): string {
+  return emailShell(`
+    <p style="margin:0 0 16px;font-weight:700;font-size:16px;">Sign in to <span style="color:#1f7a3a;">filter.fyi</span></p>
+    <p style="margin:0 0 16px;color:#5e5e58;">Click the button below to sign in. The link is good for 15 minutes and can only be used once.</p>
+    <p style="margin:0 0 20px;">
+      <a href="${link}" style="display:inline-block;padding:10px 18px;background:#1c1c1a;color:#f7f4ec;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:0.02em;">Sign in →</a>
+    </p>
+    <p style="margin:0 0 8px;color:#9b9b91;font-size:11px;">Or paste this URL into your browser:</p>
+    <p style="margin:0 0 16px;color:#5e5e58;font-size:11px;word-break:break-all;">${link}</p>
+    <p style="margin:0;color:#9b9b91;font-size:11px;">If you didn't request this, you can ignore this email.</p>
+  `);
+}
+
+function magicLinkEmailText(link: string): string {
+  return [
+    "Sign in to filter.fyi",
+    "",
+    "Click this link to sign in (good for 15 minutes, single use):",
+    link,
+    "",
+    "If you didn't request this, you can ignore this email.",
+    "",
+    "filter.fyi — relevant, not noise.",
+  ].join("\n");
 }

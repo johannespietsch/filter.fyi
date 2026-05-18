@@ -28,10 +28,42 @@ CREATE TABLE IF NOT EXISTS summaries (
 CREATE INDEX IF NOT EXISTS idx_summaries_user ON summaries (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_summaries_anon ON summaries (anon_id, created_at DESC);
 
--- Daily counter per rate-limit key. Key shape: "anon:<uuid>" | "ip:<addr>" | "user:<id>".
+-- Daily counter per rate-limit key. Key shape:
+--   "anon:<uuid>" | "ip:<addr>" | "user:<id>" | "login:<email>" | "login-ip:<addr>"
 CREATE TABLE IF NOT EXISTS rate_limits (
   key    TEXT NOT NULL,
   day    TEXT NOT NULL,
   count  INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (key, day)
 );
+
+-- Magic-link auth. No passwords.
+CREATE TABLE IF NOT EXISTS users (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT NOT NULL UNIQUE,
+  created_at    TEXT NOT NULL,
+  last_login_at TEXT
+);
+
+-- Single-use email login tokens. used_at flips on first redemption; rows linger
+-- until the opportunistic sweep in /api/try clears expired ones.
+CREATE TABLE IF NOT EXISTS login_tokens (
+  token       TEXT PRIMARY KEY,
+  email       TEXT NOT NULL,
+  expires_at  TEXT NOT NULL,
+  used_at     TEXT,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_tokens_expires ON login_tokens (expires_at);
+
+-- Browser sessions. id is what's stored in the HttpOnly fyi_session cookie.
+CREATE TABLE IF NOT EXISTS sessions (
+  id          TEXT PRIMARY KEY,
+  user_id     INTEGER NOT NULL,
+  expires_at  TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
