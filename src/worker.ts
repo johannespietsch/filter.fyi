@@ -28,7 +28,7 @@ const CHALLENGE_LABELS: Record<string, string> = {
 
 const ANON_COOKIE = "fyi_anon";
 const ANON_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1y
-const ANON_DAILY_LIMIT = 2;
+const ANON_DAILY_LIMIT = 3;
 const IP_DAILY_LIMIT = 10; // higher than anon so a shared NAT doesn't lock everyone out
 const BOT_TIMEOUT_MS_DEFAULT = 25_000;
 const RATE_LIMIT_CLEANUP_PROBABILITY = 0.01; // ~1% of /api/try calls sweep old rows
@@ -484,7 +484,13 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     console.error("summaries insert failed", err);
   }
 
-  return respond({ ok: true, id: summaryId, summary });
+  return respond({
+    ok: true,
+    id: summaryId,
+    summary,
+    tries_used: anonCount,
+    tries_limit: ANON_DAILY_LIMIT,
+  });
 }
 
 function parseCookies(header: string | null): Record<string, string> {

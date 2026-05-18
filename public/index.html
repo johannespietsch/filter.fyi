@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>filter.fyi — relevant, not reactive</title>
-  <meta name="description" content="filter.fyi tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.">
+  <meta name="description" content="Paste any URL — article, tweet, YouTube, PDF — get a verdict in seconds. filter.fyi tells you whether it's worth your time.">
   <meta property="og:title" content="filter.fyi — relevant, not reactive">
-  <meta property="og:description" content="For developers keeping up with AI. Less noise, more signal — a weekly digest of what's actually worth your time.">
+  <meta property="og:description" content="For developers keeping up with AI. Less noise, more signal — a verdict for everything you paste.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://filter.fyi">
   <meta name="twitter:card" content="summary_large_image">
@@ -19,7 +19,8 @@
       --bg:#efece4; --bg-2:#f7f4ec;
       --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
       --green:#1f7a3a; --green-soft:#dfe8d6;
-      --error:#a83a2a;
+      --amber:#b8780a; --amber-soft:#f3e7c8;
+      --red:#a83a2a;   --red-soft:#efd6d0;
       --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
     }
     html, body { background: var(--bg); }
@@ -27,447 +28,340 @@
            font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
     .hl { color: var(--green); }
     ::selection { background: var(--ink); color: var(--bg-2); }
+    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
 
     .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
 
     /* nav */
     nav { display: flex; justify-content: space-between; align-items: center;
           padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
-    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em;
+            display: inline-flex; align-items: center; }
+    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                        display: inline-block; margin-right: 8px;
+                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
     .mark .dot { color: var(--green); }
     .mark .fyi { color: var(--ink-3); }
     .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
-    .nav-meta b { color: var(--ink); font-weight: 500; }
-    .nav-meta a { color: var(--ink); text-decoration: none; padding: 3px 8px; border: 1px solid var(--ink); transition: 0.15s; }
-    .nav-meta a:hover { background: var(--green-soft); color: var(--green); border-color: var(--green); }
-    .nav-meta .dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%;
-                     display: inline-block; margin-right: 6px; vertical-align: middle;
-                     animation: pulse 1.6s ease-in-out infinite; }
+    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green); color: var(--bg-2); border-color: var(--green); }
     @keyframes pulse { 50% { opacity: 0.3; } }
 
     /* hero */
-    .hero { padding: 52px 0 36px; border-bottom: 1px solid var(--ink); }
-    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-               color: var(--ink-2); margin-bottom: 22px; }
-    .eyebrow::before { content: '— '; color: var(--green); }
-    h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.1; letter-spacing: -0.035em;
+    .hero { padding: 52px 0 36px; }
+    h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.18; letter-spacing: -0.035em;
          font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
-    .lede { font-size: 16px; color: var(--ink-2); margin-bottom: 30px; max-width: 560px; line-height: 1.6; }
-    .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px; }
+    h1 .quiet { font-weight: 400; color: var(--ink-2); }
+    .rot { color: var(--green); transition: opacity 0.35s ease; display: inline-block; }
+    .rot.out { opacity: 0; }
+    @media (prefers-reduced-motion: reduce) { .rot { transition: none; } }
+    .lede { font-size: 16px; color: var(--ink-2); margin-bottom: 30px; max-width: 560px;
+            line-height: 1.6; text-wrap: pretty; }
+    .lede .brand { color: var(--ink); font-weight: 600; }
+    .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px;
+              -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
-    /* form card */
-    .form-card { background: var(--bg-2); border: 1px solid var(--ink); padding: 22px; margin-bottom: 16px; }
+    /* url form */
+    .form-card { background: var(--bg-2); border: 1px solid var(--ink); padding: 22px; margin-bottom: 18px; }
     .form-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-                color: var(--ink-2); margin-bottom: 12px; display: flex; justify-content: space-between; }
-    .form-lbl b { color: var(--green); font-weight: 500; }
+                color: var(--ink-2); margin-bottom: 12px; }
     .input-row { display: flex; border: 1px solid var(--ink); }
-    .email-input { flex: 1; height: 44px; padding: 0 14px; border: none; background: var(--bg);
-                   font: inherit; font-size: 14px; color: var(--ink); outline: none; transition: background 0.15s; }
-    .email-input::placeholder { color: var(--ink-3); }
-    .email-input:focus { background: var(--bg-2); }
-    .email-input.err { background: rgba(168, 58, 42, 0.08); }
+    .url-input { flex: 1; height: 44px; min-width: 0; padding: 0 14px; border: none; background: var(--bg);
+                 font: inherit; font-size: 14px; color: var(--ink); outline: none; transition: background 0.15s; }
+    .url-input::placeholder { color: var(--ink-3); }
+    .url-input:focus { background: var(--bg-2); }
+    .url-input.err { background: rgba(168, 58, 42, 0.08); }
     .cta-btn { height: 44px; padding: 0 20px; background: var(--ink); color: var(--bg-2);
                border: none; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
                cursor: pointer; transition: background 0.15s; white-space: nowrap; }
     .cta-btn:hover { background: var(--green); }
     .cta-btn:active { transform: translateY(1px); }
-    .cta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .cta-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-fine-print { font-size: 11px; color: var(--ink-3); margin-top: 12px; }
 
-    .survey { margin-top: 22px; padding-top: 18px; border-top: 1px dashed var(--ink); }
-    .survey-q { font-size: 14px; margin-bottom: 12px; color: var(--ink); }
-    .survey-q span { color: var(--ink-3); margin-left: 4px; }
-    .survey-options { display: flex; flex-direction: column; gap: 0; }
-    .survey-option { display: flex; gap: 10px; padding: 7px 10px; border: 1px solid transparent;
-                     cursor: pointer; font-size: 12.5px; color: var(--ink-2); transition: 0.12s; }
-    .survey-option:hover { border-color: var(--ink); background: var(--green-soft); color: var(--ink); }
-    .survey-option.checked { border-color: var(--ink); background: var(--green-soft); color: var(--ink); }
-    .survey-option .box { color: var(--ink-3); font-weight: 500; flex-shrink: 0; }
-    .survey-option:hover .box, .survey-option.checked .box { color: var(--green); }
-    .survey-option input[type="checkbox"] { position: absolute; width: 1px; height: 1px;
-                     margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
-    .survey-option:focus-within { border-color: var(--ink); background: var(--green-soft); color: var(--ink); }
-    .survey-option:focus-within .box { color: var(--green); }
-    .all-of-above:focus-visible { outline: 2px solid var(--green); outline-offset: -1px; }
-    .all-of-above { color: var(--green); border-top: 1px dashed var(--ink); padding-top: 11px;
-                    margin-top: 4px; border-bottom: none; border-left: none; border-right: none; }
-    .all-of-above:hover, .all-of-above.checked { color: var(--green); background: var(--green-soft); border-color: var(--ink); }
-    .multi-hint { display: none; font-size: 11px; color: var(--green); margin-top: 10px;
-                  padding: 6px 10px; background: var(--green-soft); border-left: 2px solid var(--green); }
-    .multi-hint.visible { display: block; }
+    .loading { display: none; padding: 26px 22px; background: var(--bg-2); border: 1px solid var(--ink);
+               margin-bottom: 18px; color: var(--ink-2); font-size: 13px; }
+    .loading.visible { display: block; }
+    .loading-dot { display: inline-block; width: 8px; height: 8px; background: var(--green);
+                   border-radius: 50%; margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; vertical-align: middle; }
 
-    .form-fine-print { font-size: 11px; color: var(--ink-3); text-align: center; margin-top: 14px; }
+    /* result card */
+    .result { display: none; background: var(--bg-2); border: 1px solid var(--ink);
+              padding: 22px; margin-bottom: 18px; }
+    .result.visible { display: block; }
+    .result-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+                   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                   color: var(--ink-2); margin-bottom: 10px; }
+    .badge { display: inline-block; padding: 3px 8px; font-size: 10.5px; font-weight: 700;
+             letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--ink); background: var(--bg); }
+    .badge.verdict-watch { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+    .badge.verdict-skim  { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+    .badge.verdict-skip  { background: var(--red-soft);   border-color: var(--red);   color: var(--red); }
+    .result-title { font-size: 18px; line-height: 1.3; letter-spacing: -0.02em; font-weight: 700;
+                    margin-bottom: 14px; text-wrap: balance; }
+    .result-thumb { width: 100%; max-height: 220px; object-fit: cover; border: 1px solid var(--ink);
+                    margin-bottom: 14px; display: block; }
+    .result-main-idea { font-size: 14.5px; color: var(--ink); margin-bottom: 12px; }
+    .result-main-idea b { font-weight: 700; background: var(--green-soft); padding: 1px 3px; }
+    .result-why { font-size: 13.5px; color: var(--ink-2); margin-bottom: 14px; }
+    .result-meta { font-size: 11px; letter-spacing: 0.06em; color: var(--ink-3);
+                   border-top: 1px dotted var(--ink); padding-top: 10px; margin-top: 14px; }
+    .result-meta b { color: var(--ink-2); font-weight: 500; }
+    .result-experiment { margin-top: 14px; padding: 12px 14px; background: var(--green-soft);
+                         border-left: 2px solid var(--green); font-size: 13px; color: var(--ink); }
+    .result-experiment b { display: block; font-size: 10.5px; letter-spacing: 0.14em;
+                           text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
+    .result-save { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ink);
+                   font-size: 12px; color: var(--ink-3); }
 
-    .success-state { display: none; text-align: center; padding: 24px 16px; }
-    .success-icon { font-size: 28px; color: var(--green); margin-bottom: 12px; font-weight: 700; }
-    .success-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-    .success-sub { font-size: 12.5px; color: var(--ink-2); max-width: 340px; margin: 0 auto; line-height: 1.6; }
+    /* soft nudge (dismissable) */
+    .nudge { display: none; align-items: flex-start; gap: 12px;
+             padding: 12px 14px; margin-bottom: 18px;
+             background: var(--green-soft); border-left: 2px solid var(--green);
+             font-size: 13px; color: var(--ink); }
+    .nudge.visible { display: flex; }
+    .nudge p { flex: 1; }
+    .nudge a { color: var(--ink); }
+    .nudge-close { background: none; border: none; font: inherit; font-size: 16px;
+                   color: var(--ink-3); cursor: pointer; padding: 0 4px; line-height: 1;
+                   flex-shrink: 0; }
+    .nudge-close:hover { color: var(--ink); }
 
-    /* sections */
-    section.section { padding: 44px 0 36px; border-bottom: 1px solid var(--ink); }
-    .section-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-                     color: var(--ink-3); margin-bottom: 18px; }
-    .section-label::before { content: '— '; color: var(--green); }
-    h2 { font-size: 26px; line-height: 1.15; letter-spacing: -0.025em; font-weight: 700;
-         margin-bottom: 6px; text-wrap: balance; }
-    .section-sub { font-size: 14px; color: var(--ink-2); margin-bottom: 26px; }
+    /* notice cards */
+    .notice { display: none; padding: 18px 22px; border: 1px solid var(--ink);
+              background: var(--bg-2); margin-bottom: 18px; font-size: 13px; }
+    .notice.visible { display: block; }
+    .notice.warn  { background: var(--amber-soft); border-color: var(--amber); }
+    .notice.error { background: var(--red-soft);   border-color: var(--red); }
+    .notice-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                    color: var(--ink-2); margin-bottom: 6px; }
+    .notice.warn .notice-title  { color: var(--amber); }
+    .notice.error .notice-title { color: var(--red); }
+    .notice p { color: var(--ink); }
+    .notice a { color: var(--ink); }
 
-    /* problems */
-    .prob { display: grid; grid-template-columns: 32px 1fr; gap: 14px; padding: 12px 0; }
-    .prob + .prob { border-top: 1px dotted var(--ink); }
-    .prob-n { color: var(--green); font-weight: 700; }
-    .prob p { font-size: 14.5px; color: var(--ink); line-height: 1.6; }
-    .prob p b { font-weight: 700; background: var(--green-soft); padding: 1px 3px; }
-    .prob p span { color: var(--ink-2); }
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
 
-    /* how-it-works steps */
-    .steps { display: flex; flex-direction: column; gap: 16px; }
-    .step { display: grid; grid-template-columns: 32px 1fr; gap: 14px; align-items: start; }
-    .step-n { color: var(--ink-3); font-weight: 700; font-size: 14px; padding-top: 1px; }
-    .step-t { font-size: 14.5px; font-weight: 700; margin-bottom: 6px; }
-    .step-d { font-size: 14px; color: var(--ink-2); line-height: 1.6; margin-bottom: 8px; }
-    .cmd { background: var(--ink); color: var(--bg-2); padding: 8px 12px; font-size: 12px;
-           display: inline-block; margin-top: 4px; max-width: 100%; }
-    .cmd .prompt { color: var(--green); margin-right: 8px; }
-    .cmd .out { color: var(--ink-3); display: block; margin-top: 2px; }
-    .step-tag { display: inline-block; font-size: 10px; letter-spacing: 0.12em;
-                padding: 1px 8px; border: 1px solid var(--ink); margin-left: 8px;
-                vertical-align: 1px; text-transform: uppercase; }
-    .step-tag.free { background: var(--green); color: var(--bg-2); border-color: var(--green); }
-
-    /* about */
-    .about { display: grid; grid-template-columns: 1fr 200px; gap: 24px; align-items: start; }
-    .about p { font-size: 14px; color: var(--ink-2); line-height: 1.7; margin-bottom: 10px; }
-    .about p b { color: var(--ink); font-weight: 500; }
-    .about-card { border: 1px solid var(--ink); background: var(--bg-2); padding: 14px; font-size: 12px; }
-    .about-card .name { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
-    .about-card .role { color: var(--ink-3); margin-bottom: 12px; }
-    .about-card .kv { display: flex; gap: 10px; padding: 3px 0; color: var(--ink-2);
-                      border-top: 1px dotted var(--ink); }
-    .about-card .kv b { color: var(--ink); font-weight: 500; min-width: 60px; }
-
-    /* pricing */
-    .price-wrap { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--ink); }
-    .price { padding: 20px; }
-    .price + .price { border-left: 1px solid var(--ink); background: var(--bg-2); }
-    .price-tier { font-size: 11px; color: var(--green); font-weight: 700; letter-spacing: 0.1em;
-                  margin-bottom: 10px; }
-    .price-fig { font-size: 36px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
-    .price-fig sup { font-size: 16px; vertical-align: super; color: var(--ink-3); font-weight: 500; }
-    .price-fig .was { font-size: 14px; color: var(--ink-3); text-decoration: line-through;
-                      margin-left: 8px; font-weight: 500; }
-    .price-cadence { font-size: 11px; color: var(--ink-3); margin: 4px 0 12px; }
-    .price-deadline { font-size: 11px; color: var(--green); border-top: 1px dashed var(--ink);
-                      border-bottom: 1px dashed var(--ink); padding: 6px 0; margin-bottom: 12px;
-                      text-align: center; }
-    .price-feat { font-size: 13px; color: var(--ink-2); padding: 4px 0; display: flex; gap: 8px; }
-    .price-feat::before { content: '+'; color: var(--green); font-weight: 700; flex-shrink: 0; }
-    .price-feat.off { color: var(--ink-3); }
-    .price-feat.off::before { content: '·'; color: var(--ink-3); }
-
-    /* final cta */
-    .final-cta { padding: 48px 0 20px; text-align: center; }
-    .final-cta h2 { font-size: 30px; margin-bottom: 10px; }
-    .final-cta .lede { margin: 0 auto 24px; }
-    .final-cta .input-row { max-width: 400px; margin: 0 auto; }
-
-    /* footer */
-    footer { padding-top: 18px; border-top: 1px solid var(--ink); display: flex;
-             justify-content: space-between; font-size: 11px; color: var(--ink-2); }
-    footer .right { color: var(--green); }
-
-    /* mobile */
     @media (max-width: 540px) {
       .wrap { padding: 16px 18px 32px; }
-      .about, .price-wrap { grid-template-columns: 1fr; }
-      .price + .price { border-left: none; border-top: 1px solid var(--ink); }
-      .input-row, .final-cta .input-row { flex-direction: column; border: none; }
-      .input-row .email-input { border: 1px solid var(--ink); margin-bottom: 0; flex: none; }
+      .input-row { flex-direction: column; border: none; }
+      .input-row .url-input { border: 1px solid var(--ink); flex: none; }
       .input-row .cta-btn { border: 1px solid var(--ink); border-top: none; }
-      .cmd { font-size: 11px; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <nav>
-      <div class="mark">filter<span class="dot">.</span><span class="fyi">fyi</span></div>
+      <div class="mark"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></div>
       <div class="nav-meta">
-        <span><span class="dot"></span>v0.4 · build 0117</span>
-        <a href="/try">try it →</a>
+        <a href="/join">join →</a>
       </div>
     </nav>
 
     <section class="hero">
-      <div class="eyebrow">For developers keeping up with AI</div>
-      <h1>So much noise.<br>Where's the signal?<br>Let's <span class="hl">filter.</span></h1>
-      <p class="lede">Too many tabs, too many channels, not enough signal. <b>filter.fyi</b> tells you what's actually worth your time this week — and quietly monitors the sources you trust, so nothing important slips through.</p>
+      <h1>So many <span class="rot" id="rot-word" aria-live="polite">open tabs</span><br><span class="quiet">So little time</span><br>Let's <span class="hl">filter.</span></h1>
+      <p class="lede"><span class="brand">filter.fyi</span> tells you what's actually worth your time —&nbsp;and quietly monitors the sources you trust, so <b>nothing&nbsp;important&nbsp;slips&nbsp;through</b>.</p>
 
-      <div class="form-card">
-        <div id="form-body">
-          <div class="form-lbl"><span>Get early access — free to start</span><b>● open</b></div>
-          <div class="input-row">
-            <input class="email-input" type="email" id="email-input" placeholder="your@email.com" autocomplete="email" />
-            <button class="cta-btn" id="submit-btn" onclick="handleSubmit()">Join the list →</button>
-          </div>
-          <input type="text" id="hp-1" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true" />
-
-          <div class="survey">
-            <p class="survey-q">What's your biggest challenge keeping up with AI?<span>(tick all that apply)</span></p>
-            <div class="survey-options">
-              <label class="survey-option" id="opt-0">
-                <input type="checkbox" value="volume" onchange="handleCheck()">
-                <span class="box" aria-hidden="true">[ ]</span>
-                <span>Too much content, not enough time to read/watch/listen to it all</span>
-              </label>
-              <label class="survey-option" id="opt-1">
-                <input type="checkbox" value="relevance" onchange="handleCheck()">
-                <span class="box" aria-hidden="true">[ ]</span>
-                <span>Hard to know what's actually relevant vs. hype</span>
-              </label>
-              <label class="survey-option" id="opt-2">
-                <input type="checkbox" value="fragmentation" onchange="handleCheck()">
-                <span class="box" aria-hidden="true">[ ]</span>
-                <span>Sources spread across too many apps — I forget half of the opened notifications</span>
-              </label>
-              <label class="survey-option" id="opt-3">
-                <input type="checkbox" value="action" onchange="handleCheck()">
-                <span class="box" aria-hidden="true">[ ]</span>
-                <span>I do save things but never act on them — no system, just guilt</span>
-              </label>
-              <div class="survey-option all-of-above" id="opt-all" role="button" tabindex="0" aria-pressed="false" onclick="selectAll(event)" onkeydown="handleOptAllKey(event)">
-                <span class="box" aria-hidden="true">[*]</span>
-                <span>Honestly? All of the above.</span>
-              </div>
-            </div>
-            <div class="multi-hint" id="multi-hint">Checked more than one? This is definitely built for you.</div>
-          </div>
-        </div>
-
-        <div class="success-state" id="success-state">
-          <div class="success-icon" aria-hidden="true">[ ✓ ]</div>
-          <div class="success-title">You're on the list.</div>
-          <p class="success-sub">I'll be in touch with early access. Thanks for answering — it genuinely helps shape the product.</p>
-        </div>
-      </div>
-      <p class="form-fine-print">No spam. No newsletter. Just a message when early access opens.</p>
-    </section>
-
-    <section class="section">
-      <div class="section-label">Sound familiar</div>
-      <div class="prob">
-        <div class="prob-n">01</div>
-        <p><b>You scroll X, LinkedIn, YouTube in the evenings.</b> <span>You call it research. Mostly it's anxiety with a good UI. The useful stuff gets saved and quietly forgotten.</span></p>
-      </div>
-      <div class="prob">
-        <div class="prob-n">02</div>
-        <p><b>Monday arrives and you've got nothing to show for it.</b> <span>Someone in sprint planning mentions agent frameworks. You've heard of them. Vaguely. You stay quiet.</span></p>
-      </div>
-      <div class="prob">
-        <div class="prob-n">03</div>
-        <p><b>The restructuring news doesn't help.</b> <span>Your job is probably fine. But it's hard to stay calm when you're not sure you're keeping pace with where the industry is heading.</span></p>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-label">How it works</div>
-      <h2>A simple weekly <span class="hl">ritual.</span></h2>
-      <p class="section-sub">Not another app to manage.</p>
-      <div class="steps">
-        <div class="step">
-          <div class="step-n">01</div>
-          <div>
-            <div class="step-t">Share anything, get an instant verdict<span class="step-tag free">free</span></div>
-            <div class="step-d">Paste a URL or share from your phone. You get back: the main idea, why it matters for your work specifically, what to do with it, and how long it'll actually take.</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-n">02</div>
-          <div>
-            <div class="step-t">Friday digest. Weekend clarity. Monday confidence.<span class="step-tag free">free</span></div>
-            <div class="step-d">A weekly digest ranks everything by relevance, clusters related topics, and flags what actually lasted vs. what was a 3-day hype cycle. Read it over coffee. Show up prepared.</div>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-n">03</div>
-          <div>
-            <div class="step-t">Your trusted channels, on autopilot, 24/7<span class="step-tag">pro</span></div>
-            <div class="step-d">Add the YouTube channels, Substacks, and blogs you already follow. <b>filter.fyi</b> monitors them and surfaces new drops ranked by relevance — no app-switching, no forgotten feeds.</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-label">About the maker</div>
-      <h2>Built by someone who's <span class="hl">been through it.</span></h2>
-      <div class="about" style="margin-top: 20px;">
-        <div>
-          <p>After 20+ years in software, my company was restructured. New ownership, several rounds of cost cuts, a push toward automation. I watched the writing on the wall — and I wasn't the only one.</p>
-          <p>I built this tool for myself while navigating this huge shift in the industry. I've been using it every day since. At some point I started asking myself why I hadn't shared it yet.</p>
-          <p><b>This won't guarantee your job.</b> But it will end the feeling of falling behind — <b><span class="hl">and that's worth something.</span></b></p>
-        </div>
-        <div class="about-card">
-          <div class="name">Johannes</div>
-          <div class="role">Builder · NL</div>
-          <div class="kv"><b>experience</b><span>20+ yrs</span></div>
-          <div class="kv"><b>discipline</b><span>software</span></div>
-          <div class="kv"><b>degree</b><span>Computational Linguistics</span></div>
-          <div class="kv"><b>interests</b><span>AI tooling · NLP · indie building</span></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-label">Pricing</div>
-      <h2>Less than <span class="hl">a double espresso</span> per week.</h2>
-      <p class="section-sub">Free to try. Pay when it earns its place in your routine.</p>
-      <div class="price-wrap">
-        <div class="price">
-          <div class="price-tier">FREE</div>
-          <div class="price-fig"><sup>€</sup>0</div>
-          <div class="price-cadence">forever</div>
-          <div class="price-deadline" style="visibility:hidden;">—</div>
-          <div class="price-feat">Paste any URL, get a verdict instantly</div>
-          <div class="price-feat">Main idea, relevance, next step, time needed</div>
-          <div class="price-feat">Weekly digest email</div>
-          <div class="price-feat off">Channel monitoring</div>
-          <div class="price-feat off">Topic evolution tracking</div>
-          <div class="price-feat off">Push alerts for new drops</div>
-        </div>
-        <div class="price">
-          <div class="price-tier">PRO · EARLY ACCESS</div>
-          <div class="price-fig"><sup>€</sup>8<span class="was">€25</span></div>
-          <div class="price-cadence">per month · or €80/year</div>
-          <div class="price-deadline">→ early price until end of summer 2026</div>
-          <div class="price-feat">Everything in free</div>
-          <div class="price-feat">Auto-monitor your trusted channels</div>
-          <div class="price-feat">Push alerts for relevant new drops</div>
-          <div class="price-feat">Topic evolution — hype vs. lasting signal</div>
-          <div class="price-feat">Dashboard for your saved content</div>
-          <div class="price-feat">Lock in early price forever</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="final-cta">
-      <h2>Stop the tabs.<br><span class="hl">Start the habit.</span></h2>
-      <p class="lede" style="margin: 0 auto 24px; max-width: 380px;">Join the early access list. Free to start, no credit card needed.</p>
-      <div id="form-body-2">
+      <form class="form-card" id="try-form" autocomplete="off">
+        <div class="form-lbl">paste a url</div>
         <div class="input-row">
-          <input class="email-input" type="email" id="email-input-2" placeholder="your@email.com" autocomplete="email" />
-          <button class="cta-btn" id="submit-btn-2" onclick="handleSubmit2()">Join the list →</button>
+          <input class="url-input" id="url" name="url" type="url" inputmode="url"
+                 placeholder="https://..." required spellcheck="false" autocapitalize="off" />
+          <button class="cta-btn" id="submit-btn" type="submit">Try it</button>
         </div>
-        <input type="text" id="hp-2" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true" />
-        <p class="form-fine-print">No spam. Just a message when the doors open.</p>
+        <p class="form-fine-print">No login required. 3 free verdicts per day. Long-form video transcription is coming with the full product.</p>
+      </form>
+
+      <div class="loading" id="loading"><span class="loading-dot"></span>Reading the page and analyzing…</div>
+
+      <article class="result" id="result" aria-live="polite">
+        <div class="result-head">
+          <span class="badge" id="verdict-badge">verdict</span>
+          <span id="source-type"></span>
+          <span id="time-required"></span>
+        </div>
+        <h2 class="result-title" id="result-title"></h2>
+        <img class="result-thumb" id="result-thumb" alt="" hidden />
+        <p class="result-main-idea" id="main-idea"></p>
+        <p class="result-why" id="why-matters"></p>
+        <div class="result-experiment" id="experiment-wrap" hidden>
+          <b>try this →</b><span id="experiment"></span>
+        </div>
+        <div class="result-meta" id="result-meta"></div>
+        <p class="result-save">Saving these to an account is coming next — <a href="/join">join the waitlist</a> to be there for it.</p>
+      </article>
+
+      <div class="nudge" id="nudge-waitlist" role="status">
+        <p>One verdict left today. <a href="/join">Join the waitlist</a> for early access — more verdicts, saved results, and channel monitoring are coming next.</p>
+        <button class="nudge-close" id="nudge-close" type="button" aria-label="Dismiss">×</button>
       </div>
-      <div class="success-state" id="success-state-2">
-        <div class="success-icon" aria-hidden="true">[ ✓ ]</div>
-        <div class="success-title">You're on the list.</div>
-        <p class="success-sub">I'll be in touch with early access. Thanks for joining.</p>
+
+      <div class="notice warn" id="notice-unsupported" role="alert">
+        <div class="notice-title">not yet supported</div>
+        <p id="notice-unsupported-msg"></p>
+      </div>
+      <div class="notice warn" id="notice-ratelimit" role="alert">
+        <div class="notice-title">daily limit reached</div>
+        <p>You've used your 3 free verdicts today. <a href="/join">Join the waitlist</a> for early access — saving results, more daily verdicts, and channel monitoring are coming next.</p>
+      </div>
+      <div class="notice error" id="notice-error" role="alert">
+        <div class="notice-title">something went wrong</div>
+        <p id="notice-error-msg">Couldn't process that URL. Try a different one or come back in a moment.</p>
       </div>
     </section>
 
     <footer>
-      <div>filter.fyi · v0.4 · 2026</div>
-      <div class="right">relevant, not reactive.</div>
+      <span>filter.fyi — relevant, not reactive.</span>
+      <a href="/join">join filter.fyi →</a>
     </footer>
   </div>
 
   <script>
-    function handleCheck() {
-      const boxes = document.querySelectorAll('#opt-0 input, #opt-1 input, #opt-2 input, #opt-3 input');
-      let checked = 0;
-      boxes.forEach(b => {
-        const opt = b.closest('.survey-option');
-        opt.classList.toggle('checked', b.checked);
-        const box = opt.querySelector('.box');
-        if (box) box.textContent = b.checked ? '[x]' : '[ ]';
-        if (b.checked) checked++;
+    (() => {
+      const el = document.getElementById('rot-word');
+      if (!el) return;
+      const words = ['open tabs', 'podcasts', 'videos', 'posts', 'newsletters', 'blogs'];
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      let i = 0;
+      setInterval(() => {
+        el.classList.add('out');
+        setTimeout(() => {
+          i = (i + 1) % words.length;
+          el.textContent = words[i];
+          el.classList.remove('out');
+        }, 350);
+      }, 2400);
+    })();
+
+    (() => {
+      const form = document.getElementById('try-form');
+      const urlInput = document.getElementById('url');
+      const submitBtn = document.getElementById('submit-btn');
+      const loading = document.getElementById('loading');
+      const result = document.getElementById('result');
+      const noticeUnsupported = document.getElementById('notice-unsupported');
+      const noticeRatelimit = document.getElementById('notice-ratelimit');
+      const noticeError = document.getElementById('notice-error');
+      const nudgeWaitlist = document.getElementById('nudge-waitlist');
+      const nudgeClose = document.getElementById('nudge-close');
+      const NUDGE_DISMISSED_KEY = 'fyi_nudge_dismissed';
+
+      function hideAll() {
+        for (const el of [loading, result, noticeUnsupported, noticeRatelimit, noticeError, nudgeWaitlist]) {
+          el.classList.remove('visible');
+        }
+        urlInput.classList.remove('err');
+      }
+      function show(el) { el.classList.add('visible'); }
+
+      nudgeClose.addEventListener('click', () => {
+        nudgeWaitlist.classList.remove('visible');
+        try { sessionStorage.setItem(NUDGE_DISMISSED_KEY, '1'); } catch {}
       });
-      document.getElementById('multi-hint').classList.toggle('visible', checked >= 2);
-      const optAll = document.getElementById('opt-all');
-      const all = checked === 4;
-      optAll.classList.toggle('checked', all);
-      optAll.setAttribute('aria-pressed', all ? 'true' : 'false');
-    }
-    function selectAll(e) {
-      if (e && e.target && e.target.tagName === 'INPUT') return;
-      const boxes = document.querySelectorAll('#opt-0 input, #opt-1 input, #opt-2 input, #opt-3 input');
-      const allChecked = Array.from(boxes).every(b => b.checked);
-      boxes.forEach(b => b.checked = !allChecked);
-      handleCheck();
-    }
-    function handleOptAllKey(e) {
-      if (e.key === 'Enter' || e.key === ' ') {
+
+      function maybeShowNudge(used, limit) {
+        if (typeof used !== 'number' || typeof limit !== 'number') return;
+        if (used !== limit - 1) return;
+        try { if (sessionStorage.getItem(NUDGE_DISMISSED_KEY) === '1') return; } catch {}
+        show(nudgeWaitlist);
+      }
+
+      function renderResult(summary) {
+        const verdict = String(summary.verdict || '').toLowerCase();
+        const badge = document.getElementById('verdict-badge');
+        badge.textContent = verdict || 'verdict';
+        badge.className = 'badge';
+        if (verdict === 'watch' || verdict === 'skim' || verdict === 'skip') {
+          badge.classList.add('verdict-' + verdict);
+        }
+        document.getElementById('source-type').textContent = summary.source_type ? '· ' + summary.source_type : '';
+        const time = summary.analysis && summary.analysis.time_required;
+        document.getElementById('time-required').textContent = time ? '· ' + time : '';
+        document.getElementById('result-title').textContent = summary.title || summary.url;
+        const thumb = document.getElementById('result-thumb');
+        const firstImg = Array.isArray(summary.image_urls) ? summary.image_urls[0] : null;
+        if (firstImg) { thumb.src = firstImg; thumb.hidden = false; } else { thumb.removeAttribute('src'); thumb.hidden = true; }
+        const a = summary.analysis || {};
+        document.getElementById('main-idea').textContent = a.main_idea || '';
+        document.getElementById('why-matters').textContent = a.why_it_matters || '';
+        const expWrap = document.getElementById('experiment-wrap');
+        if (a.suggested_experiment) {
+          document.getElementById('experiment').textContent = ' ' + a.suggested_experiment;
+          expWrap.hidden = false;
+        } else {
+          expWrap.hidden = true;
+        }
+        const metaBits = [];
+        if (a.category) metaBits.push(`<b>category</b> ${a.category}`);
+        try {
+          const host = new URL(summary.url).hostname.replace(/^www\./, '');
+          metaBits.push(`<b>source</b> ${host}`);
+        } catch {}
+        document.getElementById('result-meta').innerHTML = metaBits.join(' &nbsp;·&nbsp; ');
+        show(result);
+      }
+
+      async function submitUrl(url) {
+        hideAll();
+        submitBtn.disabled = true;
+        show(loading);
+        let res, payload;
+        try {
+          res = await fetch('/api/try', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ url }),
+          });
+          payload = await res.json().catch(() => ({}));
+        } catch (err) {
+          loading.classList.remove('visible');
+          submitBtn.disabled = false;
+          document.getElementById('notice-error-msg').textContent = "Network problem. Check your connection and try again.";
+          show(noticeError);
+          return;
+        }
+        loading.classList.remove('visible');
+        submitBtn.disabled = false;
+
+        if (res.ok && payload.summary) {
+          renderResult(payload.summary);
+          maybeShowNudge(payload.tries_used, payload.tries_limit);
+          return;
+        }
+        if (res.status === 415 && payload.error === 'unsupported-source') {
+          document.getElementById('notice-unsupported-msg').textContent = payload.message || 'This source type isn’t supported yet.';
+          show(noticeUnsupported);
+          return;
+        }
+        if (res.status === 429) {
+          show(noticeRatelimit);
+          return;
+        }
+        if (res.status === 400 && payload.error === 'invalid-url') {
+          urlInput.classList.add('err');
+          urlInput.focus();
+          document.getElementById('notice-error-msg').textContent = payload.message || 'That doesn’t look like a URL.';
+          show(noticeError);
+          return;
+        }
+        document.getElementById('notice-error-msg').textContent = payload.message || 'Couldn’t process that URL. Try a different one or come back in a moment.';
+        show(noticeError);
+      }
+
+      form.addEventListener('submit', (e) => {
         e.preventDefault();
-        selectAll(e);
-      }
-    }
-    function getChallenges() {
-      return Array.from(document.querySelectorAll(
-        '#opt-0 input:checked, #opt-1 input:checked, #opt-2 input:checked, #opt-3 input:checked'
-      )).map(b => b.value);
-    }
-    function flashInvalid(inp) {
-      inp.classList.add('err');
-      inp.focus();
-      setTimeout(() => inp.classList.remove('err'), 1500);
-    }
-    async function postWaitlist(payload) {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
+        const url = urlInput.value.trim();
+        if (!url) return;
+        submitUrl(url);
       });
-      if (!res.ok) throw new Error('submit-failed:' + res.status);
-      return res.json();
-    }
-    async function handleSubmit() {
-      const inp = document.getElementById('email-input');
-      const btn = document.getElementById('submit-btn');
-      const email = inp.value.trim();
-      if (!email || !email.includes('@')) return flashInvalid(inp);
-      btn.disabled = true;
-      const original = btn.textContent;
-      btn.textContent = 'Submitting…';
-      try {
-        await postWaitlist({
-          email,
-          challenges: getChallenges(),
-          source: 'hero',
-          website: document.getElementById('hp-1').value,
-        });
-        document.getElementById('form-body').style.display = 'none';
-        document.getElementById('success-state').style.display = 'block';
-      } catch (e) {
-        btn.disabled = false;
-        btn.textContent = original;
-        flashInvalid(inp);
-      }
-    }
-    async function handleSubmit2() {
-      const inp = document.getElementById('email-input-2');
-      const btn = document.getElementById('submit-btn-2');
-      const email = inp.value.trim();
-      if (!email || !email.includes('@')) return flashInvalid(inp);
-      btn.disabled = true;
-      const original = btn.textContent;
-      btn.textContent = 'Submitting…';
-      try {
-        await postWaitlist({
-          email,
-          challenges: getChallenges(),
-          source: 'final-cta',
-          website: document.getElementById('hp-2').value,
-        });
-        document.getElementById('form-body-2').style.display = 'none';
-        document.getElementById('success-state-2').style.display = 'block';
-      } catch (e) {
-        btn.disabled = false;
-        btn.textContent = original;
-        flashInvalid(inp);
-      }
-    }
+    })();
   </script>
 </body>
 </html>
