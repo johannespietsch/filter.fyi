@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect — filter.fyi</title>
+  <meta name="description" content="How to plug filter.fyi into the tools you already use — Telegram, the CLI, and MCP.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --amber:#b8780a; --amber-soft:#f3e7c8;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
+           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    .hl { color: var(--green); }
+    ::selection { background: var(--ink); color: var(--bg-2); }
+    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
+
+    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
+    nav { display: flex; justify-content: space-between; align-items: center;
+          padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
+            color: var(--ink); display: inline-flex; align-items: center; }
+    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                        display: inline-block; margin-right: 8px;
+                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
+    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green); color: var(--bg-2); }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    .hero { padding: 44px 0 28px; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 22px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
+    h1 { font-size: clamp(26px, 4.5vw, 32px); line-height: 1.18; letter-spacing: -0.03em;
+         font-weight: 700; margin-bottom: 14px; text-wrap: balance; }
+    .lede { font-size: 14px; color: var(--ink-2); margin-bottom: 8px; line-height: 1.6; text-wrap: pretty; }
+
+    .toc { display: flex; gap: 8px; flex-wrap: wrap; margin: 18px 0 0; font-size: 11px; }
+    .toc a { padding: 4px 10px; border: 1px solid var(--ink); background: var(--bg-2);
+             text-decoration: none; color: var(--ink); transition: 0.15s; }
+    .toc a:hover { background: var(--ink); color: var(--bg-2); }
+
+    section.bay { padding: 28px 0; border-top: 1px solid var(--ink); scroll-margin-top: 18px; }
+    section.bay:first-of-type { border-top: none; padding-top: 14px; }
+    .bay-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .bay-head h2 { font-size: 18px; letter-spacing: -0.02em; font-weight: 700; }
+    .bay-head h2 a { text-decoration: none; color: var(--ink); }
+    .bay-head h2 a:hover .anchor { color: var(--green); }
+    .anchor { color: var(--ink-3); margin-left: 4px; font-weight: 400; }
+    .status { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+              padding: 2px 8px; border: 1px solid var(--ink); }
+    .status.live  { background: var(--green-soft); border-color: var(--green); color: var(--green); }
+    .status.soon  { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
+    .bay p { color: var(--ink-2); margin-bottom: 12px; }
+    .bay code { background: var(--bg-2); border: 1px solid var(--ink); padding: 1px 6px;
+                font-size: 12px; color: var(--ink); }
+    .bay ul { margin: 0 0 12px 18px; color: var(--ink-2); }
+    .bay ul li { margin-bottom: 4px; }
+
+    .cta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .cta-btn { display: inline-block; height: 36px; line-height: 36px; padding: 0 16px;
+               background: var(--ink); color: var(--bg-2); border: 1px solid var(--ink);
+               font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+               text-decoration: none; cursor: pointer; transition: background 0.15s; }
+    .cta-btn:hover { background: var(--green); border-color: var(--green); color: var(--bg-2); }
+    .cta-btn.ghost { background: var(--bg-2); color: var(--ink); }
+    .cta-btn.ghost:hover { background: var(--green); color: var(--bg-2); }
+
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+
+    @media (max-width: 540px) {
+      .wrap { padding: 16px 18px 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/">← try it</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">Connect</div>
+      <h1>filter.fyi where you already are.</h1>
+      <p class="lede">The web app is one entry point. The longer-term shape is the same engine reachable from wherever you save things — your chat app, your terminal, your editor's AI.</p>
+      <p class="lede">A short overview of each, with anchors so you can deep-link to a section.</p>
+      <div class="toc">
+        <a href="#telegram">#telegram</a>
+        <a href="#cli">#cli</a>
+        <a href="#mcp">#mcp</a>
+      </div>
+    </section>
+
+    <section class="bay" id="telegram">
+      <div class="bay-head">
+        <h2><a href="#telegram">Telegram<span class="anchor">#</span></a></h2>
+        <span class="status soon">early access</span>
+      </div>
+      <p>Forward a link to the filter.fyi bot and get the same verdict you'd get on the web — without leaving the chat app. The bot also keeps the saved-for-you library in sync with your account.</p>
+      <ul>
+        <li>One bot, your account on both sides.</li>
+        <li>Works on URLs, forwarded messages, and shared posts.</li>
+        <li>Linking happens from your signed-in dashboard, not by chatting the bot first.</li>
+      </ul>
+      <div class="cta-row">
+        <a class="cta-btn" href="/join">Join the waitlist →</a>
+      </div>
+    </section>
+
+    <section class="bay" id="cli">
+      <div class="bay-head">
+        <h2><a href="#cli">CLI<span class="anchor">#</span></a></h2>
+        <span class="status soon">planned</span>
+      </div>
+      <p>A terminal client for the same flow — pipe a URL in, get a verdict and the structured analysis back. Useful for scripts, shell pipelines, and people who live in tmux.</p>
+      <p>Shape we're targeting: <code>filter &lt;url&gt;</code> for one-shot, <code>filter saved</code> for the library, JSON output behind <code>--json</code>.</p>
+      <div class="cta-row">
+        <a class="cta-btn" href="/join">Get notified →</a>
+      </div>
+    </section>
+
+    <section class="bay" id="mcp">
+      <div class="bay-head">
+        <h2><a href="#mcp">MCP<span class="anchor">#</span></a></h2>
+        <span class="status soon">planned</span>
+      </div>
+      <p>Model Context Protocol server so your AI assistant (Claude Code, the API, IDE agents) can call filter.fyi directly. Ask your assistant to triage a list of links and it can hand them off here without you copy-pasting.</p>
+      <p>Authenticates against the same account as the web and Telegram, so saved items show up in one library.</p>
+      <div class="cta-row">
+        <a class="cta-btn" href="/join">Get notified →</a>
+      </div>
+    </section>
+
+    <footer>
+      <span>filter.fyi — relevant, not noise.</span>
+      <a href="/">← back home</a>
+    </footer>
+  </div>
+</body>
+</html>

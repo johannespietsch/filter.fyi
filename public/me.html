@@ -211,7 +211,7 @@
           ? `<b>source</b> <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`
           : '';
 
-        // Full analysis is fetched on demand from /api/library/:id when
+        // Full analysis is fetched on demand from /api/v1/library/:id when
         // the <details> element is opened — keeps the list payload lean.
         return `
           <article class="item" data-id="${escapeHtml(row.id)}">
@@ -249,7 +249,7 @@
         const id = article.dataset.id;
         body.dataset.loaded = '1'; // optimistic — don't refetch on subsequent toggles
         try {
-          const res = await fetch(`/api/library/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+          const res = await fetch(`/api/v1/library/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
           if (!res.ok) {
             body.textContent = 'Could not load analysis.';
             return;
@@ -264,7 +264,7 @@
       async function load() {
         let res, payload;
         try {
-          res = await fetch('/api/me', { credentials: 'same-origin' });
+          res = await fetch('/api/v1/me', { credentials: 'same-origin' });
           payload = await res.json().catch(() => ({}));
         } catch {
           loading.textContent = 'Network problem. Refresh to retry.';
@@ -313,7 +313,7 @@
         linkTgError.hidden = true;
         linkTgError.textContent = '';
         try {
-          const res = await fetch('/api/link/start', { method: 'POST', credentials: 'same-origin' });
+          const res = await fetch('/api/v1/link/start', { method: 'POST', credentials: 'same-origin' });
           const payload = await res.json().catch(() => ({}));
           if (!res.ok || typeof payload.code !== 'string') {
             linkTgError.textContent = "Couldn't generate a link code. Try again in a moment.";
@@ -338,7 +338,7 @@
       signoutBtn.addEventListener('click', async () => {
         signoutBtn.disabled = true;
         try {
-          await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+          await fetch('/api/v1/logout', { method: 'POST', credentials: 'same-origin' });
         } catch {}
         location.replace('/');
       });

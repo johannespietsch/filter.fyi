@@ -415,7 +415,7 @@
       setTimeout(() => inp.classList.remove('err'), 1500);
     }
     async function postWaitlist(payload) {
-      const res = await fetch('/api/waitlist', {
+      const res = await fetch('/api/v1/waitlist', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),

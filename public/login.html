@@ -188,7 +188,7 @@
         const original = btn.textContent;
         btn.textContent = 'Sending…';
         try {
-          const res = await fetch('/api/login', {
+          const res = await fetch('/api/v1/login', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             credentials: 'same-origin',
