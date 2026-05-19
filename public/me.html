@@ -104,6 +104,26 @@
     footer a { color: var(--ink-3); text-decoration: none; }
     footer a:hover { color: var(--green); }
 
+    /* Telegram-link section */
+    .link-tg { margin-top: 24px; padding: 16px 18px; background: var(--bg-2);
+               border: 1px solid var(--ink); }
+    .link-tg-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                     color: var(--ink-2); margin-bottom: 6px; }
+    .link-tg-title::before { content: '— '; color: var(--green); }
+    .link-tg p { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+    .link-tg p b { color: var(--ink); font-weight: 500; }
+    .link-tg-btn { color: var(--green); padding: 4px 10px; border: 1px solid var(--green);
+                   background: var(--green-soft); font: inherit; font-size: 12px;
+                   cursor: pointer; text-transform: lowercase; }
+    .link-tg-btn:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
+    .link-tg-btn:disabled { opacity: 0.5; cursor: default; }
+    .link-tg-code { display: inline-block; padding: 4px 10px; margin-right: 8px;
+                    background: var(--bg); border: 1px solid var(--ink);
+                    font-size: 18px; font-weight: 700; letter-spacing: 0.18em;
+                    color: var(--green); user-select: all; }
+    .link-tg-expires { font-size: 11px; color: var(--ink-3); }
+    .link-tg-error { font-size: 12px; color: var(--red); }
+
     @media (max-width: 540px) {
       .wrap { padding: 16px 18px 32px; }
     }
@@ -123,6 +143,15 @@
       <div class="eyebrow">Your library</div>
       <h1>Saved verdicts.</h1>
       <p class="who">Signed in as <b id="user-email">…</b></p>
+    </section>
+
+    <section class="link-tg">
+      <div class="link-tg-title">Link Telegram</div>
+      <p id="link-tg-intro">Connect your Telegram chat with the filter.fyi bot so both surfaces share the same library.</p>
+      <div id="link-tg-action">
+        <button class="link-tg-btn" id="link-tg-btn" type="button">get a link code</button>
+      </div>
+      <div id="link-tg-error" class="link-tg-error" hidden></div>
     </section>
 
     <div class="loading" id="loading"><span class="loading-dot"></span>Loading your library…</div>
@@ -265,6 +294,39 @@
           if (article) loadAnalysis(article);
         }, true);
       }
+
+      // --- Link Telegram --------------------------------------------------
+      const linkTgBtn = document.getElementById('link-tg-btn');
+      const linkTgAction = document.getElementById('link-tg-action');
+      const linkTgError = document.getElementById('link-tg-error');
+      const linkTgIntro = document.getElementById('link-tg-intro');
+
+      linkTgBtn.addEventListener('click', async () => {
+        linkTgBtn.disabled = true;
+        linkTgError.hidden = true;
+        linkTgError.textContent = '';
+        try {
+          const res = await fetch('/api/link/start', { method: 'POST', credentials: 'same-origin' });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok || typeof payload.code !== 'string') {
+            linkTgError.textContent = "Couldn't generate a link code. Try again in a moment.";
+            linkTgError.hidden = false;
+            linkTgBtn.disabled = false;
+            return;
+          }
+          const code = payload.code;
+          const ttlMin = Math.round((payload.expires_in_seconds || 600) / 60);
+          linkTgIntro.innerHTML =
+            'In your Telegram chat with the filter.fyi bot, send <b>/link ' + escapeHtml(code) + '</b>.';
+          linkTgAction.innerHTML =
+            '<span class="link-tg-code">' + escapeHtml(code) + '</span>' +
+            '<span class="link-tg-expires">expires in ~' + ttlMin + ' min</span>';
+        } catch {
+          linkTgError.textContent = 'Network problem. Refresh and try again.';
+          linkTgError.hidden = false;
+          linkTgBtn.disabled = false;
+        }
+      });
 
       signoutBtn.addEventListener('click', async () => {
         signoutBtn.disabled = true;
