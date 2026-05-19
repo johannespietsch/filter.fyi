@@ -25,15 +25,11 @@ CREATE TABLE IF NOT EXISTS anon_summaries (
 
 CREATE INDEX IF NOT EXISTS idx_anon_summaries_anon ON anon_summaries (anon_id, created_at DESC);
 
--- One-time migration of an existing `summaries` table (run manually after
--- merging this PR; CREATE-IF-NOT-EXISTS above won't touch a table that
--- still exists under the old name):
---   ALTER TABLE summaries RENAME TO anon_summaries;
---   ALTER TABLE anon_summaries DROP COLUMN user_id;
---   DROP INDEX IF EXISTS idx_summaries_anon;
---   DROP INDEX IF EXISTS idx_summaries_user;
---   CREATE INDEX IF NOT EXISTS idx_anon_summaries_anon
---     ON anon_summaries (anon_id, created_at DESC);
+-- One-time migration of an existing `summaries` table (run after merging
+-- this PR; CREATE-IF-NOT-EXISTS above won't touch a table that still
+-- exists under the old name). The DDL lives in
+-- migrations/2026-05-19-summaries-rename.sql and is wrapped by:
+--   npm run db:migrate:step5:remote   (or :local for dev)
 
 -- Daily counter per rate-limit key. Key shape:
 --   "anon:<uuid>" | "ip:<addr>" | "user:<id>" | "login:<email>" | "login-ip:<addr>"
