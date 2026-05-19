@@ -88,6 +88,11 @@ export default {
       return handleLibraryItem(req, env, Number(libraryItemMatch[1]));
     }
 
+    if (url.pathname === "/api/link/start") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleLinkStart(req, env);
+    }
+
     return env.ASSETS.fetch(req);
   },
 };
@@ -990,6 +995,37 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
       // No `summary` field — me.html lazy-fetches from /api/library/:id.
     })),
   });
+}
+
+async function handleLinkStart(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  try {
+    const res = await fetch(`${backendBase(env.BOT_API_URL)}/api/link/start`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-filter-fyi-secret": env.BOT_API_KEY,
+      },
+      body: JSON.stringify({ user_id: session.userId }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) {
+      console.error("/api/link/start upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("/api/link/start upstream failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
 }
 
 async function handleLibraryItem(req: Request, env: Env, itemId: number): Promise<Response> {
