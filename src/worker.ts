@@ -963,20 +963,36 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
     title: string | null;
     created_at: string;
   };
+  type UserInfo = { telegram_chat_id: number | null };
+  const base = backendBase(env.BOT_API_URL);
+  const headers = { "x-filter-fyi-secret": env.BOT_API_KEY };
+
   let rows: LeanRow[] = [];
+  let telegramLinked: boolean | undefined = undefined;
   try {
-    const res = await fetch(
-      `${backendBase(env.BOT_API_URL)}/api/library?user_id=${session.userId}`,
-      {
-        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+    // The user-info call is best-effort — if it fails the UI just omits the
+    // "Telegram linked" indicator. The library call is load-bearing.
+    const [libRes, userRes] = await Promise.all([
+      fetch(`${base}/api/library?user_id=${session.userId}`, {
+        headers,
         signal: AbortSignal.timeout(5_000),
-      }
-    );
-    if (!res.ok) {
-      console.error("/api/me upstream non-ok", res.status);
+      }),
+      fetch(`${base}/api/users/${session.userId}`, {
+        headers,
+        signal: AbortSignal.timeout(5_000),
+      }).catch(() => null),
+    ]);
+
+    if (!libRes.ok) {
+      console.error("/api/me upstream non-ok", libRes.status);
       return json({ error: "upstream-error" }, 502);
     }
-    rows = (await res.json()) as LeanRow[];
+    rows = (await libRes.json()) as LeanRow[];
+
+    if (userRes && userRes.ok) {
+      const info = (await userRes.json()) as UserInfo;
+      telegramLinked = info.telegram_chat_id !== null;
+    }
   } catch (err) {
     console.error("/api/me upstream failed", err);
     return json({ error: "upstream-unreachable" }, 502);
@@ -984,7 +1000,7 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
 
   return json({
     ok: true,
-    user: { email: session.email },
+    user: { email: session.email, telegram_linked: telegramLinked },
     summaries: rows.map((row) => ({
       id: row.id,
       url: row.source ?? "",

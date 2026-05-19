@@ -56,6 +56,7 @@
          font-weight: 700; margin-bottom: 6px; text-wrap: balance; }
     .who { font-size: 13px; color: var(--ink-2); }
     .who b { color: var(--ink); font-weight: 500; }
+    .tg-linked { color: var(--green); font-weight: 500; }
 
     .loading { padding: 24px 22px; color: var(--ink-2); font-size: 13px; }
     .loading-dot { display: inline-block; width: 8px; height: 8px; background: var(--green);
@@ -142,7 +143,7 @@
     <section class="hero">
       <div class="eyebrow">Your library</div>
       <h1>Saved verdicts.</h1>
-      <p class="who">Signed in as <b id="user-email">…</b></p>
+      <p class="who">Signed in as <b id="user-email">…</b><span id="tg-linked" class="tg-linked" hidden> · Telegram linked ✓</span></p>
     </section>
 
     <section class="link-tg">
@@ -278,6 +279,12 @@
           return;
         }
         userEmail.textContent = payload.user?.email || '';
+        if (payload.user?.telegram_linked) {
+          document.getElementById('tg-linked').hidden = false;
+          // The "Link Telegram" CTA is redundant once linked.
+          const linkSection = document.querySelector('.link-tg');
+          if (linkSection) linkSection.hidden = true;
+        }
         loading.hidden = true;
         const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
         if (rows.length === 0) {
