@@ -8,16 +8,12 @@ CREATE TABLE IF NOT EXISTS waitlist (
 
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON waitlist (created_at);
 
--- Per-URL summary rows produced by /api/try. Anonymous tries (anon_id set,
--- user_id null) are the long-term shape. The user_id column captures an
--- anon→user claim done during magic-link verify; post unified-identity
--- refactor it refers to the BACKEND users.id (Fly SQLite), NOT this file's
--- `users` table. A future PR will rename this table to `anon_summaries`
--- and drop the user_id column entirely; until then claim is best-effort
--- (rows tagged here, but `/me` reads from the backend's library API).
-CREATE TABLE IF NOT EXISTS summaries (
+-- Per-URL summary rows produced by anonymous /api/try. Signed-in tries go
+-- straight to the backend's items table (Fly SQLite) and never land here.
+-- Rows are claimed on magic-link verify via cross-DB POST to /api/claim and
+-- deleted afterward; anything left is unclaimed anonymous history.
+CREATE TABLE IF NOT EXISTS anon_summaries (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id      INTEGER,
   anon_id      TEXT,
   url          TEXT NOT NULL,
   source_type  TEXT,
@@ -27,8 +23,13 @@ CREATE TABLE IF NOT EXISTS summaries (
   created_at   TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_summaries_user ON summaries (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_summaries_anon ON summaries (anon_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_anon_summaries_anon ON anon_summaries (anon_id, created_at DESC);
+
+-- One-time migration of an existing `summaries` table (run after merging
+-- this PR; CREATE-IF-NOT-EXISTS above won't touch a table that still
+-- exists under the old name). The DDL lives in
+-- migrations/2026-05-19-summaries-rename.sql and is wrapped by:
+--   npm run db:migrate:step5:remote   (or :local for dev)
 
 -- Daily counter per rate-limit key. Key shape:
 --   "anon:<uuid>" | "ip:<addr>" | "user:<id>" | "login:<email>" | "login-ip:<addr>"
