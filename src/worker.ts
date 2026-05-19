@@ -756,6 +756,11 @@ async function handleLoginVerify(
   const email = tokenRow.email;
   const nowIso = new Date().toISOString();
 
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured (BOT_API_URL / BOT_API_KEY missing)");
+    return Response.redirect(`${url.origin}/login?error=storage`, 302);
+  }
+
   let userId: number;
   try {
     // Mark token used immediately so a second click can't double-spend it,
@@ -764,16 +769,30 @@ async function handleLoginVerify(
       .bind(nowIso, token)
       .run();
 
-    const upserted = await env.DB.prepare(
-      `INSERT INTO users (email, created_at, last_login_at)
-       VALUES (?, ?, ?)
-       ON CONFLICT(email) DO UPDATE SET last_login_at = excluded.last_login_at
-       RETURNING id`
-    )
-      .bind(email, nowIso, nowIso)
-      .first<{ id: number }>();
-    if (!upserted) throw new Error("user upsert returned no row");
-    userId = upserted.id;
+    // Get-or-create the canonical user on the backend. Post unified-identity
+    // refactor, the backend's `users` table is the source of truth and
+    // sessions.user_id refers to backend users.id (NOT D1.users.id — that
+    // table is now orphaned). See filter.fyi-backend POST /api/users/upsert.
+    const backendBase = env.BOT_API_URL.replace(/\/api\/try\/?$/, "");
+    const upsertRes = await fetch(`${backendBase}/api/users/upsert`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-filter-fyi-secret": env.BOT_API_KEY,
+      },
+      body: JSON.stringify({ email }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!upsertRes.ok) {
+      console.error("backend user upsert failed", upsertRes.status);
+      return Response.redirect(`${url.origin}/login?error=storage`, 302);
+    }
+    const upsertBody = (await upsertRes.json()) as { user_id?: number };
+    if (typeof upsertBody.user_id !== "number") {
+      console.error("backend user upsert returned no user_id", upsertBody);
+      return Response.redirect(`${url.origin}/login?error=storage`, 302);
+    }
+    userId = upsertBody.user_id;
   } catch (err) {
     console.error("user upsert failed", err);
     return Response.redirect(`${url.origin}/login?error=storage`, 302);

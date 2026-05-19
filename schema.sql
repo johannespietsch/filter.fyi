@@ -8,11 +8,13 @@ CREATE TABLE IF NOT EXISTS waitlist (
 
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON waitlist (created_at);
 
--- Per-URL summary rows produced by /api/try. Phase 1 stores anonymous rows
--- only (anon_id set, user_id null); Phase 2 will introduce users + claim flow.
--- user_id is left without a FK constraint in Phase 1 — the users table arrives
--- in Phase 2. We control all writes, so loss of the FK check is acceptable;
--- adding it back later would require rebuilding the table in D1.
+-- Per-URL summary rows produced by /api/try. Anonymous tries (anon_id set,
+-- user_id null) are the long-term shape. The user_id column captures an
+-- anon→user claim done during magic-link verify; post unified-identity
+-- refactor it refers to the BACKEND users.id (Fly SQLite), NOT this file's
+-- `users` table. A future PR will rename this table to `anon_summaries`
+-- and drop the user_id column entirely; until then claim is best-effort
+-- (rows tagged here, but `/me` reads from the backend's library API).
 CREATE TABLE IF NOT EXISTS summaries (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id      INTEGER,
@@ -37,7 +39,11 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   PRIMARY KEY (key, day)
 );
 
--- Magic-link auth. No passwords.
+-- DEPRECATED post unified-identity refactor: the canonical users table now
+-- lives on the backend (filter.fyi-backend `users` on Fly SQLite). Magic-link
+-- verify no longer writes here; `sessions.user_id` refers to backend users.id.
+-- Old rows from before the refactor are orphaned. Safe to drop once we're
+-- confident no rollback is needed.
 CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   email         TEXT NOT NULL UNIQUE,
@@ -58,6 +64,9 @@ CREATE TABLE IF NOT EXISTS login_tokens (
 CREATE INDEX IF NOT EXISTS idx_login_tokens_expires ON login_tokens (expires_at);
 
 -- Browser sessions. id is what's stored in the HttpOnly fyi_session cookie.
+-- Post unified-identity refactor: user_id refers to the BACKEND users.id (Fly
+-- SQLite), NOT this file's `users` table. The Worker calls the backend's
+-- /api/users/upsert during verify and stores the returned id here.
 CREATE TABLE IF NOT EXISTS sessions (
   id          TEXT PRIMARY KEY,
   user_id     INTEGER NOT NULL,
