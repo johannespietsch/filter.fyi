@@ -10,6 +10,8 @@
     "db:init:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./schema.sql",
     "db:migrate:step5:local": "wrangler d1 execute filter-fyi-waitlist --local --file=./migrations/2026-05-19-summaries-rename.sql",
     "db:migrate:step5:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./migrations/2026-05-19-summaries-rename.sql",
+    "db:migrate:step5:fixup:local": "wrangler d1 execute filter-fyi-waitlist --local --file=./migrations/2026-05-19-summaries-rename-fixup.sql",
+    "db:migrate:step5:fixup:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./migrations/2026-05-19-summaries-rename-fixup.sql",
     "db:list:local": "wrangler d1 execute filter-fyi-waitlist --local --command='SELECT id, email, challenges, source, created_at FROM waitlist ORDER BY created_at DESC LIMIT 20'",
     "db:list:remote": "wrangler d1 execute filter-fyi-waitlist --remote --command='SELECT id, email, challenges, source, created_at FROM waitlist ORDER BY created_at DESC LIMIT 20'",
     "db:users:local": "wrangler d1 execute filter-fyi-waitlist --local --command='SELECT id, email, created_at, last_login_at FROM users ORDER BY created_at DESC LIMIT 20'",
