@@ -34,6 +34,13 @@ const BOT_TIMEOUT_MS_DEFAULT = 25_000;
 const RATE_LIMIT_CLEANUP_PROBABILITY = 0.01; // ~1% of /api/try calls sweep old rows
 const SLOW_SOURCE_TYPES = new Set(["video"]); // Phase 1 bounces these before calling the bot
 
+// Derive the backend root from BOT_API_URL (which still points at /api/try).
+// All other backend endpoints — /api/users/upsert, /api/library/*, /api/claim,
+// /api/link/start — live alongside it.
+function backendBase(botApiUrl: string): string {
+  return botApiUrl.replace(/\/api\/try\/?$/, "");
+}
+
 const SESSION_COOKIE = "fyi_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -73,6 +80,12 @@ export default {
     if (url.pathname === "/api/me") {
       if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
       return handleMe(req, env);
+    }
+
+    const libraryItemMatch = url.pathname.match(/^\/api\/library\/(\d+)$/);
+    if (libraryItemMatch) {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleLibraryItem(req, env, Number(libraryItemMatch[1]));
     }
 
     return env.ASSETS.fetch(req);
@@ -308,6 +321,9 @@ interface BotResponse {
   image_urls?: string[];
   content_preview?: string;
   verdict?: string;
+  // `id` is only set when the signed-in path goes through /api/library/add,
+  // where the backend persists to items and returns the new row id.
+  id?: number;
   analysis?: {
     main_idea?: string;
     why_it_matters?: string;
@@ -454,15 +470,25 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   // Call bot — with timeout so a hung backend doesn't hang the Worker.
+  // Signed-in calls go to /api/library/add, which analyses AND persists to the
+  // backend's items table (D1.summaries is anon-only post unified-identity).
+  // Anonymous calls go to /api/try, which only analyses; we then write to
+  // D1.summaries ourselves for later claim-on-signup.
+  const botEndpoint = session
+    ? `${backendBase(env.BOT_API_URL)}/api/library/add`
+    : env.BOT_API_URL;
+  const botBody = session
+    ? JSON.stringify({ user_id: session.userId, url })
+    : JSON.stringify({ url });
   let botRes: Response;
   try {
-    botRes = await fetch(env.BOT_API_URL, {
+    botRes = await fetch(botEndpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-filter-fyi-secret": env.BOT_API_KEY,
       },
-      body: JSON.stringify({ url }),
+      body: botBody,
       signal: AbortSignal.timeout(Number(env.BOT_TIMEOUT_MS) || BOT_TIMEOUT_MS_DEFAULT),
     });
   } catch (err) {
@@ -517,29 +543,36 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     return respond({ error: "upstream-error" }, 502);
   }
 
-  const nowIso = new Date().toISOString();
   let summaryId: number | undefined;
-  try {
-    const row = await env.DB.prepare(
-      `INSERT INTO summaries (user_id, anon_id, url, source_type, title, verdict, payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       RETURNING id`
-    )
-      .bind(
-        session?.userId ?? null,
-        anonId,
-        url,
-        typeof summary.source_type === "string" ? summary.source_type : null,
-        typeof summary.title === "string" ? summary.title : null,
-        typeof summary.verdict === "string" ? summary.verdict : null,
-        JSON.stringify(summary),
-        nowIso
+  if (session) {
+    // Signed-in: backend's /api/library/add already saved to items and the
+    // response includes the new id. No D1.summaries write.
+    summaryId = typeof summary.id === "number" ? summary.id : undefined;
+  } else {
+    // Anonymous: persist to D1.summaries for later claim-on-signup.
+    const nowIso = new Date().toISOString();
+    try {
+      const row = await env.DB.prepare(
+        `INSERT INTO summaries (user_id, anon_id, url, source_type, title, verdict, payload, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         RETURNING id`
       )
-      .first<{ id: number }>();
-    summaryId = row?.id;
-  } catch (err) {
-    // Don't fail the user-facing response — they still got a usable result.
-    console.error("summaries insert failed", err);
+        .bind(
+          null,
+          anonId,
+          url,
+          typeof summary.source_type === "string" ? summary.source_type : null,
+          typeof summary.title === "string" ? summary.title : null,
+          typeof summary.verdict === "string" ? summary.verdict : null,
+          JSON.stringify(summary),
+          nowIso
+        )
+        .first<{ id: number }>();
+      summaryId = row?.id;
+    } catch (err) {
+      // Don't fail the user-facing response — they still got a usable result.
+      console.error("summaries insert failed", err);
+    }
   }
 
   return respond({
@@ -612,13 +645,14 @@ interface Session {
 async function loadSession(sessionId: string | undefined, env: Env): Promise<Session | null> {
   if (!sessionId || !isValidToken(sessionId)) return null;
   try {
+    // Post unified-identity refactor: email is denormalised onto `sessions`
+    // (written by handleLoginVerify), so we no longer JOIN against the
+    // deprecated D1 `users` table. user_id refers to the backend users.id.
     const row = await env.DB.prepare(
-      `SELECT s.id, s.user_id, s.expires_at, u.email
-       FROM sessions s JOIN users u ON u.id = s.user_id
-       WHERE s.id = ?`
+      `SELECT id, user_id, email, expires_at FROM sessions WHERE id = ?`
     )
       .bind(sessionId)
-      .first<{ id: string; user_id: number; expires_at: string; email: string }>();
+      .first<{ id: string; user_id: number; email: string; expires_at: string }>();
     if (!row) return null;
     if (new Date(row.expires_at).getTime() <= Date.now()) return null;
     return { id: row.id, userId: row.user_id, email: row.email };
@@ -773,8 +807,7 @@ async function handleLoginVerify(
     // refactor, the backend's `users` table is the source of truth and
     // sessions.user_id refers to backend users.id (NOT D1.users.id — that
     // table is now orphaned). See filter.fyi-backend POST /api/users/upsert.
-    const backendBase = env.BOT_API_URL.replace(/\/api\/try\/?$/, "");
-    const upsertRes = await fetch(`${backendBase}/api/users/upsert`, {
+    const upsertRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/users/upsert`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -816,9 +849,9 @@ async function handleLoginVerify(
   const sessionExpires = new Date(Date.now() + SESSION_MAX_AGE * 1000).toISOString();
   try {
     await env.DB.prepare(
-      `INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)`
+      `INSERT INTO sessions (id, user_id, email, expires_at, created_at) VALUES (?, ?, ?, ?, ?)`
     )
-      .bind(sessionId, userId, sessionExpires, nowIso)
+      .bind(sessionId, userId, email, sessionExpires, nowIso)
       .run();
   } catch (err) {
     console.error("sessions insert failed", err);
@@ -851,59 +884,82 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
   const session = await loadSession(cookies[SESSION_COOKIE], env);
   if (!session) return json({ error: "unauthorized" }, 401);
 
-  let summaries: Array<{
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  // Lean library from the backend. The page lazy-fetches full analysis per
+  // item via /api/library/:id when the user opens "Show analysis".
+  type LeanRow = {
     id: number;
-    url: string;
     source_type: string | null;
-    title: string | null;
+    source: string | null;
     verdict: string | null;
-    payload: string;
+    title: string | null;
     created_at: string;
-  }> = [];
+  };
+  let rows: LeanRow[] = [];
   try {
-    const res = await env.DB.prepare(
-      `SELECT id, url, source_type, title, verdict, payload, created_at
-       FROM summaries
-       WHERE user_id = ?
-       ORDER BY created_at DESC
-       LIMIT 100`
-    )
-      .bind(session.userId)
-      .all<{
-        id: number;
-        url: string;
-        source_type: string | null;
-        title: string | null;
-        verdict: string | null;
-        payload: string;
-        created_at: string;
-      }>();
-    summaries = res.results ?? [];
+    const res = await fetch(
+      `${backendBase(env.BOT_API_URL)}/api/library?user_id=${session.userId}`,
+      {
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      }
+    );
+    if (!res.ok) {
+      console.error("/api/me upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    rows = (await res.json()) as LeanRow[];
   } catch (err) {
-    console.error("/api/me query failed", err);
-    return json({ error: "storage-error" }, 500);
+    console.error("/api/me upstream failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
   }
 
   return json({
     ok: true,
     user: { email: session.email },
-    summaries: summaries.map((row) => ({
+    summaries: rows.map((row) => ({
       id: row.id,
-      url: row.url,
+      url: row.source ?? "",
       source_type: row.source_type,
       title: row.title,
       verdict: row.verdict,
       created_at: row.created_at,
-      summary: safeParseJson(row.payload),
+      // No `summary` field — me.html lazy-fetches from /api/library/:id.
     })),
   });
 }
 
-function safeParseJson(s: string): unknown {
+async function handleLibraryItem(req: Request, env: Env, itemId: number): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
   try {
-    return JSON.parse(s);
-  } catch {
-    return null;
+    const res = await fetch(
+      `${backendBase(env.BOT_API_URL)}/api/library/${itemId}?user_id=${session.userId}`,
+      {
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      }
+    );
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("/api/library/:id upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("/api/library/:id upstream failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
   }
 }
 
