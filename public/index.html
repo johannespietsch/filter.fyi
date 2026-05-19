@@ -179,7 +179,7 @@
                  placeholder="https://..." required spellcheck="false" autocapitalize="off" />
           <button class="cta-btn" id="submit-btn" type="submit">Try it</button>
         </div>
-        <p class="form-fine-print">No login required. 3 free verdicts per day. Long-form video transcription is coming with the full product.</p>
+        <p class="form-fine-print" id="form-fine-print">No login required. 3 free verdicts per day. Long-form video transcription is coming with the full product.</p>
       </form>
 
       <div class="loading" id="loading"><span class="loading-dot"></span>Reading the page and analyzing…</div>
@@ -259,6 +259,8 @@
           if (save) {
             save.innerHTML = 'Saved to <a href="/me">your library</a>.';
           }
+          const finePrint = document.getElementById('form-fine-print');
+          if (finePrint) finePrint.hidden = true;
           const nudge = document.getElementById('nudge-waitlist');
           if (nudge) nudge.remove();
           const noticeRl = document.getElementById('notice-ratelimit');
