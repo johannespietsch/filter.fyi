@@ -334,10 +334,10 @@ interface BotResponse {
 }
 
 async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  // Detect signed-in user up front — when present, summaries get the user_id
-  // and rate limits are higher. Anon cookie is still managed so pre-signup
-  // history on this device remains claimable; signed-in writes also stamp
-  // anon_id when available, purely for device traceability.
+  // Detect signed-in user up front — when present, the analyse+save flow goes
+  // entirely through the backend (/api/library/add) and skips D1 storage.
+  // Anonymous tries land in D1.anon_summaries with the anon cookie so they're
+  // claimable on signup; the cookie is minted on first visit if missing.
   const cookies = parseCookies(req.headers.get("cookie"));
   const session = await loadSession(cookies[SESSION_COOKIE], env);
 
@@ -471,9 +471,8 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
 
   // Call bot — with timeout so a hung backend doesn't hang the Worker.
   // Signed-in calls go to /api/library/add, which analyses AND persists to the
-  // backend's items table (D1.summaries is anon-only post unified-identity).
-  // Anonymous calls go to /api/try, which only analyses; we then write to
-  // D1.summaries ourselves for later claim-on-signup.
+  // backend's items table. Anonymous calls go to /api/try, which only analyses;
+  // we then write to D1.anon_summaries ourselves for later claim-on-signup.
   const botEndpoint = session
     ? `${backendBase(env.BOT_API_URL)}/api/library/add`
     : env.BOT_API_URL;
@@ -546,19 +545,18 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   let summaryId: number | undefined;
   if (session) {
     // Signed-in: backend's /api/library/add already saved to items and the
-    // response includes the new id. No D1.summaries write.
+    // response includes the new id. No D1.anon_summaries write.
     summaryId = typeof summary.id === "number" ? summary.id : undefined;
   } else {
-    // Anonymous: persist to D1.summaries for later claim-on-signup.
+    // Anonymous: persist to D1.anon_summaries for later claim-on-signup.
     const nowIso = new Date().toISOString();
     try {
       const row = await env.DB.prepare(
-        `INSERT INTO summaries (user_id, anon_id, url, source_type, title, verdict, payload, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO anon_summaries (anon_id, url, source_type, title, verdict, payload, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          RETURNING id`
       )
         .bind(
-          null,
           anonId,
           url,
           typeof summary.source_type === "string" ? summary.source_type : null,
@@ -571,7 +569,7 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
       summaryId = row?.id;
     } catch (err) {
       // Don't fail the user-facing response — they still got a usable result.
-      console.error("summaries insert failed", err);
+      console.error("anon_summaries insert failed", err);
     }
   }
 
@@ -641,6 +639,71 @@ interface Session {
   userId: number;
   email: string;
 }
+
+async function claimAnonEntries(env: Env, userId: number, anonId: string): Promise<void> {
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("claim skipped: backend not configured");
+    return;
+  }
+  try {
+    const res = await env.DB.prepare(
+      `SELECT url, source_type, title, verdict, payload
+       FROM anon_summaries WHERE anon_id = ?`
+    )
+      .bind(anonId)
+      .all<{
+        url: string;
+        source_type: string | null;
+        title: string | null;
+        verdict: string | null;
+        payload: string;
+      }>();
+    const rows = res.results ?? [];
+    if (rows.length === 0) return;
+
+    const claimRows = rows.map((r) => {
+      let parsed: { content_preview?: unknown; analysis?: unknown } = {};
+      try {
+        const p = JSON.parse(r.payload);
+        if (p && typeof p === "object") parsed = p;
+      } catch {}
+      return {
+        url: r.url,
+        title: r.title ?? undefined,
+        source_type: r.source_type ?? "article",
+        verdict: r.verdict ?? "skim",
+        content_preview:
+          typeof parsed.content_preview === "string" ? parsed.content_preview : undefined,
+        analysis:
+          parsed.analysis && typeof parsed.analysis === "object"
+            ? parsed.analysis
+            : undefined,
+      };
+    });
+
+    const claimRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/claim`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-filter-fyi-secret": env.BOT_API_KEY,
+      },
+      body: JSON.stringify({ user_id: userId, rows: claimRows }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!claimRes.ok) {
+      // Rows stay in D1; surface for diagnosis but don't fail the login flow.
+      console.error("claim non-ok", claimRes.status);
+      return;
+    }
+
+    await env.DB.prepare(`DELETE FROM anon_summaries WHERE anon_id = ?`)
+      .bind(anonId)
+      .run();
+  } catch (err) {
+    console.error("claim threw", err);
+  }
+}
+
 
 async function loadSession(sessionId: string | undefined, env: Env): Promise<Session | null> {
   if (!sessionId || !isValidToken(sessionId)) return null;
@@ -831,18 +894,14 @@ async function handleLoginVerify(
     return Response.redirect(`${url.origin}/login?error=storage`, 302);
   }
 
-  // Claim anon summaries produced on this device pre-signup, if any.
+  // Claim anon entries produced on this device pre-signup. Cross-DB:
+  // read D1.anon_summaries → POST to backend /api/claim → DELETE from D1.
+  // Best-effort and runs in the background so a slow backend doesn't block
+  // the login redirect; rows stay in D1 on failure for a future retry.
   const cookies = parseCookies(req.headers.get("cookie"));
   const anonId = cookies[ANON_COOKIE];
   if (anonId && isValidAnonId(anonId)) {
-    ctx.waitUntil(
-      env.DB.prepare(
-        `UPDATE summaries SET user_id = ? WHERE anon_id = ? AND user_id IS NULL`
-      )
-        .bind(userId, anonId)
-        .run()
-        .catch((err) => console.error("claim summaries failed", err))
-    );
+    ctx.waitUntil(claimAnonEntries(env, userId, anonId));
   }
 
   const sessionId = randomTokenHex(32);
