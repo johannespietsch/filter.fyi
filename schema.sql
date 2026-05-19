@@ -67,12 +67,20 @@ CREATE INDEX IF NOT EXISTS idx_login_tokens_expires ON login_tokens (expires_at)
 -- Post unified-identity refactor: user_id refers to the BACKEND users.id (Fly
 -- SQLite), NOT this file's `users` table. The Worker calls the backend's
 -- /api/users/upsert during verify and stores the returned id here.
+-- `email` is denormalised so loadSession doesn't have to JOIN against the
+-- (deprecated) D1 users table — it's known at verify time.
 CREATE TABLE IF NOT EXISTS sessions (
   id          TEXT PRIMARY KEY,
   user_id     INTEGER NOT NULL,
+  email       TEXT NOT NULL DEFAULT '',
   expires_at  TEXT NOT NULL,
   created_at  TEXT NOT NULL
 );
+-- Existing prod sessions table predates the `email` column. After this PR
+-- ships, run once against the live DB:
+--   ALTER TABLE sessions ADD COLUMN email TEXT NOT NULL DEFAULT '';
+-- (npm run db:init:remote will only CREATE-IF-NOT-EXISTS; it won't add the
+-- column to an existing table.)
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);

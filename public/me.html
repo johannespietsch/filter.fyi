@@ -165,47 +165,70 @@
       }
 
       function renderItem(row) {
-        const s = row.summary || {};
-        const a = s.analysis || {};
-        const verdict = String(row.verdict || s.verdict || '').toLowerCase();
+        const verdict = String(row.verdict || '').toLowerCase();
         const badgeClass = ['watch','skim','skip'].includes(verdict) ? `verdict-${verdict}` : '';
-        const title = row.title || s.title || row.url;
-        const sourceType = row.source_type || s.source_type || '';
-        const time = a.time_required || '';
-        const category = a.category || '';
+        const title = row.title || row.url;
+        const sourceType = row.source_type || '';
         const host = hostOf(row.url);
 
         const headBits = [
           `<span class="badge ${badgeClass}">${escapeHtml(verdict || 'verdict')}</span>`,
           sourceType ? `<span>· ${escapeHtml(sourceType)}</span>` : '',
-          time ? `<span>· ${escapeHtml(time)}</span>` : '',
           `<span style="margin-left:auto;">${escapeHtml(fmtDate(row.created_at))}</span>`,
         ].filter(Boolean).join('');
 
-        const metaBits = [
-          category ? `<b>category</b> ${escapeHtml(category)}` : '',
-          host ? `<b>source</b> <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>` : '',
-        ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+        const metaBits = host
+          ? `<b>source</b> <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`
+          : '';
 
+        // Full analysis is fetched on demand from /api/library/:id when
+        // the <details> element is opened — keeps the list payload lean.
+        return `
+          <article class="item" data-id="${escapeHtml(row.id)}">
+            <div class="item-head">${headBits}</div>
+            <h2 class="item-title"><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
+            <div class="item-meta">${metaBits}</div>
+            <details>
+              <summary>Show analysis</summary>
+              <div class="body" data-loaded="0">Loading…</div>
+            </details>
+          </article>
+        `;
+      }
+
+      function renderAnalysisInto(bodyEl, analysisJson) {
+        let a = {};
+        try {
+          const parsed = JSON.parse(analysisJson || '{}');
+          a = parsed && typeof parsed === 'object' ? parsed : {};
+        } catch {}
         const mainIdea = a.main_idea
           ? `<p><b>${escapeHtml(a.main_idea)}</b></p>` : '';
         const why = a.why_it_matters
           ? `<p class="why">${escapeHtml(a.why_it_matters)}</p>` : '';
         const exp = a.suggested_experiment
           ? `<div class="exp"><b>try this →</b>${escapeHtml(a.suggested_experiment)}</div>` : '';
+        bodyEl.innerHTML = mainIdea || why || exp
+          ? `${mainIdea}${why}${exp}`
+          : '<p><i>(no analysis stored)</i></p>';
+      }
 
-        return `
-          <article class="item">
-            <div class="item-head">${headBits}</div>
-            <h2 class="item-title"><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
-            <div class="item-meta">${metaBits}</div>
-            ${mainIdea || why || exp ? `
-              <details>
-                <summary>Show analysis</summary>
-                <div class="body">${mainIdea}${why}${exp}</div>
-              </details>` : ''}
-          </article>
-        `;
+      async function loadAnalysis(article) {
+        const body = article.querySelector('.body');
+        if (!body || body.dataset.loaded === '1') return;
+        const id = article.dataset.id;
+        body.dataset.loaded = '1'; // optimistic — don't refetch on subsequent toggles
+        try {
+          const res = await fetch(`/api/library/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+          if (!res.ok) {
+            body.textContent = 'Could not load analysis.';
+            return;
+          }
+          const item = await res.json();
+          renderAnalysisInto(body, item.analysis);
+        } catch {
+          body.textContent = 'Could not load analysis.';
+        }
       }
 
       async function load() {
@@ -234,6 +257,13 @@
         }
         list.innerHTML = rows.map(renderItem).join('');
         list.hidden = false;
+        // Lazy-fetch full analysis when the user opens "Show analysis".
+        list.addEventListener('toggle', (e) => {
+          const details = e.target;
+          if (!(details instanceof HTMLDetailsElement) || !details.open) return;
+          const article = details.closest('article.item');
+          if (article) loadAnalysis(article);
+        }, true);
       }
 
       signoutBtn.addEventListener('click', async () => {
