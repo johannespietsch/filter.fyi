@@ -131,6 +131,26 @@
     .link-tg-expires { font-size: 11px; color: var(--ink-3); }
     .link-tg-error { font-size: 12px; color: var(--red); }
 
+    /* account / data controls */
+    .account { margin-top: 24px; padding: 16px 18px; background: var(--bg-2); border: 1px solid var(--ink); }
+    .account-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                     color: var(--ink-2); margin-bottom: 6px; }
+    .account-title::before { content: '— '; color: var(--green); }
+    .account-row { display: flex; gap: 14px; align-items: center; justify-content: space-between;
+                   padding: 12px 0; border-top: 1px dotted var(--ink); }
+    .account-text { min-width: 0; }
+    .account-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .account-hint { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+    .account-btn { flex-shrink: 0; color: var(--green); padding: 4px 12px; border: 1px solid var(--green);
+                   background: var(--green-soft); font: inherit; font-size: 12px; text-decoration: none;
+                   cursor: pointer; text-transform: lowercase; transition: 0.12s; }
+    .account-btn:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
+    .account-btn:disabled { opacity: 0.5; cursor: default; }
+    .account-btn.danger { color: var(--red); border-color: var(--red); background: transparent; }
+    .account-btn.danger:hover:not(:disabled) { background: var(--red); color: var(--bg-2); }
+    .account-btn.danger.armed { background: var(--red); color: var(--bg-2); }
+    .account-error { font-size: 12px; color: var(--red); margin-top: 8px; }
+
     @media (max-width: 540px) {
       .wrap { padding: 16px 18px 32px; }
     }
@@ -170,6 +190,25 @@
     </div>
 
     <div class="list" id="list" hidden></div>
+
+    <section class="account" id="account" hidden>
+      <div class="account-title">Your data</div>
+      <div class="account-row">
+        <div class="account-text">
+          <div class="account-label">Export your data</div>
+          <p class="account-hint">Download everything we hold for your account as JSON.</p>
+        </div>
+        <a class="account-btn" id="export-btn" href="/api/v1/account/export">export →</a>
+      </div>
+      <div class="account-row">
+        <div class="account-text">
+          <div class="account-label">Delete account</div>
+          <p class="account-hint">Permanently removes your account, saved items, and any linked surfaces. This can't be undone.</p>
+        </div>
+        <button class="account-btn danger" id="delete-account-btn" type="button">delete account</button>
+      </div>
+      <p id="account-error" class="account-error" hidden></p>
+    </section>
 
     <footer>
       <span>filter.fyi — relevant, not noise.</span>
@@ -272,6 +311,50 @@
         }
       }
 
+      // "Delete account" — two-step confirm (arms on first click, deletes on a
+      // second within 5s), then GDPR-erases on the backend and sends home.
+      // Wired once, when the page first loads for a signed-in user.
+      let deleteAccountWired = false;
+      function wireDeleteAccount() {
+        if (deleteAccountWired) return;
+        deleteAccountWired = true;
+        const btn = document.getElementById('delete-account-btn');
+        const err = document.getElementById('account-error');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+          if (btn.dataset.armed !== '1') {
+            btn.dataset.armed = '1';
+            btn.classList.add('armed');
+            btn.textContent = 'confirm — delete everything?';
+            clearTimeout(btn._disarm);
+            btn._disarm = setTimeout(() => {
+              btn.dataset.armed = '0';
+              btn.classList.remove('armed');
+              btn.textContent = 'delete account';
+            }, 5000);
+            return;
+          }
+          clearTimeout(btn._disarm);
+          btn.disabled = true;
+          btn.textContent = 'deleting…';
+          if (err) err.hidden = true;
+          try {
+            const res = await fetch('/api/v1/account', { method: 'DELETE', credentials: 'same-origin' });
+            if (!res.ok) throw new Error('delete-failed');
+            location.replace('/'); // account + session are gone
+          } catch {
+            btn.disabled = false;
+            btn.dataset.armed = '0';
+            btn.classList.remove('armed');
+            btn.textContent = 'delete account';
+            if (err) {
+              err.textContent = "Couldn't delete your account. Try again in a moment.";
+              err.hidden = false;
+            }
+          }
+        });
+      }
+
       async function load() {
         let res, payload;
         try {
@@ -297,6 +380,10 @@
           if (linkSection) linkSection.hidden = true;
         }
         loading.hidden = true;
+        // Export/delete are available regardless of library size, so reveal +
+        // wire them before the empty-library early return.
+        document.getElementById('account').hidden = false;
+        wireDeleteAccount();
         const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
         if (rows.length === 0) {
           empty.hidden = false;

@@ -95,6 +95,16 @@ export default {
       return handleLinkStart(req, env);
     }
 
+    if (url.pathname === "/api/v1/account/export") {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleAccountExport(req, env);
+    }
+
+    if (url.pathname === "/api/v1/account") {
+      if (req.method !== "DELETE") return json({ error: "method-not-allowed" }, 405);
+      return handleAccountDelete(req, env);
+    }
+
     // /join was the old waitlist URL (still the advertised og:url out there);
     // the page now lives at /about. Permanent redirect so shared links survive.
     if (url.pathname === "/join" || url.pathname === "/join/") {
@@ -1172,6 +1182,89 @@ async function handleLibraryItem(req: Request, env: Env, itemId: number): Promis
     console.error("/api/library/:id upstream failed", err);
     return json({ error: "upstream-unreachable" }, 502);
   }
+}
+
+// GDPR data export. Streams the backend's per-user dump back to the browser as
+// a downloadable JSON file.
+async function handleAccountExport(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  try {
+    const res = await fetch(
+      `${backendBase(env.BOT_API_URL)}/api/users/${session.userId}/export`,
+      { headers: { "x-filter-fyi-secret": env.BOT_API_KEY }, signal: AbortSignal.timeout(10_000) }
+    );
+    if (!res.ok) {
+      console.error("account export upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    const data = await res.json();
+    return new Response(JSON.stringify(data, null, 2), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-disposition": 'attachment; filename="filter-fyi-export.json"',
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      },
+    });
+  } catch (err) {
+    console.error("account export failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+// GDPR erasure. Deletes the user + items + files on the backend, then removes
+// every trace we hold at the edge (D1 sessions, login tokens, waitlist, and
+// any anon rows tied to this device), and clears the session cookie.
+async function handleAccountDelete(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  // 1. Backend: user, items, link codes, stored files. 404 means already gone.
+  try {
+    const res = await fetch(`${backendBase(env.BOT_API_URL)}/api/users/${session.userId}`, {
+      method: "DELETE",
+      headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok && res.status !== 404) {
+      console.error("account delete upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+  } catch (err) {
+    console.error("account delete upstream failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+
+  // 2. Edge (D1): everything keyed to this person. Best-effort — the backend
+  // delete (the source of truth) already succeeded, so don't fail the request.
+  const anonId = cookies[ANON_COOKIE];
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(session.userId),
+      env.DB.prepare(`DELETE FROM login_tokens WHERE email = ?`).bind(session.email),
+      env.DB.prepare(`DELETE FROM waitlist WHERE email = ?`).bind(session.email),
+      ...(anonId && isValidAnonId(anonId)
+        ? [env.DB.prepare(`DELETE FROM anon_summaries WHERE anon_id = ?`).bind(anonId)]
+        : []),
+    ]);
+  } catch (err) {
+    console.error("account delete: D1 cleanup failed (backend already purged)", err);
+  }
+
+  return json({ ok: true }, 200, { "set-cookie": clearSessionCookieHeader() });
 }
 
 function randomTokenHex(bytes: number): string {
