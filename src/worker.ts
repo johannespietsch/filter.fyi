@@ -52,17 +52,17 @@ export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
 
-    if (url.pathname === "/api/waitlist") {
+    if (url.pathname === "/api/v1/waitlist") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleWaitlist(req, env, ctx);
     }
 
-    if (url.pathname === "/api/try") {
+    if (url.pathname === "/api/v1/try") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleTry(req, env, ctx);
     }
 
-    if (url.pathname === "/api/login") {
+    if (url.pathname === "/api/v1/login") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleLogin(req, env, ctx);
     }
@@ -72,23 +72,23 @@ export default {
       return handleLoginVerify(req, env, ctx);
     }
 
-    if (url.pathname === "/api/logout") {
+    if (url.pathname === "/api/v1/logout") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleLogout(req, env);
     }
 
-    if (url.pathname === "/api/me") {
+    if (url.pathname === "/api/v1/me") {
       if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
       return handleMe(req, env);
     }
 
-    const libraryItemMatch = url.pathname.match(/^\/api\/library\/(\d+)$/);
+    const libraryItemMatch = url.pathname.match(/^\/api\/v1\/library\/(\d+)$/);
     if (libraryItemMatch) {
       if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
       return handleLibraryItem(req, env, Number(libraryItemMatch[1]));
     }
 
-    if (url.pathname === "/api/link/start") {
+    if (url.pathname === "/api/v1/link/start") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleLinkStart(req, env);
     }
