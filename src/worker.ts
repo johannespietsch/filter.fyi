@@ -101,9 +101,40 @@ export default {
       return Response.redirect(new URL("/about", url).toString(), 301);
     }
 
-    return env.ASSETS.fetch(req);
+    return withSecurityHeaders(await env.ASSETS.fetch(req));
   },
 };
+
+// Security headers for served documents/assets. CSP is intentionally applied
+// only to HTML responses; the pages still use inline <script>/<style>, so
+// script/style-src need 'unsafe-inline' for now (dropping it means moving
+// inline code to external files + nonces — tracked as a follow-up). The rest
+// (frame-ancestors, object-src, base-uri, img/connect restrictions, HSTS,
+// nosniff, referrer-policy) is enforced regardless.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com",
+  "img-src 'self' data: https:", // result thumbnails come from arbitrary https hosts
+  "connect-src 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+].join("; ");
+
+function withSecurityHeaders(res: Response): Response {
+  const headers = new Headers(res.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "DENY");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  headers.set("Strict-Transport-Security", "max-age=15552000"); // 180d, no subdomains
+  if (headers.get("content-type")?.includes("text/html")) {
+    headers.set("Content-Security-Policy", CSP);
+  }
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
 
 async function handleWaitlist(
   req: Request,
@@ -320,6 +351,7 @@ function json(body: unknown, status = 200, extra?: Record<string, string>): Resp
   const headers = new Headers({
     "content-type": "application/json",
     "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
   });
   if (extra) for (const [k, v] of Object.entries(extra)) headers.set(k, v);
   return new Response(JSON.stringify(body), { status, headers });
@@ -625,10 +657,47 @@ function isValidHttpUrl(s: string): boolean {
   if (s.length === 0 || s.length > 2048) return false;
   try {
     const u = new URL(s);
-    return u.protocol === "http:" || u.protocol === "https:";
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    // Defense-in-depth against SSRF. The backend does the authoritative check
+    // (DNS resolution + IP-range validation); this rejects the obvious
+    // internal targets syntactically so they never leave the edge.
+    return !isBlockedHost(u.hostname);
   } catch {
     return false;
   }
+}
+
+// Syntactic block-list for clearly-internal hosts. No DNS — the backend
+// resolves and validates the address; this only catches literal private IPs
+// and internal-looking hostnames.
+function isBlockedHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+  if (host === "localhost" || /\.(internal|local|localhost)$/.test(host)) return true;
+
+  // IPv4 literal → check private/loopback/link-local/reserved ranges.
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = v4.slice(1).map(Number);
+    if ([a, b, Number(v4[3]), Number(v4[4])].some((n) => n > 255)) return true; // malformed
+    if (a === 10 || a === 127 || a === 0) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true; // link-local incl. cloud metadata
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+
+  // IPv6 literal → block loopback, unspecified, unique-local (fc00::/7),
+  // link-local (fe80::/10), and IPv4-mapped.
+  if (host.includes(":")) {
+    if (host === "::1" || host === "::") return true;
+    if (/^f[cd]/.test(host)) return true; // fc00::/7
+    if (/^fe[89ab]/.test(host)) return true; // fe80::/10
+    if (host.startsWith("::ffff:")) return true; // IPv4-mapped
+    return false;
+  }
+
+  return false;
 }
 
 function classifyUrl(raw: string): string {
