@@ -93,6 +93,12 @@ export default {
       return handleLinkStart(req, env);
     }
 
+    // /join was the old waitlist URL (still the advertised og:url out there);
+    // the page now lives at /about. Permanent redirect so shared links survive.
+    if (url.pathname === "/join" || url.pathname === "/join/") {
+      return Response.redirect(new URL("/about", url).toString(), 301);
+    }
+
     return env.ASSETS.fetch(req);
   },
 };
