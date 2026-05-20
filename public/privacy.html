@@ -92,7 +92,7 @@
 
     <section class="bay">
       <h2>Who we are</h2>
-      <p>filter.fyi ("we", "the service") is operated by Johannes, based in the Netherlands. We are the data controller for the personal data described here. Questions or requests: <a href="mailto:hello@filter.fyi">hello@filter.fyi</a>.</p>
+      <p>filter.fyi ("we", "the service") is operated by Johannes Pietsch, based in Amsterdam, the Netherlands — a <a href="https://pietsch.works" target="_blank" rel="noopener">pietsch.works</a> project. We are the data controller for the personal data described here, and our business-registration (KvK) details are listed at <a href="https://pietsch.works" target="_blank" rel="noopener">pietsch.works</a>. Privacy questions, data-subject requests, and content-removal requests: <a href="mailto:privacy@filter.fyi">privacy@filter.fyi</a>.</p>
     </section>
 
     <section class="bay">
@@ -129,10 +129,17 @@
         <tr><th>Provider</th><th>Role</th></tr>
         <tr><td>Cloudflare</td><td>Website hosting and edge storage</td></tr>
         <tr><td>Fly.io</td><td>Backend hosting (EU region), database</td></tr>
-        <tr><td>Anthropic (or OpenAI)</td><td>The AI model that analyses submitted content</td></tr>
+        <tr><td>Anthropic (Claude)</td><td>The AI model that analyses submitted content</td></tr>
         <tr><td>Resend</td><td>Sending transactional &amp; waitlist email</td></tr>
       </table>
-      <p><b>Content you submit is sent to our AI provider</b> to generate a verdict. Our providers process this on our behalf and, on their standard API terms, do not use it to train their models. Some providers are based in the US; transfers are covered by Standard Contractual Clauses and/or the EU–US Data Privacy Framework.</p>
+      <p><b>Content you submit is sent to Anthropic</b> to generate a verdict. They process it on our behalf and, on their standard API terms, do not use it to train their models. Some providers are based in the US; transfers are covered by Standard Contractual Clauses and/or the EU–US Data Privacy Framework.</p>
+    </section>
+
+    <section class="bay">
+      <h2>Content you fetch, and automated analysis</h2>
+      <p>When you submit a URL, we fetch that page <b>on your instruction</b> — like a browser or a read-it-later tool — and generate a short summary and verdict. We act on the specific link you give us; we don't crawl the web or build datasets.</p>
+      <p>We respect machine-readable "do not fetch" signals (such as <code style="font-size:12px;">robots.txt</code>), and we keep only a <b>condensed summary</b> of the source, not a full copy. If a fetched page happens to contain other people's personal data (a name in an article, a post author), we hold only what survives in that short summary, use it solely to give you your verdict, and don't use it to profile anyone. If you're mentioned in stored content and want it removed, email <a href="mailto:privacy@filter.fyi">privacy@filter.fyi</a>.</p>
+      <p>The verdict is produced automatically by an AI model. It informs you; it isn't a decision that produces legal or similarly significant effects on anyone, so it isn't "solely automated decision-making" in the sense of GDPR Article 22.</p>
     </section>
 
     <section class="bay">
@@ -148,7 +155,9 @@
       <h2>How long we keep it</h2>
       <ul>
         <li><b>Waitlist email</b> — until early access ends or you ask us to remove it.</li>
-        <li><b>Account &amp; saved items</b> — until you delete the item or your account.</li>
+        <li><b>Saved items</b> — a condensed summary plus your verdict (not a full copy of the source); kept until you delete the item or your account.</li>
+        <li><b>Fetched media</b> (e.g. video/audio) — used transiently to produce the summary and <b>not retained</b>.</li>
+        <li><b>Account email</b> — until you delete your account.</li>
         <li><b>Rate-limit data</b> (IP, anon ID) — short-lived; cleared on a rolling daily basis.</li>
         <li><b>Diagnostic error logs</b> — about 30 days.</li>
       </ul>
@@ -159,7 +168,7 @@
       <p>Under the GDPR you can access, correct, export, or delete your personal data, and object to or restrict certain processing.</p>
       <ul>
         <li><b>Delete your account &amp; data</b> or <b>export your data</b> — from your library page once signed in, or by emailing us.</li>
-        <li><b>Waitlist removal</b> — email <a href="mailto:hello@filter.fyi">hello@filter.fyi</a> and we'll delete your entry.</li>
+        <li><b>Waitlist removal</b> — email <a href="mailto:privacy@filter.fyi">privacy@filter.fyi</a> and we'll delete your entry.</li>
       </ul>
       <p>If you're in the EU/EEA, you also have the right to complain to your data protection authority (in the Netherlands, the Autoriteit Persoonsgegevens).</p>
     </section>
