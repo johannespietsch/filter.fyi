@@ -163,7 +163,11 @@
     <nav>
       <div class="mark"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></div>
       <div class="nav-meta" id="nav-meta">
-        <a href="/about" id="nav-about">about →</a>
+        <!-- Auth-dependent links get their own slots and are toggled by JS.
+             Persistent links (about, future: pricing, docs…) stay as static
+             markup so they're never wiped when auth state changes. -->
+        <a href="/me" id="nav-library" hidden>your library →</a>
+        <a href="/about">about →</a>
       </div>
     </nav>
 
@@ -251,10 +255,9 @@
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (!data?.user?.email) return;
-          const navMeta = document.getElementById('nav-meta');
-          if (navMeta) {
-            navMeta.innerHTML = '<a href="/me">your library →</a>';
-          }
+          // Reveal the library link; leave persistent nav links in place.
+          const navLibrary = document.getElementById('nav-library');
+          if (navLibrary) navLibrary.hidden = false;
           const save = document.getElementById('result-save');
           if (save) {
             save.innerHTML = 'Saved to <a href="/me">your library</a>.';
