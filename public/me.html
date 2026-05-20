@@ -177,6 +177,8 @@
       const list = document.getElementById('list');
       const userEmail = document.getElementById('user-email');
       const signoutBtn = document.getElementById('signout-btn');
+      // Spell out the call so the colour isn't carrying the meaning alone.
+      const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
 
       function escapeHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -197,12 +199,13 @@
       function renderItem(row) {
         const verdict = String(row.verdict || '').toLowerCase();
         const badgeClass = ['watch','skim','skip'].includes(verdict) ? `verdict-${verdict}` : '';
+        const verdictLabel = VERDICT_LABELS[verdict] || verdict || 'verdict';
         const title = row.title || row.url;
         const sourceType = row.source_type || '';
         const host = hostOf(row.url);
 
         const headBits = [
-          `<span class="badge ${badgeClass}">${escapeHtml(verdict || 'verdict')}</span>`,
+          `<span class="badge ${badgeClass}">${escapeHtml(verdictLabel)}</span>`,
           sourceType ? `<span>· ${escapeHtml(sourceType)}</span>` : '',
           `<span style="margin-left:auto;">${escapeHtml(fmtDate(row.created_at))}</span>`,
         ].filter(Boolean).join('');

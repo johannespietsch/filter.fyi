@@ -376,7 +376,11 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   }
 
   const ourSourceType = classifyUrl(url);
-  if (SLOW_SOURCE_TYPES.has(ourSourceType)) {
+  // Long-form video (Vimeo/Loom/Wistia/StreamYard) is slow to transcribe, so
+  // anonymous visitors get bounced before we call the bot. Signed-in users have
+  // the full product unlocked — let it through to the backend, which handles
+  // transcription (and degrades to a description-only summary when needed).
+  if (!session && SLOW_SOURCE_TYPES.has(ourSourceType)) {
     return respond(
       {
         error: "unsupported-source",

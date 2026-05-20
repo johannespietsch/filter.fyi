@@ -284,6 +284,8 @@
       const nudgeWaitlist = document.getElementById('nudge-waitlist');
       const nudgeClose = document.getElementById('nudge-close');
       const NUDGE_DISMISSED_KEY = 'fyi_nudge_dismissed';
+      // Spell out the call so the colour isn't carrying the meaning alone.
+      const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
 
       function hideAll() {
         for (const el of [loading, result, noticeUnsupported, noticeRatelimit, noticeError, nudgeWaitlist]) {
@@ -308,7 +310,7 @@
       function renderResult(summary) {
         const verdict = String(summary.verdict || '').toLowerCase();
         const badge = document.getElementById('verdict-badge');
-        badge.textContent = verdict || 'verdict';
+        badge.textContent = VERDICT_LABELS[verdict] || verdict || 'verdict';
         badge.className = 'badge';
         if (verdict === 'watch' || verdict === 'skim' || verdict === 'skip') {
           badge.classList.add('verdict-' + verdict);
