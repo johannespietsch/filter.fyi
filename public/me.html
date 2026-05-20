@@ -107,9 +107,11 @@
                    text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
 
     footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
-             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between; }
+             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between;
+             gap: 14px; flex-wrap: wrap; }
     footer a { color: var(--ink-3); text-decoration: none; }
     footer a:hover { color: var(--green); }
+    .footer-links { display: flex; gap: 14px; }
 
     /* Telegram-link section */
     .link-tg { margin-top: 24px; padding: 16px 18px; background: var(--bg-2);
@@ -173,7 +175,11 @@
 
     <footer>
       <span>filter.fyi — relevant, not noise.</span>
-      <a href="/">← home</a>
+      <span class="footer-links">
+        <a href="/privacy">privacy</a>
+        <a href="/terms">terms</a>
+        <a href="/">← home</a>
+      </span>
     </footer>
   </div>
 

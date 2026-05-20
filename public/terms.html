@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms — filter.fyi</title>
+  <meta name="description" content="The terms of service for using filter.fyi, including acceptable use and the limits of AI-generated verdicts.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.65;
+           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    .hl { color: var(--green); }
+    ::selection { background: var(--ink); color: var(--bg-2); }
+    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
+
+    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
+    nav { display: flex; justify-content: space-between; align-items: center;
+          padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
+            color: var(--ink); display: inline-flex; align-items: center; }
+    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                        display: inline-block; margin-right: 8px;
+                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
+    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green); color: var(--bg-2); }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    .hero { padding: 44px 0 22px; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 18px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
+    h1 { font-size: clamp(26px, 4.5vw, 32px); line-height: 1.18; letter-spacing: -0.03em;
+         font-weight: 700; margin-bottom: 12px; text-wrap: balance; }
+    .updated { font-size: 11px; color: var(--ink-3); }
+    .lede { font-size: 14px; color: var(--ink-2); margin-top: 14px; line-height: 1.65; text-wrap: pretty; }
+
+    section.bay { padding: 26px 0; border-top: 1px solid var(--ink); scroll-margin-top: 18px; }
+    .bay h2 { font-size: 17px; letter-spacing: -0.02em; font-weight: 700; margin-bottom: 10px; }
+    .bay h2 .n { color: var(--ink-3); font-weight: 400; margin-right: 8px; }
+    .bay p { color: var(--ink-2); margin-bottom: 12px; }
+    .bay ul { margin: 0 0 12px 18px; color: var(--ink-2); }
+    .bay li { margin-bottom: 6px; }
+    .bay b { color: var(--ink); font-weight: 600; }
+
+    .callout { border: 1px solid var(--ink); background: var(--bg-2); padding: 14px 16px;
+               margin-bottom: 12px; }
+    .callout b { display: block; font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+                 color: var(--green); margin-bottom: 6px; }
+
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; gap: 14px; flex-wrap: wrap;
+             justify-content: space-between; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+    footer .links { display: flex; gap: 14px; }
+
+    @media (max-width: 540px) { .wrap { padding: 16px 18px 32px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/">← try it</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">Terms of service</div>
+      <h1>The deal, in short.</h1>
+      <p class="updated">Last updated 20 May 2026</p>
+      <p class="lede">By using filter.fyi you agree to these terms. They're written to be readable; we've kept the lawyering light because we're early.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">01</span>Using the service</h2>
+      <p>filter.fyi analyses links and content you submit and gives you a verdict and a short structured summary. You may use it for your own personal or work research. We may change, suspend, or stop features at any time, especially while in early access.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">02</span>Verdicts are AI-generated</h2>
+      <div class="callout">
+        <b>Important</b>
+        Verdicts ("yes, watch" / "hm, skim" / "no, skip") and summaries are produced automatically by an AI model. They can be incomplete, biased, or simply wrong. They are <b>not</b> professional, financial, legal, medical, or investment advice. Use your own judgment and verify anything important.
+      </div>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">03</span>Acceptable use</h2>
+      <p>Don't use filter.fyi to:</p>
+      <ul>
+        <li>break the law, or process content you have no right to access or share;</li>
+        <li>submit malware, or content that's illegal, harmful, or infringes others' rights;</li>
+        <li>attack, overload, scrape, or reverse-engineer the service, or bypass its rate limits;</li>
+        <li>resell or redistribute the service or its output as your own product.</li>
+      </ul>
+      <p>We may rate-limit, suspend, or terminate access that breaks these rules or threatens the service.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">04</span>Accounts</h2>
+      <p>Accounts use email sign-in links — there's no password. Keep access to your email secure; anyone with your inbox can sign in as you. You're responsible for activity under your account. You can delete your account and data at any time from your library page.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">05</span>Your content</h2>
+      <p>You keep all rights to the content you submit. You grant us a limited licence to process it — including sending it to our AI provider — solely to provide the service to you (see the <a href="/privacy">privacy policy</a>). You confirm you're allowed to submit what you submit.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">06</span>No warranty</h2>
+      <p>The service is provided "as is" and "as available", without warranties of any kind. We don't guarantee that verdicts are accurate, that sources will always be reachable, or that the service will be uninterrupted or error-free.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">07</span>Limitation of liability</h2>
+      <p>To the maximum extent permitted by law, filter.fyi and its operator are not liable for any indirect, incidental, or consequential damages, or for decisions you make based on a verdict. Nothing in these terms limits liability that cannot be limited under applicable law (including your statutory consumer rights).</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">08</span>Changes &amp; governing law</h2>
+      <p>We may update these terms; we'll revise the date above and, for material changes, notify you where appropriate. Continued use means you accept the updated terms. These terms are governed by the laws of the Netherlands, without affecting any mandatory consumer protections of your country of residence.</p>
+    </section>
+
+    <section class="bay">
+      <h2><span class="n">09</span>Contact</h2>
+      <p>Questions about these terms: <a href="mailto:hello@filter.fyi">hello@filter.fyi</a>.</p>
+    </section>
+
+    <footer>
+      <span>filter.fyi — relevant, not noise.</span>
+      <span class="links">
+        <a href="/about">about</a>
+        <a href="/privacy">privacy</a>
+        <a href="/">← home</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
