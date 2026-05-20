@@ -83,6 +83,12 @@
     .item-title a:hover { color: var(--green); }
     .item-meta { font-size: 11px; color: var(--ink-3); }
     .item-meta b { color: var(--ink-2); font-weight: 500; }
+    .item-delete { font: inherit; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+                   color: var(--ink-3); background: none; border: 1px solid transparent;
+                   padding: 2px 6px; cursor: pointer; transition: 0.12s; }
+    .item-delete:hover:not(:disabled) { color: var(--red); border-color: var(--red); }
+    .item-delete.armed { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+    .item-delete:disabled { opacity: 0.5; cursor: default; }
 
     .item details { margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--ink); }
     .item summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em;
@@ -208,6 +214,7 @@
           `<span class="badge ${badgeClass}">${escapeHtml(verdictLabel)}</span>`,
           sourceType ? `<span>· ${escapeHtml(sourceType)}</span>` : '',
           `<span style="margin-left:auto;">${escapeHtml(fmtDate(row.created_at))}</span>`,
+          `<button type="button" class="item-delete" aria-label="Delete this verdict">delete</button>`,
         ].filter(Boolean).join('');
 
         const metaBits = host
@@ -303,6 +310,51 @@
           const article = details.closest('article.item');
           if (article) loadAnalysis(article);
         }, true);
+        // Delete, via event delegation. Two-step: first click arms the button,
+        // a second click (within a few seconds) actually deletes. Avoids a
+        // jarring native confirm() while still guarding against misclicks.
+        list.addEventListener('click', (e) => {
+          const btn = e.target.closest('.item-delete');
+          if (btn) deleteItem(btn);
+        });
+      }
+
+      async function deleteItem(btn) {
+        const article = btn.closest('article.item');
+        if (!article) return;
+
+        if (btn.dataset.armed !== '1') {
+          btn.dataset.armed = '1';
+          btn.classList.add('armed');
+          btn.textContent = 'confirm?';
+          btn._disarm = setTimeout(() => {
+            btn.dataset.armed = '0';
+            btn.classList.remove('armed');
+            btn.textContent = 'delete';
+          }, 4000);
+          return;
+        }
+
+        clearTimeout(btn._disarm);
+        btn.disabled = true;
+        btn.textContent = 'deleting…';
+        try {
+          const res = await fetch(`/api/v1/library/${encodeURIComponent(article.dataset.id)}`, {
+            method: 'DELETE',
+            credentials: 'same-origin',
+          });
+          if (!res.ok) throw new Error('delete-failed');
+          article.remove();
+          if (!list.querySelector('article.item')) {
+            list.hidden = true;
+            empty.hidden = false;
+          }
+        } catch {
+          btn.disabled = false;
+          btn.dataset.armed = '0';
+          btn.classList.remove('armed');
+          btn.textContent = 'retry delete';
+        }
       }
 
       // --- Link Telegram --------------------------------------------------

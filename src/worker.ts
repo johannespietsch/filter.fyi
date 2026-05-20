@@ -84,7 +84,9 @@ export default {
 
     const libraryItemMatch = url.pathname.match(/^\/api\/v1\/library\/(\d+)$/);
     if (libraryItemMatch) {
-      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      if (req.method !== "GET" && req.method !== "DELETE") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
       return handleLibraryItem(req, env, Number(libraryItemMatch[1]));
     }
 
@@ -1064,14 +1066,33 @@ async function handleLibraryItem(req: Request, env: Env, itemId: number): Promis
     return json({ error: "service-unavailable" }, 503);
   }
 
-  try {
-    const res = await fetch(
-      `${backendBase(env.BOT_API_URL)}/api/library/${itemId}?user_id=${session.userId}`,
-      {
+  const upstream = `${backendBase(env.BOT_API_URL)}/api/library/${itemId}?user_id=${session.userId}`;
+
+  if (req.method === "DELETE") {
+    try {
+      const res = await fetch(upstream, {
+        method: "DELETE",
         headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
         signal: AbortSignal.timeout(5_000),
+      });
+      if (res.status === 404) return json({ error: "not-found" }, 404);
+      if (!res.ok) {
+        console.error("DELETE /api/library/:id upstream non-ok", res.status);
+        return json({ error: "upstream-error" }, 502);
       }
-    );
+      // Backend returns 204; give the client a small JSON body to assert on.
+      return json({ ok: true });
+    } catch (err) {
+      console.error("DELETE /api/library/:id upstream failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+  }
+
+  try {
+    const res = await fetch(upstream, {
+      headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+      signal: AbortSignal.timeout(5_000),
+    });
     if (res.status === 404) return json({ error: "not-found" }, 404);
     if (!res.ok) {
       console.error("/api/library/:id upstream non-ok", res.status);
