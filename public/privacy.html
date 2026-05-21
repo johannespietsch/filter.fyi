@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy — filter.fyi</title>
+  <meta name="description" content="How filter.fyi handles your data: what we collect, who processes it, how long we keep it, and your rights.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.65;
+           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    .hl { color: var(--green); }
+    ::selection { background: var(--ink); color: var(--bg-2); }
+    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
+
+    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
+    nav { display: flex; justify-content: space-between; align-items: center;
+          padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
+            color: var(--ink); display: inline-flex; align-items: center; }
+    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                        display: inline-block; margin-right: 8px;
+                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
+    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green); color: var(--bg-2); }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    .hero { padding: 44px 0 22px; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 18px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
+    h1 { font-size: clamp(26px, 4.5vw, 32px); line-height: 1.18; letter-spacing: -0.03em;
+         font-weight: 700; margin-bottom: 12px; text-wrap: balance; }
+    .updated { font-size: 11px; color: var(--ink-3); }
+    .lede { font-size: 14px; color: var(--ink-2); margin-top: 14px; line-height: 1.65; text-wrap: pretty; }
+
+    section.bay { padding: 26px 0; border-top: 1px solid var(--ink); scroll-margin-top: 18px; }
+    .bay h2 { font-size: 17px; letter-spacing: -0.02em; font-weight: 700; margin-bottom: 10px; }
+    .bay h3 { font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2);
+              margin: 14px 0 6px; }
+    .bay p { color: var(--ink-2); margin-bottom: 12px; }
+    .bay ul { margin: 0 0 12px 18px; color: var(--ink-2); }
+    .bay li { margin-bottom: 6px; }
+    .bay b { color: var(--ink); font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12.5px; }
+    th, td { text-align: left; padding: 7px 8px; border: 1px solid var(--ink); color: var(--ink-2); vertical-align: top; }
+    th { background: var(--bg-2); color: var(--ink); font-weight: 600; }
+
+    .note { font-size: 12px; color: var(--ink-3); border-left: 2px solid var(--green);
+            padding: 8px 12px; background: var(--bg-2); margin-bottom: 12px; }
+
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; gap: 14px; flex-wrap: wrap;
+             justify-content: space-between; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+    footer .links { display: flex; gap: 14px; }
+
+    @media (max-width: 540px) { .wrap { padding: 16px 18px 32px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/">← try it</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">Privacy</div>
+      <h1>What we collect, and why.</h1>
+      <p class="updated">Last updated 20 May 2026</p>
+      <p class="lede">Plain-language summary of how filter.fyi handles your data. We collect as little as we can, don't sell anything, and use no advertising or tracking cookies.</p>
+    </section>
+
+    <section class="bay">
+      <h2>Who we are</h2>
+      <p>filter.fyi ("we", "the service") is operated by Johannes Pietsch, based in Amsterdam, the Netherlands — a <a href="https://pietsch.works" target="_blank" rel="noopener">pietsch.works</a> project. We are the data controller for the personal data described here, and our business-registration (KvK) details are listed at <a href="https://pietsch.works" target="_blank" rel="noopener">pietsch.works</a>. Privacy questions, data-subject requests, and content-removal requests: <a href="mailto:privacy@filter.fyi">privacy@filter.fyi</a>.</p>
+    </section>
+
+    <section class="bay">
+      <h2>What we collect</h2>
+      <h3>If you join the waitlist</h3>
+      <ul>
+        <li>Your <b>email address</b>, and the optional <b>challenge answers</b> you tick.</li>
+      </ul>
+      <h3>If you use the service</h3>
+      <ul>
+        <li>The <b>URLs and content you submit</b> for analysis, and the analysis we generate from them.</li>
+        <li>If you create an account: your <b>email address</b> and your saved items.</li>
+        <li>Limited <b>technical data</b> for security and rate-limiting: your IP address and a randomly generated anonymous ID stored in a cookie. These are kept short-term.</li>
+      </ul>
+      <p>We don't ask for, or want, sensitive personal data. Please don't submit content you wouldn't want processed by an automated AI system.</p>
+    </section>
+
+    <section class="bay">
+      <h2>How we use it &amp; legal bases</h2>
+      <table>
+        <tr><th>Purpose</th><th>Legal basis (GDPR)</th></tr>
+        <tr><td>Provide the service — analyse what you submit, save your library</td><td>Performance of a contract</td></tr>
+        <tr><td>Send transactional email (sign-in links, account messages)</td><td>Performance of a contract</td></tr>
+        <tr><td>Prevent abuse and keep the service available (rate-limiting)</td><td>Legitimate interest</td></tr>
+        <tr><td>Email you about early access if you joined the waitlist</td><td>Consent</td></tr>
+      </table>
+      <p>You can withdraw waitlist consent at any time by emailing us — see "Your rights".</p>
+    </section>
+
+    <section class="bay">
+      <h2>Who processes your data</h2>
+      <p>We use a small number of trusted providers ("processors") to run the service. We don't sell your data and we don't share it for advertising.</p>
+      <table>
+        <tr><th>Provider</th><th>Role</th></tr>
+        <tr><td>Cloudflare</td><td>Website hosting and edge storage</td></tr>
+        <tr><td>Fly.io</td><td>Backend hosting (EU region), database</td></tr>
+        <tr><td>Anthropic (Claude)</td><td>The AI model that analyses submitted content</td></tr>
+        <tr><td>Resend</td><td>Sending transactional &amp; waitlist email</td></tr>
+      </table>
+      <p><b>Content you submit is sent to Anthropic</b> to generate a verdict. They process it on our behalf and, on their standard API terms, do not use it to train their models. Some providers are based in the US; transfers are covered by Standard Contractual Clauses and/or the EU–US Data Privacy Framework.</p>
+    </section>
+
+    <section class="bay">
+      <h2>Content you fetch, and automated analysis</h2>
+      <p>When you submit a URL, we fetch that page <b>on your instruction</b> — like a browser or a read-it-later tool — and generate a short summary and verdict. We act on the specific link you give us; we don't crawl the web or build datasets.</p>
+      <p>We respect machine-readable "do not fetch" signals (such as <code style="font-size:12px;">robots.txt</code>), and we keep only a <b>condensed summary</b> of the source, not a full copy. If a fetched page happens to contain other people's personal data (a name in an article, a post author), we hold only what survives in that short summary, use it solely to give you your verdict, and don't use it to profile anyone. If you're mentioned in stored content and want it removed, email <a href="mailto:privacy@filter.fyi">privacy@filter.fyi</a>.</p>
+      <p>The verdict is produced automatically by an AI model. It informs you; it isn't a decision that produces legal or similarly significant effects on anyone, so it isn't "solely automated decision-making" in the sense of GDPR Article 22.</p>
+    </section>
+
+    <section class="bay">
+      <h2>Cookies</h2>
+      <p>We use only what's needed to run the service — no advertising or analytics trackers.</p>
+      <ul>
+        <li><b>fyi_session</b> — keeps you signed in (strictly necessary).</li>
+        <li><b>fyi_anon</b> — a random ID used for fair-use rate-limiting before you sign in.</li>
+      </ul>
+    </section>
+
+    <section class="bay">
+      <h2>How long we keep it</h2>
+      <ul>
+        <li><b>Waitlist email</b> — until early access ends or you ask us to remove it.</li>
+        <li><b>Saved items</b> — a condensed summary plus your verdict (not a full copy of the source); kept until you delete the item or your account.</li>
+        <li><b>Fetched media</b> (e.g. video/audio) — used transiently to produce the summary and <b>not retained</b>.</li>
+        <li><b>Account email</b> — until you delete your account.</li>
+        <li><b>Rate-limit data</b> (IP, anon ID) — short-lived; cleared on a rolling daily basis.</li>
+        <li><b>Diagnostic error logs</b> — about 30 days.</li>
+      </ul>
+    </section>
+
+    <section class="bay">
+      <h2>Your rights</h2>
+      <p>Under the GDPR you can access, correct, export, or delete your personal data, and object to or restrict certain processing.</p>
+      <ul>
+        <li><b>Delete your account &amp; data</b> or <b>export your data</b> — from your library page once signed in, or by emailing us.</li>
+        <li><b>Waitlist removal</b> — email <a href="mailto:privacy@filter.fyi">privacy@filter.fyi</a> and we'll delete your entry.</li>
+      </ul>
+      <p>If you're in the EU/EEA, you also have the right to complain to your data protection authority (in the Netherlands, the Autoriteit Persoonsgegevens).</p>
+    </section>
+
+    <section class="bay">
+      <h2>Changes</h2>
+      <p>We'll update this page if our practices change and revise the date at the top. Material changes affecting you will be communicated by email where appropriate.</p>
+    </section>
+
+    <footer>
+      <span>filter.fyi — relevant, not noise.</span>
+      <span class="links">
+        <a href="/about">about</a>
+        <a href="/terms">terms</a>
+        <a href="/">← home</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>
