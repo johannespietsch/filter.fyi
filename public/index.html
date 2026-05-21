@@ -116,6 +116,8 @@
                          border-left: 2px solid var(--green); font-size: 13px; color: var(--ink); }
     .result-experiment b { display: block; font-size: 10.5px; letter-spacing: 0.14em;
                            text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
+    .result-experiment.exp-bigger { background: var(--amber-soft); border-left-color: var(--amber); }
+    .result-experiment.exp-bigger b { color: var(--amber); }
     .result-save { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ink);
                    font-size: 12px; color: var(--ink-3); }
 
@@ -201,8 +203,11 @@
         <img class="result-thumb" id="result-thumb" alt="" hidden />
         <p class="result-main-idea" id="main-idea"></p>
         <p class="result-why" id="why-matters"></p>
-        <div class="result-experiment" id="experiment-wrap" hidden>
-          <b>try this →</b><span id="experiment"></span>
+        <div class="result-experiment" id="quick-win-wrap" hidden>
+          <b id="quick-win-label">⚡ quick win — this weekend</b><span id="quick-win"></span>
+        </div>
+        <div class="result-experiment exp-bigger" id="bigger-play-wrap" hidden>
+          <b>🚀 bigger play — when you're ready</b><span id="bigger-play"></span>
         </div>
         <div class="result-meta" id="result-meta"></div>
         <p class="result-disclaimer">Verdicts are AI-generated and can be wrong — use your own judgment. <a href="/terms">terms</a></p>
@@ -336,12 +341,19 @@
         const a = summary.analysis || {};
         document.getElementById('main-idea').textContent = a.main_idea || '';
         document.getElementById('why-matters').textContent = a.why_it_matters || '';
-        const expWrap = document.getElementById('experiment-wrap');
-        if (a.suggested_experiment) {
-          document.getElementById('experiment').textContent = ' ' + a.suggested_experiment;
-          expWrap.hidden = false;
-        } else {
-          expWrap.hidden = true;
+        // Two-mode experiment: quick win + bigger play, with a fallback to the
+        // single legacy `suggested_experiment` for older results.
+        const fillExp = (wrapId, spanId, text) => {
+          const wrap = document.getElementById(wrapId);
+          if (text) { document.getElementById(spanId).textContent = ' ' + text; wrap.hidden = false; }
+          else { wrap.hidden = true; }
+        };
+        document.getElementById('quick-win-label').textContent = '⚡ quick win — this weekend';
+        fillExp('quick-win-wrap', 'quick-win', a.quick_win || '');
+        fillExp('bigger-play-wrap', 'bigger-play', a.bigger_play || '');
+        if (!a.quick_win && !a.bigger_play && a.suggested_experiment) {
+          document.getElementById('quick-win-label').textContent = 'try this →';
+          fillExp('quick-win-wrap', 'quick-win', a.suggested_experiment);
         }
         const metaBits = [];
         if (a.category) metaBits.push(`<b>category</b> ${a.category}`);

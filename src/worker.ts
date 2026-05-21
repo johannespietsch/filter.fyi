@@ -383,7 +383,9 @@ interface BotResponse {
     main_idea?: string;
     why_it_matters?: string;
     category?: string;
-    suggested_experiment?: string;
+    quick_win?: string;
+    bigger_play?: string;
+    suggested_experiment?: string; // legacy items
     time_required?: string;
   };
 }

@@ -105,6 +105,8 @@
                  border-left: 2px solid var(--green); font-size: 13px; color: var(--ink); }
     .body .exp b { display: block; font-size: 10.5px; letter-spacing: 0.14em;
                    text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
+    .body .exp.exp-bigger { background: var(--amber-soft); border-left-color: var(--amber); }
+    .body .exp.exp-bigger b { color: var(--amber); }
 
     footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
              font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between;
@@ -292,8 +294,14 @@
           ? `<p><b>${escapeHtml(a.main_idea)}</b></p>` : '';
         const why = a.why_it_matters
           ? `<p class="why">${escapeHtml(a.why_it_matters)}</p>` : '';
-        const exp = a.suggested_experiment
-          ? `<div class="exp"><b>try this →</b>${escapeHtml(a.suggested_experiment)}</div>` : '';
+        const expBlock = (label, text, cls) => text
+          ? `<div class="exp ${cls}"><b>${label}</b>${escapeHtml(text)}</div>` : '';
+        // Two-mode experiment, with a fallback to the legacy single field.
+        let exp = expBlock('⚡ quick win — this weekend', a.quick_win, '')
+                + expBlock("🚀 bigger play — when you're ready", a.bigger_play, 'exp-bigger');
+        if (!a.quick_win && !a.bigger_play && a.suggested_experiment) {
+          exp = expBlock('try this →', a.suggested_experiment, '');
+        }
         bodyEl.innerHTML = mainIdea || why || exp
           ? `${mainIdea}${why}${exp}`
           : '<p><i>(no analysis stored)</i></p>';
