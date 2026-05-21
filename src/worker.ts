@@ -105,6 +105,16 @@ export default {
       return handleAccountDelete(req, env);
     }
 
+    if (url.pathname === "/api/v1/profile") {
+      if (req.method !== "PUT") return json({ error: "method-not-allowed" }, 405);
+      return handleProfileUpdate(req, env);
+    }
+
+    if (url.pathname === "/api/v1/feedback") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleFeedback(req, env);
+    }
+
     // /join was the old waitlist URL (still the advertised og:url out there);
     // the page now lives at /about. Permanent redirect so shared links survive.
     if (url.pathname === "/join" || url.pathname === "/join/") {
@@ -1054,12 +1064,13 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
     title: string | null;
     created_at: string;
   };
-  type UserInfo = { telegram_chat_id: number | null };
+  type UserInfo = { telegram_chat_id: number | null; profile?: string };
   const base = backendBase(env.BOT_API_URL);
   const headers = { "x-filter-fyi-secret": env.BOT_API_KEY };
 
   let rows: LeanRow[] = [];
   let telegramLinked: boolean | undefined = undefined;
+  let profile = "";
   try {
     // The user-info call is best-effort — if it fails the UI just omits the
     // "Telegram linked" indicator. The library call is load-bearing.
@@ -1083,6 +1094,7 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
     if (userRes && userRes.ok) {
       const info = (await userRes.json()) as UserInfo;
       telegramLinked = info.telegram_chat_id !== null;
+      profile = typeof info.profile === "string" ? info.profile : "";
     }
   } catch (err) {
     console.error("/api/me upstream failed", err);
@@ -1091,7 +1103,7 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
 
   return json({
     ok: true,
-    user: { email: session.email, telegram_linked: telegramLinked },
+    user: { email: session.email, telegram_linked: telegramLinked, profile },
     summaries: rows.map((row) => ({
       id: row.id,
       url: row.source ?? "",
@@ -1265,6 +1277,87 @@ async function handleAccountDelete(req: Request, env: Env): Promise<Response> {
   }
 
   return json({ ok: true }, 200, { "set-cookie": clearSessionCookieHeader() });
+}
+
+// Update the signed-in user's personalization profile (the analysis lens).
+async function handleProfileUpdate(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const profile = typeof body.profile === "string" ? body.profile.slice(0, 4000) : "";
+
+  try {
+    const res = await fetch(
+      `${backendBase(env.BOT_API_URL)}/api/users/${session.userId}/profile`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY },
+        body: JSON.stringify({ profile }),
+        signal: AbortSignal.timeout(5_000),
+      }
+    );
+    if (!res.ok) {
+      console.error("profile update upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("profile update failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+// Record a feedback/signal event for one of the user's library items.
+async function handleFeedback(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const itemId = Number(body.item_id);
+  const signal = typeof body.signal === "string" ? body.signal : "";
+  if (!Number.isInteger(itemId) || itemId <= 0) {
+    return json({ error: "invalid-item" }, 400);
+  }
+
+  try {
+    const res = await fetch(`${backendBase(env.BOT_API_URL)}/api/feedback`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY },
+      body: JSON.stringify({ user_id: session.userId, item_id: itemId, signal }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.status === 400) return json({ error: "invalid-signal" }, 400);
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("feedback upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json({ ok: true });
+  } catch (err) {
+    console.error("feedback failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
 }
 
 function randomTokenHex(bytes: number): string {

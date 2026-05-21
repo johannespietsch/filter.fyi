@@ -106,6 +106,30 @@
     .body .exp b { display: block; font-size: 10.5px; letter-spacing: 0.14em;
                    text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
 
+    /* feedback chips on an item — the "did you act on it?" signal */
+    .item-feedback { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+                     margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--ink); }
+    .fb-label { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+    .fb-chip { font: inherit; font-size: 11px; padding: 2px 9px; border: 1px solid var(--ink-3);
+               background: var(--bg); color: var(--ink-2); cursor: pointer; transition: 0.12s; }
+    .fb-chip:hover { border-color: var(--green); color: var(--green); }
+    .fb-chip.sent { background: var(--green); border-color: var(--green); color: var(--bg-2); cursor: default; }
+
+    /* personalization lens editor */
+    .lens { margin-top: 24px; padding: 16px 18px; background: var(--bg-2); border: 1px solid var(--ink); }
+    .lens-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 6px; }
+    .lens-title::before { content: '— '; color: var(--green); }
+    .lens-hint { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+    .lens-input { width: 100%; background: var(--bg); border: 1px solid var(--ink); color: var(--ink);
+                  font: inherit; font-size: 13px; padding: 10px 12px; resize: vertical; min-height: 84px; }
+    .lens-input:focus { outline: none; background: var(--bg-2); }
+    .lens-actions { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
+    .lens-save { color: var(--green); padding: 4px 12px; border: 1px solid var(--green); background: var(--green-soft);
+                 font: inherit; font-size: 12px; cursor: pointer; text-transform: lowercase; transition: 0.12s; }
+    .lens-save:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
+    .lens-save:disabled { opacity: 0.5; cursor: default; }
+    .lens-status { font-size: 12px; color: var(--ink-3); }
+
     footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
              font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between;
              gap: 14px; flex-wrap: wrap; }
@@ -173,6 +197,16 @@
       <div class="eyebrow">Your library</div>
       <h1>Saved verdicts.</h1>
       <p class="who">Signed in as <b id="user-email">…</b><span id="tg-linked" class="tg-linked" hidden> · Telegram linked ✓</span></p>
+    </section>
+
+    <section class="lens" id="lens" hidden>
+      <div class="lens-title">Your lens</div>
+      <p class="lens-hint">This is the perspective filter.fyi judges your content against — the sharper and more specific it is, the more your verdicts and experiments fit <i>you</i> rather than a generic reader. Edit it anytime.</p>
+      <textarea id="profile-input" class="lens-input" rows="5" placeholder="e.g. Senior backend engineer moving into ML infra. I want production-grade patterns over hype, short and honest time estimates, and I'm short on evenings."></textarea>
+      <div class="lens-actions">
+        <button class="lens-save" id="profile-save" type="button">save lens</button>
+        <span class="lens-status" id="profile-status" hidden></span>
+      </div>
     </section>
 
     <section class="link-tg">
@@ -274,6 +308,12 @@
             <div class="item-head">${headBits}</div>
             <h2 class="item-title"><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
             <div class="item-meta">${metaBits}</div>
+            <div class="item-feedback" role="group" aria-label="Did you act on this?">
+              <span class="fb-label">acted on it?</span>
+              <button type="button" class="fb-chip" data-signal="tried">tried it</button>
+              <button type="button" class="fb-chip" data-signal="done">done</button>
+              <button type="button" class="fb-chip" data-signal="not_for_me">not for me</button>
+            </div>
             <details>
               <summary>Show analysis</summary>
               <div class="body" data-loaded="0">Loading…</div>
@@ -386,8 +426,10 @@
           if (linkSection) linkSection.hidden = true;
         }
         loading.hidden = true;
-        // Export/delete are available regardless of library size, so reveal +
-        // wire them before the empty-library early return.
+        // Lens + export/delete are available regardless of library size, so
+        // reveal them before the empty-library early return.
+        profileInput.value = payload.user?.profile || '';
+        document.getElementById('lens').hidden = false;
         document.getElementById('account').hidden = false;
         wireDeleteAccount();
         const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
@@ -408,10 +450,62 @@
         // a second click (within a few seconds) actually deletes. Avoids a
         // jarring native confirm() while still guarding against misclicks.
         list.addEventListener('click', (e) => {
-          const btn = e.target.closest('.item-delete');
-          if (btn) deleteItem(btn);
+          const del = e.target.closest('.item-delete');
+          if (del) { deleteItem(del); return; }
+          const chip = e.target.closest('.fb-chip');
+          if (chip) { sendFeedback(chip); return; }
+          // Implicit signal: clicking through to the source = they engaged.
+          const link = e.target.closest('a[href]');
+          if (link) {
+            const art = link.closest('article.item');
+            if (art) recordSignal(art.dataset.id, 'opened');
+          }
         });
       }
+
+      // Fire-and-forget feedback event for an item (never blocks the UI).
+      function recordSignal(itemId, signal) {
+        fetch('/api/v1/feedback', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ item_id: Number(itemId), signal }),
+        }).catch(() => {});
+      }
+
+      function sendFeedback(chip) {
+        const art = chip.closest('article.item');
+        if (!art) return;
+        const group = chip.closest('.item-feedback');
+        if (group) group.querySelectorAll('.fb-chip').forEach((c) => c.classList.remove('sent'));
+        chip.classList.add('sent');
+        recordSignal(art.dataset.id, chip.dataset.signal);
+      }
+
+      // --- Lens (personalization profile) editor ---
+      const profileInput = document.getElementById('profile-input');
+      const profileSave = document.getElementById('profile-save');
+      const profileStatus = document.getElementById('profile-status');
+      profileSave.addEventListener('click', async () => {
+        profileSave.disabled = true;
+        profileStatus.hidden = true;
+        try {
+          const res = await fetch('/api/v1/profile', {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ profile: profileInput.value }),
+          });
+          if (!res.ok) throw new Error('save-failed');
+          const data = await res.json().catch(() => ({}));
+          if (typeof data.profile === 'string') profileInput.value = data.profile;
+          profileStatus.textContent = 'saved ✓';
+          profileStatus.hidden = false;
+        } catch {
+          profileStatus.textContent = "couldn't save — try again";
+          profileStatus.hidden = false;
+        } finally {
+          profileSave.disabled = false;
+        }
+      });
 
       async function deleteItem(btn) {
         const article = btn.closest('article.item');
