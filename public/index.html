@@ -92,7 +92,8 @@
                 letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 12px;
                 border: 1px solid transparent; color: var(--ink-3); transition: all 0.25s; }
     .job-step.step-active { border-color: var(--green); color: var(--green); background: var(--green-soft); }
-    .job-step.step-done  { color: var(--ink-3); opacity: 0.5; }
+    .job-step.step-done  { background: var(--green-soft); border-color: var(--green); color: var(--green); opacity: 0.6; }
+    .job-step.step-done .step-marker { font-size: 11px; }
     .job-step.step-pending { color: var(--ink-3); opacity: 0.3; }
     .step-marker { font-size: 9px; line-height: 1; }
     .job-step.step-active .step-marker { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
