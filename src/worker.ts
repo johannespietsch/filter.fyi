@@ -636,7 +636,7 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
   }
 
   type BackendJobStatus =
-    | { status: "pending" }
+    | { status: "pending"; step?: string }
     | { status: "done"; result: BotResponse }
     | { status: "error"; error: string };
 
@@ -648,7 +648,7 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
   }
 
   if (statusPayload.status === "pending") {
-    return json({ status: "pending" });
+    return json({ status: "pending", step: statusPayload.step ?? "" });
   }
 
   if (statusPayload.status === "error") {

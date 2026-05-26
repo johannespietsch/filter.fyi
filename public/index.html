@@ -84,11 +84,19 @@
     .cta-btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .form-fine-print { font-size: 11px; color: var(--ink-3); margin-top: 12px; }
 
-    .loading { display: none; padding: 26px 22px; background: var(--bg-2); border: 1px solid var(--ink);
-               margin-bottom: 18px; color: var(--ink-2); font-size: 13px; }
+    .loading { display: none; padding: 20px 22px; background: var(--bg-2); border: 1px solid var(--ink);
+               margin-bottom: 18px; }
     .loading.visible { display: block; }
-    .loading-dot { display: inline-block; width: 8px; height: 8px; background: var(--green);
-                   border-radius: 50%; margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; vertical-align: middle; }
+    .job-steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .job-step { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700;
+                letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 12px;
+                border: 1px solid transparent; color: var(--ink-3); transition: all 0.25s; }
+    .job-step.step-active { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+    .job-step.step-done  { color: var(--ink-3); opacity: 0.5; }
+    .job-step.step-pending { color: var(--ink-3); opacity: 0.3; }
+    .step-marker { font-size: 9px; line-height: 1; }
+    .job-step.step-active .step-marker { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
+    .job-step-sep { color: var(--ink-3); opacity: 0.35; font-size: 12px; }
 
     /* result card */
     .result { display: none; background: var(--bg-2); border: 1px solid var(--ink);
@@ -191,7 +199,15 @@
         <p class="form-fine-print" id="form-fine-print">No login required. 3 free verdicts per day. Long-form video transcription is coming with the full product.</p>
       </form>
 
-      <div class="loading" id="loading"><span class="loading-dot"></span>Reading the page and analyzing…</div>
+      <div class="loading" id="loading">
+        <div class="job-steps">
+          <span class="job-step step-active" id="step-fetching"><span class="step-marker">●</span>fetching</span>
+          <span class="job-step-sep">→</span>
+          <span class="job-step step-pending" id="step-summarizing"><span class="step-marker">○</span>summarizing</span>
+          <span class="job-step-sep">→</span>
+          <span class="job-step step-pending" id="step-analyzing"><span class="step-marker">○</span>verdict</span>
+        </div>
+      </div>
 
       <article class="result" id="result" aria-live="polite">
         <div class="result-head">
@@ -375,6 +391,29 @@
         if (_pollTimer !== null) { clearInterval(_pollTimer); _pollTimer = null; }
       }
 
+      const _STEPS = ['fetching', 'summarizing', 'analyzing'];
+      const _STEP_MARKERS = { active: '●', done: '✓', pending: '○' };
+      function setJobStep(step) {
+        const idx = _STEPS.indexOf(step);
+        const active = idx >= 0 ? idx : 0;
+        _STEPS.forEach(function(s, i) {
+          var el = document.getElementById('step-' + s);
+          if (!el) return;
+          var marker = el.querySelector('.step-marker');
+          el.classList.remove('step-active', 'step-done', 'step-pending');
+          if (i < active) {
+            el.classList.add('step-done');
+            if (marker) marker.textContent = _STEP_MARKERS.done;
+          } else if (i === active) {
+            el.classList.add('step-active');
+            if (marker) marker.textContent = _STEP_MARKERS.active;
+          } else {
+            el.classList.add('step-pending');
+            if (marker) marker.textContent = _STEP_MARKERS.pending;
+          }
+        });
+      }
+
       function showError(msg) {
         stopPolling();
         loading.classList.remove('visible');
@@ -413,7 +452,10 @@
             showError(payload.message || 'Something went wrong while processing that URL.');
             return;
           }
-          if (payload.status === 'pending') return; // keep waiting
+          if (payload.status === 'pending') {
+            if (typeof payload.step === 'string' && payload.step) setJobStep(payload.step);
+            return; // keep waiting
+          }
           _settled = true;
           stopPolling();
           loading.classList.remove('visible');
@@ -437,6 +479,7 @@
       async function submitUrl(url) {
         hideAll();
         stopPolling();
+        setJobStep('fetching');
         submitBtn.disabled = true;
         show(loading);
         let res, payload;

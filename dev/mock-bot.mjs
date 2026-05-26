@@ -171,9 +171,14 @@ const server = createServer(async (req, res) => {
     }
     // Must be UUID-shaped so it matches the Worker's /api/v1/job/:id route regex.
     const jobId = randomUUID();
-    const delay = /mock=slow\b/.test(url) ? 4000 : /mock=hang\b/.test(url) ? 120_000 : 1500;
-    jobs.set(jobId, { status: "pending", url });
-    scheduleJobCompletion(jobId, url, delay);
+    const totalMs = /mock=slow\b/.test(url) ? 6000 : /mock=hang\b/.test(url) ? 120_000 : 1500;
+    jobs.set(jobId, { status: "pending", step: "fetching", url });
+    // Advance step markers so the UI gets real-time feedback during slow jobs.
+    if (totalMs > 1500) {
+      setTimeout(() => { const j = jobs.get(jobId); if (j && j.status === "pending") j.step = "summarizing"; }, totalMs * 0.45);
+      setTimeout(() => { const j = jobs.get(jobId); if (j && j.status === "pending") j.step = "analyzing"; },  totalMs * 0.75);
+    }
+    scheduleJobCompletion(jobId, url, totalMs);
     return send(res, 202, { job_id: jobId });
   }
 
@@ -183,7 +188,7 @@ const server = createServer(async (req, res) => {
     const jobId = jobMatch[1];
     const job = jobs.get(jobId);
     if (!job) return send(res, 404, { error: "not-found" });
-    if (job.status === "pending") return send(res, 200, { status: "pending" });
+    if (job.status === "pending") return send(res, 200, { status: "pending", step: job.step || "fetching" });
     if (job.status === "error") return send(res, 200, { status: "error", error: job.error });
     return send(res, 200, { status: "done", result: job.result });
   }
