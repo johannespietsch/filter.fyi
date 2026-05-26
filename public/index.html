@@ -377,9 +377,9 @@
 
       function showError(msg) {
         stopPolling();
-        loading.classList.remove(‘visible’);
+        loading.classList.remove('visible');
         submitBtn.disabled = false;
-        document.getElementById(‘notice-error-msg’).textContent = msg || ‘Couldn\’t process that URL. Try a different one or come back in a moment.’;
+        document.getElementById('notice-error-msg').textContent = msg || 'Couldn\'t process that URL. Try a different one or come back in a moment.';
         show(noticeError);
       }
 
@@ -390,17 +390,17 @@
         _settled = false;
         _pollInFlight = false;
         _pollTimer = setInterval(async () => {
-          if (_pollInFlight || _settled) return; // don’t stack requests
+          if (_pollInFlight || _settled) return; // don't stack requests
           attempts++;
           if (attempts > MAX_ATTEMPTS) {
             _settled = true;
-            showError(‘This one is taking too long. Try again in a moment.’);
+            showError('This one is taking too long. Try again in a moment.');
             return;
           }
           _pollInFlight = true;
           let res, payload;
           try {
-            res = await fetch(‘/api/v1/job/’ + jobId, { credentials: ‘same-origin’ });
+            res = await fetch('/api/v1/job/' + jobId, { credentials: 'same-origin' });
             payload = await res.json().catch(() => ({}));
           } catch {
             _pollInFlight = false;
@@ -410,24 +410,24 @@
           if (_settled) return; // a prior tick already finished this job
           if (!res.ok) {
             _settled = true;
-            showError(payload.message || ‘Something went wrong while processing that URL.’);
+            showError(payload.message || 'Something went wrong while processing that URL.');
             return;
           }
-          if (payload.status === ‘pending’) return; // keep waiting
+          if (payload.status === 'pending') return; // keep waiting
           _settled = true;
           stopPolling();
-          loading.classList.remove(‘visible’);
+          loading.classList.remove('visible');
           submitBtn.disabled = false;
-          if (payload.status === ‘error’) {
-            if (payload.error === ‘unsupported-source’) {
-              document.getElementById(‘notice-unsupported-msg’).textContent = payload.message || ‘This source type isn\’t supported yet.’;
+          if (payload.status === 'error') {
+            if (payload.error === 'unsupported-source') {
+              document.getElementById('notice-unsupported-msg').textContent = payload.message || 'This source type isn\'t supported yet.';
               show(noticeUnsupported);
             } else {
-              showError(payload.message || ‘Couldn\’t process that URL. Try a different one or come back in a moment.’);
+              showError(payload.message || 'Couldn\'t process that URL. Try a different one or come back in a moment.');
             }
             return;
           }
-          if (payload.status === ‘done’ && payload.summary) {
+          if (payload.status === 'done' && payload.summary) {
             renderResult(payload.summary);
             maybeShowNudge(_triesUsed, _triesLimit);
           }
@@ -441,47 +441,47 @@
         show(loading);
         let res, payload;
         try {
-          res = await fetch(‘/api/v1/try’, {
-            method: ‘POST’,
-            headers: { ‘content-type’: ‘application/json’ },
-            credentials: ‘same-origin’,
+          res = await fetch('/api/v1/try', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'same-origin',
             body: JSON.stringify({ url }),
           });
           payload = await res.json().catch(() => ({}));
         } catch (err) {
-          loading.classList.remove(‘visible’);
+          loading.classList.remove('visible');
           submitBtn.disabled = false;
-          document.getElementById(‘notice-error-msg’).textContent = "Network problem. Check your connection and try again.";
+          document.getElementById('notice-error-msg').textContent = "Network problem. Check your connection and try again.";
           show(noticeError);
           return;
         }
 
-        if (res.status === 415 && payload.error === ‘unsupported-source’) {
-          loading.classList.remove(‘visible’);
+        if (res.status === 415 && payload.error === 'unsupported-source') {
+          loading.classList.remove('visible');
           submitBtn.disabled = false;
-          document.getElementById(‘notice-unsupported-msg’).textContent = payload.message || ‘This source type isn\’t supported yet.’;
+          document.getElementById('notice-unsupported-msg').textContent = payload.message || 'This source type isn\'t supported yet.';
           show(noticeUnsupported);
           return;
         }
         if (res.status === 429) {
-          loading.classList.remove(‘visible’);
+          loading.classList.remove('visible');
           submitBtn.disabled = false;
           show(noticeRatelimit);
           return;
         }
-        if (res.status === 400 && payload.error === ‘invalid-url’) {
-          loading.classList.remove(‘visible’);
+        if (res.status === 400 && payload.error === 'invalid-url') {
+          loading.classList.remove('visible');
           submitBtn.disabled = false;
-          urlInput.classList.add(‘err’);
+          urlInput.classList.add('err');
           urlInput.focus();
-          document.getElementById(‘notice-error-msg’).textContent = payload.message || ‘That doesn\’t look like a URL.’;
+          document.getElementById('notice-error-msg').textContent = payload.message || 'That doesn\'t look like a URL.';
           show(noticeError);
           return;
         }
         if (!res.ok) {
-          loading.classList.remove(‘visible’);
+          loading.classList.remove('visible');
           submitBtn.disabled = false;
-          document.getElementById(‘notice-error-msg’).textContent = payload.message || ‘Couldn\’t process that URL. Try a different one or come back in a moment.’;
+          document.getElementById('notice-error-msg').textContent = payload.message || 'Couldn\'t process that URL. Try a different one or come back in a moment.';
           show(noticeError);
           return;
         }
@@ -494,8 +494,8 @@
           return;
         }
 
-        // Fallback: synchronous result (shouldn’t happen with current backend).
-        loading.classList.remove(‘visible’);
+        // Fallback: synchronous result (shouldn't happen with current backend).
+        loading.classList.remove('visible');
         submitBtn.disabled = false;
         if (payload.summary) {
           renderResult(payload.summary);
