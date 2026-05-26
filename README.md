@@ -45,18 +45,25 @@ Defaults in `.dev.vars.example` point `BOT_API_URL` at the mock. Trigger edge ca
 |---|---|
 | `?mock=no-transcript` *or* path `/no-transcript` | `422 {error:"no-transcript"}` — Worker maps to a friendly 415 |
 | `?mock=500` | `500 {error:"bot-error"}` |
-| `?mock=slow` | 3s delay then success |
+| `?mock=slow` | 4s delay then success (tests the polling UI) |
+| `?mock=hang` | never completes (tests the 120s poll-timeout UI) |
 | `?mock=invalid` | `400 {error:"invalid-url"}` |
-| anything else | `200` with a sample analysis; `source_type` inferred from the URL (article / youtube / social / pdf) |
+| anything else | success with a sample analysis; `source_type` inferred from the URL (article / youtube / social / pdf) |
 
-Smoke-test the mock directly:
+Smoke-test the mock using the async job flow:
 
 ```bash
-curl -sX POST http://localhost:8788/api/try \
+# 1. Start a job
+JOB=$(curl -s -X POST http://localhost:8788/api/v1/job \
   -H 'content-type: application/json' \
   -H 'x-filter-fyi-secret: local-dev-secret' \
-  -d '{"url":"https://example.com/post"}' | jq
+  -d '{"url":"https://example.com/post"}' | jq -r .job_id)
+
+# 2. Poll until done
+curl -s "http://localhost:8788/api/v1/job/$JOB" | jq
 ```
+
+The legacy `/api/try` endpoint also still works for quick smoke tests.
 
 ## Database
 

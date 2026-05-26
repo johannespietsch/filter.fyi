@@ -115,6 +115,12 @@ export default {
       return handleFeedback(req, env);
     }
 
+    const jobMatch = url.pathname.match(/^\/api\/v1\/job\/([0-9a-f-]{36})$/i);
+    if (jobMatch) {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleJobStatus(req, env, jobMatch[1]);
+    }
+
     // /join was the old waitlist URL (still the advertised og:url out there);
     // the page now lives at /about. Permanent redirect so shared links survive.
     if (url.pathname === "/join" || url.pathname === "/join/") {
@@ -540,86 +546,134 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     );
   }
 
-  // Call bot — with timeout so a hung backend doesn't hang the Worker.
-  // Signed-in calls go to /api/library/add, which analyses AND persists to the
-  // backend's items table. Anonymous calls go to /api/try, which only analyses;
-  // we then write to D1.anon_summaries ourselves for later claim-on-signup.
-  const botEndpoint = session
-    ? `${backendBase(env.BOT_API_URL)}/api/library/add`
-    : env.BOT_API_URL;
-  const botBody = session
-    ? JSON.stringify({ user_id: session.userId, url })
+  // Start an async job on the backend — returns a job_id immediately so the
+  // Worker response stays well within Cloudflare's CPU/wall-clock limits.
+  // The browser polls GET /api/v1/job/:id until the job is done or errors.
+  const jobBody = session
+    ? JSON.stringify({ url, user_id: session.userId })
     : JSON.stringify({ url });
-  let botRes: Response;
+  let jobRes: Response;
   try {
-    botRes = await fetch(botEndpoint, {
+    jobRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/job`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-filter-fyi-secret": env.BOT_API_KEY,
       },
-      body: botBody,
-      signal: AbortSignal.timeout(Number(env.BOT_TIMEOUT_MS) || BOT_TIMEOUT_MS_DEFAULT),
+      body: jobBody,
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (err) {
     const name = err instanceof Error ? err.name : "";
     if (name === "TimeoutError" || name === "AbortError") {
-      console.error("bot fetch timed out");
+      console.error("job start timed out");
       return respond(
-        {
-          error: "upstream-timeout",
-          message: "The summarizer took too long. Try again in a moment.",
-        },
+        { error: "upstream-timeout", message: "The summarizer took too long. Try again in a moment." },
         504
       );
     }
-    console.error("bot fetch threw", err);
+    console.error("job start threw", err);
     return respond(
-      {
-        error: "upstream-unreachable",
-        message: "Couldn't reach the summarizer. Try again in a moment.",
-      },
+      { error: "upstream-unreachable", message: "Couldn't reach the summarizer. Try again in a moment." },
       502
     );
   }
 
-  if (!botRes.ok) {
-    let payload: { error?: string; message?: string } = {};
-    try {
-      payload = (await botRes.json()) as { error?: string; message?: string };
-    } catch {}
-    if (payload.error === "no-transcript") {
-      return respond(
-        {
-          error: "unsupported-source",
-          message:
-            "This video doesn't have a transcript yet — full video support is coming in the product.",
-        },
-        415
-      );
-    }
-    console.error("bot returned non-ok", botRes.status, payload);
+  if (!jobRes.ok) {
+    let payload: { error?: string } = {};
+    try { payload = (await jobRes.json()) as { error?: string }; } catch {}
+    console.error("job start non-ok", jobRes.status, payload);
     return respond(
       { error: "upstream-error", message: "The summarizer had a problem. Try a different URL?" },
       502
     );
   }
 
-  let summary: BotResponse;
+  let jobPayload: { job_id?: string };
   try {
-    summary = (await botRes.json()) as BotResponse;
+    jobPayload = (await jobRes.json()) as { job_id?: string };
   } catch (err) {
-    console.error("bot response not json", err);
+    console.error("job start response not json", err);
     return respond({ error: "upstream-error" }, 502);
   }
 
-  let summaryId: number | undefined;
-  if (session) {
-    // Signed-in: backend's /api/library/add already saved to items and the
-    // response includes the new id. No D1.anon_summaries write.
-    summaryId = typeof summary.id === "number" ? summary.id : undefined;
-  } else {
-    // Anonymous: persist to D1.anon_summaries for later claim-on-signup.
+  const jobId = typeof jobPayload.job_id === "string" ? jobPayload.job_id : "";
+  if (!jobId) {
+    console.error("job start returned no job_id", jobPayload);
+    return respond({ error: "upstream-error" }, 502);
+  }
+
+  return respond({
+    ok: true,
+    pending: true,
+    job_id: jobId,
+    tries_used: limitInfo.used,
+    tries_limit: limitInfo.limit,
+    signed_in: !!session,
+  });
+}
+
+async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<Response> {
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    return json({ error: "service-unavailable" }, 503);
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(`${backendBase(env.BOT_API_URL)}/api/job/${jobId}`, {
+      headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    console.error("job poll threw", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+
+  if (upstream.status === 404) return json({ error: "not-found" }, 404);
+  if (!upstream.ok) {
+    console.error("job poll non-ok", upstream.status);
+    return json({ error: "upstream-error" }, 502);
+  }
+
+  type BackendJobStatus =
+    | { status: "pending" }
+    | { status: "done"; result: BotResponse }
+    | { status: "error"; error: string };
+
+  let statusPayload: BackendJobStatus;
+  try {
+    statusPayload = (await upstream.json()) as BackendJobStatus;
+  } catch {
+    return json({ error: "upstream-error" }, 502);
+  }
+
+  if (statusPayload.status === "pending") {
+    return json({ status: "pending" });
+  }
+
+  if (statusPayload.status === "error") {
+    const errCode = statusPayload.error;
+    if (errCode === "no-transcript") {
+      return json(
+        {
+          status: "error",
+          error: "unsupported-source",
+          message: "This video doesn't have a transcript yet — full video support is coming in the product.",
+        }
+      );
+    }
+    return json({ status: "error", error: "upstream-error", message: "The summarizer had a problem. Try a different URL?" });
+  }
+
+  // status === "done" — for anonymous users, persist to D1.anon_summaries.
+  const summary = statusPayload.result;
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  const anonId = cookies[ANON_COOKIE];
+
+  let savedId: number | undefined = typeof summary.id === "number" ? summary.id : undefined;
+
+  if (!session && anonId && isValidAnonId(anonId)) {
     const nowIso = new Date().toISOString();
     try {
       const row = await env.DB.prepare(
@@ -629,7 +683,7 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
       )
         .bind(
           anonId,
-          url,
+          summary.url ?? "",
           typeof summary.source_type === "string" ? summary.source_type : null,
           typeof summary.title === "string" ? summary.title : null,
           typeof summary.verdict === "string" ? summary.verdict : null,
@@ -637,21 +691,13 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
           nowIso
         )
         .first<{ id: number }>();
-      summaryId = row?.id;
+      savedId = row?.id;
     } catch (err) {
-      // Don't fail the user-facing response — they still got a usable result.
       console.error("anon_summaries insert failed", err);
     }
   }
 
-  return respond({
-    ok: true,
-    id: summaryId,
-    summary,
-    tries_used: limitInfo.used,
-    tries_limit: limitInfo.limit,
-    signed_in: !!session,
-  });
+  return json({ status: "done", id: savedId, summary });
 }
 
 function parseCookies(header: string | null): Record<string, string> {

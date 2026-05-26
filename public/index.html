@@ -365,52 +365,142 @@
         show(result);
       }
 
+      let _pollTimer = null;
+      let _pollInFlight = false; // prevents overlapping requests if one runs >2s
+      let _settled = false;      // ensures a terminal state is handled exactly once
+      let _triesUsed = null;
+      let _triesLimit = null;
+
+      function stopPolling() {
+        if (_pollTimer !== null) { clearInterval(_pollTimer); _pollTimer = null; }
+      }
+
+      function showError(msg) {
+        stopPolling();
+        loading.classList.remove(‘visible’);
+        submitBtn.disabled = false;
+        document.getElementById(‘notice-error-msg’).textContent = msg || ‘Couldn\’t process that URL. Try a different one or come back in a moment.’;
+        show(noticeError);
+      }
+
+      async function pollJob(jobId) {
+        let attempts = 0;
+        const MAX_ATTEMPTS = 60; // ~2 min at 2s interval
+        stopPolling();
+        _settled = false;
+        _pollInFlight = false;
+        _pollTimer = setInterval(async () => {
+          if (_pollInFlight || _settled) return; // don’t stack requests
+          attempts++;
+          if (attempts > MAX_ATTEMPTS) {
+            _settled = true;
+            showError(‘This one is taking too long. Try again in a moment.’);
+            return;
+          }
+          _pollInFlight = true;
+          let res, payload;
+          try {
+            res = await fetch(‘/api/v1/job/’ + jobId, { credentials: ‘same-origin’ });
+            payload = await res.json().catch(() => ({}));
+          } catch {
+            _pollInFlight = false;
+            return; // network blip — keep polling
+          }
+          _pollInFlight = false;
+          if (_settled) return; // a prior tick already finished this job
+          if (!res.ok) {
+            _settled = true;
+            showError(payload.message || ‘Something went wrong while processing that URL.’);
+            return;
+          }
+          if (payload.status === ‘pending’) return; // keep waiting
+          _settled = true;
+          stopPolling();
+          loading.classList.remove(‘visible’);
+          submitBtn.disabled = false;
+          if (payload.status === ‘error’) {
+            if (payload.error === ‘unsupported-source’) {
+              document.getElementById(‘notice-unsupported-msg’).textContent = payload.message || ‘This source type isn\’t supported yet.’;
+              show(noticeUnsupported);
+            } else {
+              showError(payload.message || ‘Couldn\’t process that URL. Try a different one or come back in a moment.’);
+            }
+            return;
+          }
+          if (payload.status === ‘done’ && payload.summary) {
+            renderResult(payload.summary);
+            maybeShowNudge(_triesUsed, _triesLimit);
+          }
+        }, 2000);
+      }
+
       async function submitUrl(url) {
         hideAll();
+        stopPolling();
         submitBtn.disabled = true;
         show(loading);
         let res, payload;
         try {
-          res = await fetch('/api/v1/try', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            credentials: 'same-origin',
+          res = await fetch(‘/api/v1/try’, {
+            method: ‘POST’,
+            headers: { ‘content-type’: ‘application/json’ },
+            credentials: ‘same-origin’,
             body: JSON.stringify({ url }),
           });
           payload = await res.json().catch(() => ({}));
         } catch (err) {
-          loading.classList.remove('visible');
+          loading.classList.remove(‘visible’);
           submitBtn.disabled = false;
-          document.getElementById('notice-error-msg').textContent = "Network problem. Check your connection and try again.";
+          document.getElementById(‘notice-error-msg’).textContent = "Network problem. Check your connection and try again.";
           show(noticeError);
           return;
         }
-        loading.classList.remove('visible');
-        submitBtn.disabled = false;
 
-        if (res.ok && payload.summary) {
-          renderResult(payload.summary);
-          maybeShowNudge(payload.tries_used, payload.tries_limit);
-          return;
-        }
-        if (res.status === 415 && payload.error === 'unsupported-source') {
-          document.getElementById('notice-unsupported-msg').textContent = payload.message || 'This source type isn’t supported yet.';
+        if (res.status === 415 && payload.error === ‘unsupported-source’) {
+          loading.classList.remove(‘visible’);
+          submitBtn.disabled = false;
+          document.getElementById(‘notice-unsupported-msg’).textContent = payload.message || ‘This source type isn\’t supported yet.’;
           show(noticeUnsupported);
           return;
         }
         if (res.status === 429) {
+          loading.classList.remove(‘visible’);
+          submitBtn.disabled = false;
           show(noticeRatelimit);
           return;
         }
-        if (res.status === 400 && payload.error === 'invalid-url') {
-          urlInput.classList.add('err');
+        if (res.status === 400 && payload.error === ‘invalid-url’) {
+          loading.classList.remove(‘visible’);
+          submitBtn.disabled = false;
+          urlInput.classList.add(‘err’);
           urlInput.focus();
-          document.getElementById('notice-error-msg').textContent = payload.message || 'That doesn’t look like a URL.';
+          document.getElementById(‘notice-error-msg’).textContent = payload.message || ‘That doesn\’t look like a URL.’;
           show(noticeError);
           return;
         }
-        document.getElementById('notice-error-msg').textContent = payload.message || 'Couldn’t process that URL. Try a different one or come back in a moment.';
-        show(noticeError);
+        if (!res.ok) {
+          loading.classList.remove(‘visible’);
+          submitBtn.disabled = false;
+          document.getElementById(‘notice-error-msg’).textContent = payload.message || ‘Couldn\’t process that URL. Try a different one or come back in a moment.’;
+          show(noticeError);
+          return;
+        }
+
+        // Async job started — keep the loading state and start polling.
+        if (payload.pending && payload.job_id) {
+          _triesUsed = payload.tries_used;
+          _triesLimit = payload.tries_limit;
+          pollJob(payload.job_id);
+          return;
+        }
+
+        // Fallback: synchronous result (shouldn’t happen with current backend).
+        loading.classList.remove(‘visible’);
+        submitBtn.disabled = false;
+        if (payload.summary) {
+          renderResult(payload.summary);
+          maybeShowNudge(payload.tries_used, payload.tries_limit);
+        }
       }
 
       form.addEventListener('submit', (e) => {

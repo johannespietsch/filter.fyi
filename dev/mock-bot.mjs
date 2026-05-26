@@ -11,6 +11,7 @@
 //   ?mock=invalid         → 400 {error:"invalid-url"}
 
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 
 const PORT = Number(process.env.PORT ?? 8788);
 const SECRET = process.env.MOCK_BOT_SECRET ?? "local-dev-secret";
@@ -124,6 +125,26 @@ async function readJson(req) {
   });
 }
 
+// In-memory job store: jobId → { status, result?, error?, url }
+const jobs = new Map();
+
+function scheduleJobCompletion(jobId, url, delayMs) {
+  setTimeout(() => {
+    const job = jobs.get(jobId);
+    if (!job) return;
+    if (/mock=no-transcript\b/.test(url) || /\/no-transcript/.test(url)) {
+      job.status = "error";
+      job.error = "no-transcript";
+    } else if (/mock=500\b/.test(url)) {
+      job.status = "error";
+      job.error = "internal-error";
+    } else {
+      job.status = "done";
+      job.result = buildSuccess(url, classify(url));
+    }
+  }, delayMs);
+}
+
 const server = createServer(async (req, res) => {
   const stamp = new Date().toISOString();
   console.log(`[${stamp}] ${req.method} ${req.url}`);
@@ -132,45 +153,55 @@ const server = createServer(async (req, res) => {
     return send(res, 200, { ok: true, service: "mock-bot" });
   }
 
-  if (!(req.method === "POST" && req.url === "/api/try")) {
-    return send(res, 404, { error: "not-found" });
-  }
-
   const auth = req.headers["x-filter-fyi-secret"];
   if (auth !== SECRET) {
     return send(res, 401, { error: "unauthorized", message: "missing or wrong X-Filter-Fyi-Secret header" });
   }
 
-  let body;
-  try {
-    body = await readJson(req);
-  } catch {
-    return send(res, 400, { error: "invalid-json" });
+  // POST /api/job — start an async job (new flow)
+  if (req.method === "POST" && req.url === "/api/job") {
+    let body;
+    try { body = await readJson(req); } catch { return send(res, 400, { error: "invalid-json" }); }
+    const url = typeof body.url === "string" ? body.url.trim() : "";
+    if (!/^https?:\/\//i.test(url)) {
+      return send(res, 400, { error: "invalid-url", message: "url must start with http(s)://" });
+    }
+    if (/mock=invalid\b/.test(url)) {
+      return send(res, 400, { error: "invalid-url", message: "mock: forced invalid" });
+    }
+    // Must be UUID-shaped so it matches the Worker's /api/v1/job/:id route regex.
+    const jobId = randomUUID();
+    const delay = /mock=slow\b/.test(url) ? 4000 : /mock=hang\b/.test(url) ? 120_000 : 1500;
+    jobs.set(jobId, { status: "pending", url });
+    scheduleJobCompletion(jobId, url, delay);
+    return send(res, 202, { job_id: jobId });
   }
 
-  const url = typeof body.url === "string" ? body.url.trim() : "";
-  if (!/^https?:\/\//i.test(url)) {
-    return send(res, 400, { error: "invalid-url", message: "url must start with http(s)://" });
+  // GET /api/job/:id — poll job status (new flow)
+  const jobMatch = req.url.match(/^\/api\/job\/([^/?]+)$/);
+  if (req.method === "GET" && jobMatch) {
+    const jobId = jobMatch[1];
+    const job = jobs.get(jobId);
+    if (!job) return send(res, 404, { error: "not-found" });
+    if (job.status === "pending") return send(res, 200, { status: "pending" });
+    if (job.status === "error") return send(res, 200, { status: "error", error: job.error });
+    return send(res, 200, { status: "done", result: job.result });
   }
 
-  // Trigger flags via the URL itself
-  if (/mock=invalid\b/.test(url)) {
-    return send(res, 400, { error: "invalid-url", message: "mock: forced invalid" });
-  }
-  if (/mock=500\b/.test(url)) {
-    return send(res, 500, { error: "bot-error", message: "mock: forced 500" });
-  }
-  if (/mock=no-transcript\b/.test(url) || /\/no-transcript/.test(url)) {
-    return send(res, 422, { error: "no-transcript", message: "no transcript available for this video" });
-  }
-  if (/mock=slow\b/.test(url)) {
-    await new Promise((r) => setTimeout(r, 3000));
-  }
-  if (/mock=hang\b/.test(url)) {
-    await new Promise((r) => setTimeout(r, 30000));
+  // POST /api/try — legacy endpoint kept for backward compat during transition
+  if (req.method === "POST" && req.url === "/api/try") {
+    let body;
+    try { body = await readJson(req); } catch { return send(res, 400, { error: "invalid-json" }); }
+    const url = typeof body.url === "string" ? body.url.trim() : "";
+    if (!/^https?:\/\//i.test(url)) return send(res, 400, { error: "invalid-url" });
+    if (/mock=no-transcript\b/.test(url)) return send(res, 422, { error: "no-transcript" });
+    if (/mock=500\b/.test(url)) return send(res, 500, { error: "bot-error" });
+    if (/mock=slow\b/.test(url)) await new Promise((r) => setTimeout(r, 3000));
+    if (/mock=hang\b/.test(url)) await new Promise((r) => setTimeout(r, 30000));
+    return send(res, 200, buildSuccess(url, classify(url)));
   }
 
-  return send(res, 200, buildSuccess(url, classify(url)));
+  return send(res, 404, { error: "not-found" });
 });
 
 server.listen(PORT, () => {
