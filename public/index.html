@@ -127,6 +127,21 @@
                            text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
     .result-experiment.exp-bigger { background: var(--amber-soft); border-left-color: var(--amber); }
     .result-experiment.exp-bigger b { color: var(--amber); }
+
+    /* "what we read" transparency disclosure */
+    .result-brief { margin-top: 18px; border-top: 1px dotted var(--ink); padding-top: 12px; }
+    .result-brief summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em;
+                            text-transform: uppercase; color: var(--ink-3); list-style: none;
+                            display: inline-flex; align-items: baseline; gap: 6px; }
+    .result-brief summary::-webkit-details-marker { display: none; }
+    .result-brief summary::before { content: '+ '; color: var(--green); font-weight: 700; }
+    .result-brief[open] summary::before { content: '− '; }
+    .result-brief summary:hover { color: var(--green); }
+    .result-brief .brief-meta { font-size: 11px; color: var(--ink-3); margin: 10px 0 8px; }
+    .result-brief .brief-body { max-height: 360px; overflow: auto; padding: 12px 14px;
+                                background: var(--bg); border: 1px solid var(--ink);
+                                font-size: 13px; line-height: 1.55; color: var(--ink);
+                                white-space: pre-wrap; word-wrap: break-word; }
     .result-save { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ink);
                    font-size: 12px; color: var(--ink-3); }
 
@@ -227,6 +242,11 @@
           <b>🚀 bigger play — when you're ready</b><span id="bigger-play"></span>
         </div>
         <div class="result-meta" id="result-meta"></div>
+        <details class="result-brief" id="result-brief" hidden>
+          <summary id="brief-toggle">show what we read</summary>
+          <div class="brief-meta" id="brief-meta"></div>
+          <div class="brief-body" id="brief-body"></div>
+        </details>
         <p class="result-disclaimer">Verdicts are AI-generated and can be wrong — use your own judgment. <a href="/terms">terms</a></p>
         <p class="result-save" id="result-save">Saving these to an account is coming next — <a href="/about">join the waitlist</a> to be there for it.</p>
       </article>
@@ -374,11 +394,33 @@
         }
         const metaBits = [];
         if (a.category) metaBits.push(`<b>category</b> ${a.category}`);
+        let host = '';
         try {
-          const host = new URL(summary.url).hostname.replace(/^www\./, '');
+          host = new URL(summary.url).hostname.replace(/^www\./, '');
           metaBits.push(`<b>source</b> ${host}`);
         } catch {}
         document.getElementById('result-meta').innerHTML = metaBits.join(' &nbsp;·&nbsp; ');
+
+        // Transparency: surface the stored brief the analyzer reasoned over,
+        // so people can sanity-check the basis for the verdict. Collapsed by
+        // default; the brief can be long (up to ~32k chars).
+        const brief = typeof summary.content === 'string' ? summary.content.trim() : '';
+        const briefEl = document.getElementById('result-brief');
+        if (brief) {
+          const words = (brief.match(/\S+/g) || []).length;
+          document.getElementById('brief-toggle').textContent =
+            `show what we read · ${words.toLocaleString()} words`;
+          const metaParts = [];
+          if (summary.source_type) metaParts.push(summary.source_type);
+          if (host) metaParts.push(host);
+          document.getElementById('brief-meta').textContent =
+            metaParts.length ? metaParts.join(' · ') : '';
+          document.getElementById('brief-body').textContent = brief;
+          briefEl.hidden = false;
+          briefEl.open = false;
+        } else {
+          briefEl.hidden = true;
+        }
         show(result);
       }
 
