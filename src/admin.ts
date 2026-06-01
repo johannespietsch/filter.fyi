@@ -19,6 +19,11 @@ interface AdminEnv {
   CF_ACCESS_TEAM_DOMAIN?: string; // e.g. "filter-fyi.cloudflareaccess.com"
   CF_ACCESS_AUD?: string; // Application Audience tag from the Access app
   ADMIN_DEV_EMAIL?: string; // local-dev escape hatch; production must leave unset
+
+  // Backend (Fly) — admin endpoints are pulled from the same backend that
+  // serves /api/try, gated by a separate admin secret.
+  BOT_API_URL?: string;
+  BOT_ADMIN_KEY?: string;
 }
 
 // Cache the remote JWKS per team domain. createRemoteJWKSet handles HTTP-level
@@ -124,6 +129,10 @@ export async function handleAdminRequest(
     return adminHeaders(renderAdminHome(identity));
   }
 
+  if (pathname === "/cost" || pathname === "/cost/") {
+    return adminHeaders(await renderCostOverview(req, env, identity));
+  }
+
   return adminHeaders(new Response("Not Found", { status: 404 }));
 }
 
@@ -149,35 +158,329 @@ function renderAdminHome(email: string): Response {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>filter.fyi admin</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 720px; margin: 3rem auto; padding: 0 1rem; }
-    header { border-bottom: 1px solid #8884; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-    h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
-    .who { color: #888; font-size: .9rem; }
-    code { background: #8881; padding: 1px 6px; border-radius: 3px; }
-    ul.coming { color: #666; }
-    ul.coming li { margin: .25rem 0; }
-  </style>
+  <style>${ADMIN_CSS}</style>
 </head>
 <body>
   <header>
     <h1>filter.fyi admin</h1>
-    <p class="who">Signed in as <code>${escapeHtml(email)}</code> · scaffold only — dashboard tiles land next</p>
+    <p class="who">Signed in as <code>${escapeHtml(email)}</code></p>
   </header>
   <main>
-    <p>Pillars planned (will read from D1 + backend /api/admin/* endpoints):</p>
-    <ul class="coming">
-      <li><strong>Growth</strong> — waitlist signups, users, sessions over time</li>
-      <li><strong>Usage</strong> — scans/day, source-type mix, verdict mix, feedback</li>
-      <li><strong>Reliability</strong> — job error rate, error_log top fingerprints, P95 latency</li>
-      <li><strong>Cost</strong> — $/day, tokens/day, $/user, $/source_type (from <code>llm_calls</code>)</li>
-      <li><strong>Platform</strong> — link-outs to Cloudflare Workers Observability and Fly metrics</li>
+    <ul class="pillars">
+      <li><a href="/cost"><strong>Cost</strong></a> — $/day, tokens/day, $/user, $/source_type (from <code>llm_calls</code>)</li>
+      <li class="soon"><strong>Growth</strong> — waitlist signups, users, sessions over time</li>
+      <li class="soon"><strong>Usage</strong> — scans/day, source-type mix, verdict mix, feedback</li>
+      <li class="soon"><strong>Reliability</strong> — job error rate, error_log top fingerprints, P95 latency</li>
+      <li class="soon"><strong>Platform</strong> — link-outs to Cloudflare Workers Observability and Fly metrics</li>
     </ul>
   </main>
 </body>
 </html>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+}
+
+// ---------------------------------------------------------------------------
+// Cost overview
+// ---------------------------------------------------------------------------
+
+interface CostKpis {
+  total_calls: number;
+  total_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  errors: number;
+  error_rate: number;
+}
+
+interface CostDailyRow {
+  day: string;
+  calls: number;
+  cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  errors: number;
+}
+
+interface CostBySource {
+  source_type: string;
+  calls: number;
+  cost_usd: number;
+  tokens: number;
+}
+
+interface CostByPurpose {
+  purpose: string;
+  calls: number;
+  cost_usd: number;
+  avg_latency_ms: number;
+  errors: number;
+}
+
+interface CostByIdentity {
+  kind: "signed_in" | "anon";
+  calls: number;
+  cost_usd: number;
+  unique_actors: number;
+}
+
+interface TopUser {
+  user_id: number;
+  calls: number;
+  cost_usd: number;
+}
+
+interface CostOverview {
+  range_days: number;
+  as_of: string;
+  kpis: CostKpis;
+  daily: CostDailyRow[];
+  by_source_type: CostBySource[];
+  by_purpose: CostByPurpose[];
+  by_identity: CostByIdentity[];
+  top_users: TopUser[];
+}
+
+/**
+ * Strip the trailing `/api/try` from BOT_API_URL to get the backend root —
+ * mirrors the helper in worker.ts. Duplicated rather than imported to keep
+ * admin.ts free of cross-file dependencies on the public-site code.
+ */
+function backendBase(botApiUrl: string): string {
+  return botApiUrl.replace(/\/api\/try\/?$/, "");
+}
+
+async function fetchCostOverview(env: AdminEnv, days: number): Promise<CostOverview | Response> {
+  if (!env.BOT_API_URL || !env.BOT_ADMIN_KEY) {
+    console.error("admin: BOT_API_URL or BOT_ADMIN_KEY not configured");
+    return new Response("admin backend not configured", { status: 503 });
+  }
+  const url = `${backendBase(env.BOT_API_URL)}/api/admin/cost-overview?days=${days}`;
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      headers: { "x-filter-fyi-admin-secret": env.BOT_ADMIN_KEY },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    console.error("admin: cost-overview fetch threw", err);
+    return new Response("upstream unreachable", { status: 502 });
+  }
+  if (!upstream.ok) {
+    console.error("admin: cost-overview upstream non-ok", upstream.status);
+    return new Response(`upstream ${upstream.status}`, { status: 502 });
+  }
+  try {
+    return (await upstream.json()) as CostOverview;
+  } catch (err) {
+    console.error("admin: cost-overview response not JSON", err);
+    return new Response("upstream malformed", { status: 502 });
+  }
+}
+
+async function renderCostOverview(req: Request, env: AdminEnv, email: string): Promise<Response> {
+  const url = new URL(req.url);
+  const daysParam = Number(url.searchParams.get("days") ?? "30");
+  const days = Number.isFinite(daysParam) && daysParam >= 1 && daysParam <= 365 ? Math.floor(daysParam) : 30;
+
+  const data = await fetchCostOverview(env, days);
+  if (data instanceof Response) {
+    // Pass through 502/503 so the operator sees what's wrong rather than a
+    // half-rendered tile blaming "no data".
+    return data;
+  }
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Cost · filter.fyi admin</title>
+  <style>${ADMIN_CSS}</style>
+</head>
+<body>
+  <header>
+    <h1><a href="/" class="back">←</a> Cost overview</h1>
+    <p class="who">Last ${data.range_days} days · as of ${escapeHtml(data.as_of)} · <code>${escapeHtml(email)}</code></p>
+    <nav class="range">
+      ${[7, 30, 90].map(n => `<a href="/cost?days=${n}"${n === data.range_days ? ' class="current"' : ''}>${n}d</a>`).join(" · ")}
+    </nav>
+  </header>
+  <main>
+    ${renderKpis(data.kpis)}
+    ${renderDailyChart(data.daily)}
+    ${renderBySourceType(data.by_source_type, data.kpis.total_cost_usd)}
+    ${renderByPurpose(data.by_purpose)}
+    ${renderByIdentity(data.by_identity)}
+    ${renderTopUsers(data.top_users)}
+  </main>
+</body>
+</html>`;
+  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+}
+
+function renderKpis(k: CostKpis): string {
+  return `<section class="kpis">
+    <div class="kpi"><span class="label">Cost</span><span class="value">${formatUsd(k.total_cost_usd)}</span></div>
+    <div class="kpi"><span class="label">Calls</span><span class="value">${formatInt(k.total_calls)}</span></div>
+    <div class="kpi"><span class="label">Tokens</span><span class="value">${formatTokens(k.total_input_tokens + k.total_output_tokens)}</span><span class="sub">${formatTokens(k.total_input_tokens)} in · ${formatTokens(k.total_output_tokens)} out</span></div>
+    <div class="kpi"><span class="label">Error rate</span><span class="value">${formatPct(k.error_rate)}</span><span class="sub">${formatInt(k.errors)} failed</span></div>
+  </section>`;
+}
+
+function renderDailyChart(daily: CostDailyRow[]): string {
+  if (daily.length === 0) {
+    return `<section class="tile"><h2>Daily cost</h2><p class="empty">No data yet.</p></section>`;
+  }
+  const w = 720;
+  const h = 140;
+  const padding = { left: 36, right: 8, top: 8, bottom: 22 };
+  const innerW = w - padding.left - padding.right;
+  const innerH = h - padding.top - padding.bottom;
+  const maxCost = Math.max(...daily.map(d => d.cost_usd), 0.0001); // avoid /0
+  const barW = innerW / daily.length;
+  const gap = Math.max(1, barW * 0.15);
+
+  const bars = daily.map((d, i) => {
+    const x = padding.left + i * barW + gap / 2;
+    const bh = (d.cost_usd / maxCost) * innerH;
+    const y = padding.top + innerH - bh;
+    const cls = d.errors > 0 ? "bar bar-err" : "bar";
+    const tip = `${d.day} · ${formatUsd(d.cost_usd)} · ${d.calls} calls${d.errors > 0 ? ` · ${d.errors} errors` : ""}`;
+    return `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(barW - gap).toFixed(1)}" height="${Math.max(bh, 0.5).toFixed(1)}"><title>${escapeHtml(tip)}</title></rect>`;
+  }).join("");
+
+  // Y-axis ticks: 0 and the max
+  const yMax = padding.top;
+  const yZero = padding.top + innerH;
+  // X-axis ticks: first and last day
+  const firstDay = daily[0]?.day ?? "";
+  const lastDay = daily[daily.length - 1]?.day ?? "";
+
+  return `<section class="tile">
+    <h2>Daily cost</h2>
+    <svg class="sparkline" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Daily cost bar chart for the selected range">
+      <line class="axis" x1="${padding.left}" x2="${padding.left}" y1="${yMax}" y2="${yZero}" />
+      <line class="axis" x1="${padding.left}" x2="${w - padding.right}" y1="${yZero}" y2="${yZero}" />
+      <text class="tick" x="${padding.left - 4}" y="${yMax + 4}" text-anchor="end">${formatUsd(maxCost)}</text>
+      <text class="tick" x="${padding.left - 4}" y="${yZero}" text-anchor="end">$0</text>
+      <text class="tick" x="${padding.left}" y="${h - 6}" text-anchor="start">${escapeHtml(firstDay)}</text>
+      <text class="tick" x="${w - padding.right}" y="${h - 6}" text-anchor="end">${escapeHtml(lastDay)}</text>
+      ${bars}
+    </svg>
+    <p class="sub">Bars in red indicate days with at least one failed LLM call.</p>
+  </section>`;
+}
+
+function renderBySourceType(rows: CostBySource[], totalCost: number): string {
+  if (rows.length === 0) {
+    return `<section class="tile"><h2>By source type</h2><p class="empty">No successful calls in range.</p></section>`;
+  }
+  const denom = totalCost > 0 ? totalCost : 1;
+  const body = rows.map(r => {
+    const pct = (r.cost_usd / denom) * 100;
+    return `<tr>
+      <td>${escapeHtml(r.source_type)}</td>
+      <td class="num">${formatInt(r.calls)}</td>
+      <td class="num">${formatUsd(r.cost_usd)}</td>
+      <td class="num">${formatTokens(r.tokens)}</td>
+      <td class="bar-cell"><span class="bar-track"><span class="bar-fill" style="width:${pct.toFixed(1)}%"></span></span><span class="pct">${pct.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join("");
+  return `<section class="tile">
+    <h2>By source type</h2>
+    <table>
+      <thead><tr><th>Type</th><th class="num">Calls</th><th class="num">Cost</th><th class="num">Tokens</th><th>Share</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </section>`;
+}
+
+function renderByPurpose(rows: CostByPurpose[]): string {
+  if (rows.length === 0) {
+    return `<section class="tile"><h2>By purpose</h2><p class="empty">No data yet.</p></section>`;
+  }
+  const body = rows.map(r => `<tr>
+    <td>${escapeHtml(r.purpose)}</td>
+    <td class="num">${formatInt(r.calls)}</td>
+    <td class="num">${formatUsd(r.cost_usd)}</td>
+    <td class="num">${formatInt(r.avg_latency_ms)} ms</td>
+    <td class="num">${r.errors > 0 ? `<span class="err">${formatInt(r.errors)}</span>` : "0"}</td>
+  </tr>`).join("");
+  return `<section class="tile">
+    <h2>By purpose</h2>
+    <table>
+      <thead><tr><th>Purpose</th><th class="num">Calls</th><th class="num">Cost</th><th class="num">Avg latency</th><th class="num">Errors</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </section>`;
+}
+
+function renderByIdentity(rows: CostByIdentity[]): string {
+  const byKind: Record<string, CostByIdentity | undefined> = {};
+  for (const r of rows) byKind[r.kind] = r;
+  const card = (label: string, key: "signed_in" | "anon", actorLabel: string) => {
+    const r = byKind[key] ?? { kind: key, calls: 0, cost_usd: 0, unique_actors: 0 };
+    return `<div class="identity-card">
+      <h3>${label}</h3>
+      <dl>
+        <dt>Cost</dt><dd>${formatUsd(r.cost_usd)}</dd>
+        <dt>Calls</dt><dd>${formatInt(r.calls)}</dd>
+        <dt>${actorLabel}</dt><dd>${formatInt(r.unique_actors)}</dd>
+      </dl>
+    </div>`;
+  };
+  return `<section class="tile">
+    <h2>Anon vs signed-in</h2>
+    <div class="identity-cards">
+      ${card("Signed-in", "signed_in", "Unique users")}
+      ${card("Anon", "anon", "Unique anon visitors")}
+    </div>
+  </section>`;
+}
+
+function renderTopUsers(rows: TopUser[]): string {
+  if (rows.length === 0) {
+    return `<section class="tile"><h2>Top users by cost</h2><p class="empty">No signed-in usage in range.</p></section>`;
+  }
+  const body = rows.map(r => `<tr>
+    <td><code>user ${r.user_id}</code></td>
+    <td class="num">${formatInt(r.calls)}</td>
+    <td class="num">${formatUsd(r.cost_usd)}</td>
+  </tr>`).join("");
+  return `<section class="tile">
+    <h2>Top users by cost</h2>
+    <table>
+      <thead><tr><th>User</th><th class="num">Calls</th><th class="num">Cost</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p class="sub">Identifier only — emails stay on the backend.</p>
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// Formatting + shared CSS
+// ---------------------------------------------------------------------------
+
+function formatUsd(n: number): string {
+  if (n === 0) return "$0";
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  if (n < 1) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(2)}`;
+}
+
+function formatInt(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+function formatTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
+function formatPct(rate: number): string {
+  return `${(rate * 100).toFixed(2)}%`;
 }
 
 function escapeHtml(s: string): string {
@@ -188,3 +491,53 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+// Shared between the home page and every tile page so we keep one design
+// surface. Variables drive light/dark; the rest is laid out for a single
+// scroll column up to ~880px wide.
+const ADMIN_CSS = `
+  :root { color-scheme: light dark; --fg: #1a1a1a; --muted: #777; --line: #8884; --tile-bg: #8881; --bar: #4a7cff; --bar-err: #d35454; --link: #2255cc; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #eee; --muted: #999; --link: #88aaff; } }
+  body { font: 14px/1.5 system-ui, -apple-system, sans-serif; max-width: 880px; margin: 2rem auto 4rem; padding: 0 1rem; color: var(--fg); }
+  a { color: var(--link); }
+  header { border-bottom: 1px solid var(--line); padding-bottom: .75rem; margin-bottom: 1.5rem; }
+  h1 { margin: 0 0 .25rem; font-size: 1.35rem; }
+  h1 .back { text-decoration: none; margin-right: .35rem; color: var(--muted); }
+  h2 { margin: 0 0 .75rem; font-size: 1.05rem; font-weight: 600; }
+  h3 { margin: 0 0 .5rem; font-size: .95rem; font-weight: 600; }
+  .who { color: var(--muted); font-size: .85rem; margin: 0; }
+  code { background: var(--tile-bg); padding: 1px 6px; border-radius: 3px; font-size: .85em; }
+  nav.range { margin-top: .5rem; font-size: .85rem; }
+  nav.range a.current { font-weight: 600; }
+  ul.pillars { padding-left: 1.2rem; }
+  ul.pillars li { margin: .35rem 0; }
+  ul.pillars li.soon { color: var(--muted); }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+  .kpi { background: var(--tile-bg); border-radius: 6px; padding: .75rem 1rem; display: flex; flex-direction: column; }
+  .kpi .label { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; }
+  .kpi .value { font-size: 1.4rem; font-weight: 600; margin-top: .15rem; }
+  .kpi .sub { color: var(--muted); font-size: .75rem; margin-top: .15rem; }
+  .tile { background: var(--tile-bg); border-radius: 6px; padding: 1rem 1.1rem; margin-bottom: 1.25rem; }
+  .tile .empty { color: var(--muted); font-style: italic; margin: 0; }
+  .tile .sub { color: var(--muted); font-size: .75rem; margin: .5rem 0 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { padding: .35rem .5rem; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.bar-cell { width: 30%; }
+  .bar-track { display: inline-block; width: 60%; height: 8px; background: var(--line); border-radius: 3px; overflow: hidden; vertical-align: middle; }
+  .bar-fill { display: block; height: 100%; background: var(--bar); }
+  .pct { display: inline-block; min-width: 3.5em; color: var(--muted); font-size: .8rem; margin-left: .5rem; vertical-align: middle; }
+  .err { color: var(--bar-err); font-weight: 600; }
+  svg.sparkline { width: 100%; height: auto; max-height: 160px; }
+  svg.sparkline .bar { fill: var(--bar); }
+  svg.sparkline .bar-err { fill: var(--bar-err); }
+  svg.sparkline .axis { stroke: var(--line); stroke-width: 1; }
+  svg.sparkline .tick { font: 10px system-ui; fill: var(--muted); }
+  .identity-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+  .identity-card { background: rgba(128,128,128,.06); border-radius: 4px; padding: .75rem .9rem; }
+  .identity-card dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; margin: 0; }
+  .identity-card dt { color: var(--muted); font-size: .8rem; }
+  .identity-card dd { margin: 0; font-variant-numeric: tabular-nums; }
+  @media (max-width: 520px) { .identity-cards { grid-template-columns: 1fr; } }
+`;
