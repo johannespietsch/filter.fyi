@@ -20,7 +20,15 @@
 	},
 	"assets": {
 		"directory": "./public",
-		"binding": "ASSETS"
+		"binding": "ASSETS",
+		// Default behaviour is "match a static asset first, only invoke the
+		// Worker if nothing matches". That breaks admin.filter.fyi/: the asset
+		// binding serves public/index.html (the public landing) before the
+		// Worker's hostname dispatch ever runs. Flipping this to run-worker-
+		// first means every request hits fetch() and falls through to
+		// env.ASSETS.fetch(req) at the bottom for static content, which keeps
+		// the public site working while letting admin host-routing fire.
+		"run_worker_first": true
 	},
 	"d1_databases": [
 		{
