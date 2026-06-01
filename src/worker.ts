@@ -418,6 +418,7 @@ interface BotResponse {
   title?: string;
   source_type?: string;
   image_urls?: string[];
+  content?: string;
   content_preview?: string;
   verdict?: string;
   // `id` is only set when the signed-in path goes through /api/library/add,
@@ -706,6 +707,10 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
 
   if (!session && anonId && isValidAnonId(anonId)) {
     const nowIso = new Date().toISOString();
+    // Strip `content` (the full brief, up to 32k chars) from the D1 payload —
+    // it's only needed by the live result page, while the claim-on-signup path
+    // reads `content_preview`. Keeps anon_summaries row size bounded.
+    const { content: _omitContent, ...slimSummary } = summary;
     try {
       const row = await env.DB.prepare(
         `INSERT INTO anon_summaries (anon_id, url, source_type, title, verdict, payload, created_at)
@@ -718,7 +723,7 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
           typeof summary.source_type === "string" ? summary.source_type : null,
           typeof summary.title === "string" ? summary.title : null,
           typeof summary.verdict === "string" ? summary.verdict : null,
-          JSON.stringify(summary),
+          JSON.stringify(slimSummary),
           nowIso
         )
         .first<{ id: number }>();

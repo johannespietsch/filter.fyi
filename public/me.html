@@ -108,6 +108,20 @@
     .body .exp.exp-bigger { background: var(--amber-soft); border-left-color: var(--amber); }
     .body .exp.exp-bigger b { color: var(--amber); }
 
+    /* "what we read" transparency disclosure inside an item's analysis */
+    .body .brief { margin-top: 12px; padding-top: 10px; border-top: 1px dotted var(--ink); }
+    .body .brief > summary { cursor: pointer; font-size: 10.5px; letter-spacing: 0.14em;
+                              text-transform: uppercase; color: var(--ink-3); list-style: none;
+                              padding: 2px 0; }
+    .body .brief > summary::-webkit-details-marker { display: none; }
+    .body .brief > summary::before { content: '+ '; color: var(--green); font-weight: 700; }
+    .body .brief[open] > summary::before { content: '− '; }
+    .body .brief > summary:hover { color: var(--green); }
+    .body .brief-body { margin-top: 8px; max-height: 320px; overflow: auto;
+                        padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--ink);
+                        font-size: 13px; line-height: 1.55; color: var(--ink);
+                        white-space: pre-wrap; word-wrap: break-word; }
+
     /* feedback chips on an item — the "did you act on it?" signal */
     .item-feedback { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
                      margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--ink); }
@@ -324,7 +338,7 @@
         `;
       }
 
-      function renderAnalysisInto(bodyEl, analysisJson) {
+      function renderAnalysisInto(bodyEl, analysisJson, briefText) {
         let a = {};
         try {
           const parsed = JSON.parse(analysisJson || '{}');
@@ -342,8 +356,17 @@
         if (!a.quick_win && !a.bigger_play && a.suggested_experiment) {
           exp = expBlock('try this →', a.suggested_experiment, '');
         }
-        bodyEl.innerHTML = mainIdea || why || exp
-          ? `${mainIdea}${why}${exp}`
+        // Transparency: the stored brief the analyzer reasoned over. Collapsed
+        // and capped in height — briefs can run to thousands of words.
+        const brief = typeof briefText === 'string' ? briefText.trim() : '';
+        let briefBlock = '';
+        if (brief) {
+          const words = (brief.match(/\S+/g) || []).length;
+          briefBlock = `<details class="brief"><summary>show what we read · ${words.toLocaleString()} words</summary>`
+                     + `<div class="brief-body">${escapeHtml(brief)}</div></details>`;
+        }
+        bodyEl.innerHTML = mainIdea || why || exp || briefBlock
+          ? `${mainIdea}${why}${exp}${briefBlock}`
           : '<p><i>(no analysis stored)</i></p>';
       }
 
@@ -359,7 +382,7 @@
             return;
           }
           const item = await res.json();
-          renderAnalysisInto(body, item.analysis);
+          renderAnalysisInto(body, item.analysis, item.content);
         } catch {
           body.textContent = 'Could not load analysis.';
         }
