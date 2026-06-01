@@ -1,3 +1,5 @@
+import { handleAdminRequest } from "./admin";
+
 interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
@@ -8,7 +10,17 @@ interface Env {
   BOT_API_URL?: string;
   BOT_API_KEY?: string;
   BOT_TIMEOUT_MS?: string;
+
+  // Admin (admin.filter.fyi) — auth handled entirely by Cloudflare Access.
+  // CF_ACCESS_TEAM_DOMAIN: e.g. "filter-fyi.cloudflareaccess.com"
+  // CF_ACCESS_AUD:         Application Audience tag from the Access app
+  // ADMIN_DEV_EMAIL:       local-dev only; must be unset in production
+  CF_ACCESS_TEAM_DOMAIN?: string;
+  CF_ACCESS_AUD?: string;
+  ADMIN_DEV_EMAIL?: string;
 }
+
+const ADMIN_HOSTNAME = "admin.filter.fyi";
 
 interface Signup {
   email: string;
@@ -51,6 +63,22 @@ const LOGIN_DAILY_LIMIT_PER_IP = 20;
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
+
+    // admin.filter.fyi is served by the same Worker via host-routing, with
+    // Cloudflare Access (Zero Trust) handling auth at the edge. Anything
+    // matching the admin host (or, in local dev, /admin on localhost) is
+    // routed into the admin module and never sees the public-site logic
+    // below. In dev we strip the /admin prefix so admin.ts only has to
+    // think about admin-relative paths.
+    const isAdminHost = url.hostname === ADMIN_HOSTNAME;
+    const isLocalHost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    const isLocalAdmin = isLocalHost && url.pathname.startsWith("/admin");
+    if (isAdminHost || isLocalAdmin) {
+      const adminPath = isLocalAdmin
+        ? url.pathname.replace(/^\/admin/, "") || "/"
+        : url.pathname;
+      return handleAdminRequest(req, env, adminPath, isLocalHost);
+    }
 
     if (url.pathname === "/api/v1/waitlist") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);

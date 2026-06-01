@@ -11,3 +11,9 @@ NOTIFY_EMAIL=you@example.com
 # real deployment and put BOT_API_KEY via `npx wrangler secret put`.
 BOT_API_URL=http://localhost:8788/api/try
 BOT_API_KEY=local-dev-secret
+
+# Admin (admin.filter.fyi) dev escape hatch. Cloudflare Access doesn't run on
+# localhost, so set this to the email you want admin.ts to treat as signed in
+# when you visit http://localhost:8787/admin. Only honoured when the request
+# hostname is localhost/127.0.0.1 — cannot bypass Access in production.
+ADMIN_DEV_EMAIL=you@example.com

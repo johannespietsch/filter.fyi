@@ -11,7 +11,15 @@
 	},
 	"vars": {
 		"FROM_EMAIL": "Johannes from filter.fyi <hello@mail.filter.fyi>",
-		"REPLY_TO_EMAIL": "hello@filter.fyi"
+		"REPLY_TO_EMAIL": "hello@filter.fyi",
+		// Cloudflare Access (Zero Trust) — set both in production via the
+		// Cloudflare dashboard or `wrangler secret put`. Leaving them unset
+		// makes admin.filter.fyi fail closed with 503 ("admin not configured").
+		// CF_ACCESS_TEAM_DOMAIN example: "filter-fyi.cloudflareaccess.com"
+		// CF_ACCESS_AUD: the "Application Audience (AUD) Tag" shown on the
+		// Access application's Overview tab.
+		"CF_ACCESS_TEAM_DOMAIN": "",
+		"CF_ACCESS_AUD": ""
 	},
 	"assets": {
 		"directory": "./public",

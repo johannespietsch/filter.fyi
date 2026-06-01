@@ -149,6 +149,38 @@ Secrets set on the production Worker via `wrangler secret put` (only works *afte
 
 Preview deployments don't carry the secrets, so they exercise the graceful-degradation path (signups stored, email skipped; `/api/try` returns `service-unavailable`).
 
+## Admin (`admin.filter.fyi`)
+
+Operator-only observability dashboard, served by the **same Worker** via host-based routing. Authentication is delegated entirely to Cloudflare Access (Zero Trust) — there is no overlap with the magic-link session flow used by end users, and no admin rows in D1. The Worker re-verifies the Access JWT on every request as defense-in-depth.
+
+### One-time Cloudflare setup
+
+1. **Custom domain** — in the Cloudflare dashboard → Workers & Pages → `filter-fyi` → Settings → Domains & Routes, add `admin.filter.fyi` as a custom domain. Cloudflare auto-provisions the DNS record and TLS cert.
+2. **Cloudflare Access (Zero Trust)** — at https://one.dash.cloudflare.com → Access → Applications → **Add an application** → *Self-hosted*:
+   - **Application domain**: `admin.filter.fyi`
+   - **Session duration**: 24h (or shorter)
+   - **Identity providers**: One-time PIN (email) is the simplest start; add Google/GitHub SSO later if useful
+   - **Policy** → *Allow* → `Emails` includes `<your-admin-email>`
+   - From the application's **Overview** tab, copy the **Application Audience (AUD) Tag**.
+3. **Wire the Worker** — set the two vars on the production Worker:
+   ```bash
+   wrangler secret put CF_ACCESS_TEAM_DOMAIN  # e.g. "filter-fyi.cloudflareaccess.com"
+   wrangler secret put CF_ACCESS_AUD          # the AUD tag from step 2
+   ```
+   (You can also keep them as plain vars in `wrangler.jsonc`; the AUD tag is not a secret in the strict sense — it's an app identifier — but treating it as one is fine.)
+
+If either var is unset, `admin.filter.fyi` fails closed with `503 admin not configured` — there is no path that serves the dashboard unauthenticated.
+
+### Local development
+
+Cloudflare Access does not run on `localhost`, so for `wrangler dev` add an explicit dev escape hatch to `.dev.vars`:
+
+```
+ADMIN_DEV_EMAIL=you@example.com
+```
+
+Then visit http://localhost:8787/admin in dev. The `/admin` prefix is used locally because `wrangler dev` only serves one origin; production routing is purely hostname-based and has no `/admin` prefix. The `ADMIN_DEV_EMAIL` bypass only fires when the request hostname is `localhost` / `127.0.0.1`, so it can never expose the dashboard in production.
+
 ## Not yet wired up
 
 - The weekly digest itself — the actual product
