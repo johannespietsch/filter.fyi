@@ -549,9 +549,12 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   // Start an async job on the backend — returns a job_id immediately so the
   // Worker response stays well within Cloudflare's CPU/wall-clock limits.
   // The browser polls GET /api/v1/job/:id until the job is done or errors.
+  // For anon traffic we forward the anon cookie as `anon_id` purely so the
+  // backend can attribute LLM spend per visitor in `llm_calls` (no PII —
+  // it's the same UUID the Worker already stores against anon_summaries).
   const jobBody = session
     ? JSON.stringify({ url, user_id: session.userId })
-    : JSON.stringify({ url });
+    : JSON.stringify({ url, anon_id: anonId });
   let jobRes: Response;
   try {
     jobRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/job`, {
