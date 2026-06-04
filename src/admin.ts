@@ -229,6 +229,19 @@ interface TopUser {
   cost_usd: number;
 }
 
+interface CacheByPurpose {
+  purpose: string;
+  hits: number;
+  cost_saved_usd: number;
+}
+
+interface CacheStats {
+  hits: number;
+  cost_saved_usd: number;
+  hit_rate: number;
+  by_purpose: CacheByPurpose[];
+}
+
 interface CostOverview {
   range_days: number;
   as_of: string;
@@ -238,6 +251,9 @@ interface CostOverview {
   by_purpose: CostByPurpose[];
   by_identity: CostByIdentity[];
   top_users: TopUser[];
+  // `cache` may be absent on older backends; renderer defaults to a zero
+  // state so a backend pre-PR doesn't crash the page.
+  cache?: CacheStats;
 }
 
 /**
@@ -312,6 +328,7 @@ async function renderCostOverview(req: Request, env: AdminEnv, email: string): P
     ${renderBySourceType(data.by_source_type, data.kpis.total_cost_usd)}
     ${renderByPurpose(data.by_purpose)}
     ${renderByIdentity(data.by_identity)}
+    ${renderCache(data.cache)}
     ${renderTopUsers(data.top_users)}
   </main>
 </body>
@@ -439,6 +456,35 @@ function renderByIdentity(rows: CostByIdentity[]): string {
   </section>`;
 }
 
+function renderCache(cache: CacheStats | undefined): string {
+  // Backend pre-PR didn't send a `cache` block — render zero state.
+  const c = cache ?? { hits: 0, cost_saved_usd: 0, hit_rate: 0, by_purpose: [] };
+  if (c.hits === 0) {
+    return `<section class="tile">
+      <h2>Cache</h2>
+      <p class="empty">No cache hits in range yet — first repeats will start showing here.</p>
+    </section>`;
+  }
+  const purposeRows = c.by_purpose.map(r => `<tr>
+    <td>${escapeHtml(r.purpose)}</td>
+    <td class="num">${formatInt(r.hits)}</td>
+    <td class="num">${formatUsd(r.cost_saved_usd)}</td>
+  </tr>`).join("");
+  return `<section class="tile">
+    <h2>Cache</h2>
+    <div class="cache-kpis">
+      <div class="kpi"><span class="label">Hits</span><span class="value">${formatInt(c.hits)}</span></div>
+      <div class="kpi"><span class="label">Cost saved (est.)</span><span class="value">${formatUsd(c.cost_saved_usd)}</span></div>
+      <div class="kpi"><span class="label">Hit rate</span><span class="value">${formatPct(c.hit_rate)}</span><span class="sub">of cacheable upstream calls</span></div>
+    </div>
+    ${purposeRows ? `<table>
+      <thead><tr><th>Purpose</th><th class="num">Hits</th><th class="num">Saved</th></tr></thead>
+      <tbody>${purposeRows}</tbody>
+    </table>` : ""}
+    <p class="sub">Savings are estimated from the trailing 7-day average cost-per-call of each purpose; honest within an order of magnitude.</p>
+  </section>`;
+}
+
 function renderTopUsers(rows: TopUser[]): string {
   if (rows.length === 0) {
     return `<section class="tile"><h2>Top users by cost</h2><p class="empty">No signed-in usage in range.</p></section>`;
@@ -539,5 +585,7 @@ const ADMIN_CSS = `
   .identity-card dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; margin: 0; }
   .identity-card dt { color: var(--muted); font-size: .8rem; }
   .identity-card dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .cache-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin-bottom: .75rem; }
+  .cache-kpis .kpi { background: rgba(128,128,128,.06); }
   @media (max-width: 520px) { .identity-cards { grid-template-columns: 1fr; } }
 `;
