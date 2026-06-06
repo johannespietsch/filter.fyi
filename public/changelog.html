@@ -221,36 +221,73 @@
     ===================================================================== */
 
     const ROADMAP = [
-      { bucket: "now",   text: "Sign in & save everything to your library", note: "magic-link accounts, in private beta" },
-      { bucket: "now",   text: "A verdict you can trust — show the reasoning behind every call" },
-      { bucket: "next",  text: "Watch the sources you care about and get pinged only when it matters" },
-      { bucket: "next",  text: "Long YouTube videos & livestreams, summarized" },
-      { bucket: "later", text: "Share a lens — let others follow your filtered feed" },
-      { bucket: "later", text: "Mobile app & browser extension" },
+      // NOW — the strategic focus
+      { bucket: "now",   text: "From verdict to action — make the insights and concrete next steps the star, not just a watch/skip call" },
+      { bucket: "now",   text: "Measurably better verdicts — an LLM-as-judge loop that keeps quality climbing", note: "in progress" },
+      // NEXT
+      { bucket: "next",  text: "Chat with your content — deep, personalized retrieval across your whole library" },
+      { bucket: "next",  text: "Multiple lenses — see how the same content matters to each of your roles" },
+      { bucket: "next",  text: "Paste text directly, not just links — including paywalled pieces you can already read" },
+      { bucket: "next",  text: "Long videos & livestreams, summarized in the background" },
+      { bucket: "next",  text: "Read anything in any language, auto-translated" },
+      // LATER
+      { bucket: "later", text: "Community — public profile pages, share a lens, follow people you trust" },
+      { bucket: "later", text: "CLI & MCP connector — filter.fyi in your terminal and inside your AI chats" },
+      { bucket: "later", text: "Plans & a pricing page" },
     ];
 
     const CHANGELOG = [
       {
-        date: "2026-06-05", ver: "v0.4", tag: "new",
+        date: "2026-06-06", tag: "improved",
+        title: "Summaries that stay true to the source",
+        body: "Summaries now keep the original language, get dates right, and never stop mid-sentence. Signed-in members get a more capable model for sharper results.",
+      },
+      {
+        date: "2026-06-04", tag: "improved",
+        title: "Faster, cheaper repeat reads",
+        body: "A link that's already been analyzed now comes back instantly — and identically whether you send it on the web or via Telegram.",
+      },
+      {
+        date: "2026-06-01", tag: "new",
         title: "See the reasoning behind every verdict",
-        body: "Results now show the stored brief that explains <b>why</b> something got its verdict — not just the score. Less black box, more trust.",
+        body: "Every result now shows the brief it was built from, so you can see <b>why</b> it got that call — not just the score.",
         try: { href: "/", label: "Try it on any link" },
       },
       {
-        date: "2026-05-22", ver: "v0.3", tag: "improved",
-        title: "One pipeline for every link you throw at us",
-        body: "Whether a URL comes from the web, the Telegram bot, or a paste, it now runs through the exact same analysis — so you get identical, consistent verdicts everywhere.",
+        date: "2026-05-26", tag: "new",
+        title: "Watch it work in real time",
+        body: "Long articles and videos no longer time out. You'll see each step — fetching, summarizing, judging — as it happens.",
       },
       {
-        date: "2026-05-10", ver: "v0.2", tag: "new",
-        title: "filter.fyi on Telegram",
-        body: "Forward any link to the bot and get a verdict back in seconds — no app to open.",
+        date: "2026-05-21", tag: "new",
+        title: "A read tuned to you",
+        body: "Set a personal lens and every verdict speaks to your situation — with two ways to follow up: a quick win and a bigger play.",
       },
       {
-        date: "2026-04-28", ver: "v0.1", tag: "new",
-        title: "Try filter.fyi on any link, free",
-        body: "Paste a URL and get an instant read on whether it's worth your time. The first taste of what we're building.",
+        date: "2026-05-20", tag: "improved",
+        title: "Tougher on hard sources, clearer in its calls",
+        body: "Better with YouTube, paywalls and bot-walls — and verdicts now spell it out: <b>yes, watch · hm, skim · no, skip</b>.",
+      },
+      {
+        date: "2026-05-19", tag: "new",
+        title: "Bring your Telegram history into your library",
+        body: "Link the bot to your account and everything you've sent it follows you to the web.",
+      },
+      {
+        date: "2026-05-18", tag: "new",
+        title: "Sign in and keep everything",
+        body: "Create an account with a magic link and build a personal library of everything you've filtered.",
+      },
+      {
+        date: "2026-05-17", tag: "new",
+        title: "Try filter.fyi on the web",
+        body: "Paste a URL and get an instant read on whether it's worth your time — no signup required.",
         try: { href: "/", label: "Paste a link" },
+      },
+      {
+        date: "2026-03-06", tag: "new",
+        title: "Where it started: the Telegram bot",
+        body: "filter.fyi began life as a Telegram bot — forward any link (YouTube, Vimeo, X, PDFs, articles) and get a verdict back in seconds. Still going strong.",
       },
     ];
 
