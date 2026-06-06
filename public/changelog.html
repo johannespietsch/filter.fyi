@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>What's new & what's next — filter.fyi</title>
+  <meta name="description" content="The filter.fyi changelog and roadmap. What we've shipped, what we're building now, and what's coming next. Less noise, more signal.">
+  <meta property="og:title" content="What's new & what's next — filter.fyi">
+  <meta property="og:description" content="What we've shipped and what we're building next.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://filter.fyi/changelog">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --error:#a83a2a;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
+           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    .hl { color: var(--green); }
+    ::selection { background: var(--ink); color: var(--bg-2); }
+
+    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
+
+    /* nav */
+    nav { display: flex; justify-content: space-between; align-items: center;
+          padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
+            color: var(--ink); display: inline-flex; align-items: center; }
+    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                        display: inline-block; margin-right: 8px;
+                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
+    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green); color: var(--bg-2); border-color: var(--green); }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    /* hero */
+    .hero { padding: 52px 0 36px; border-bottom: 1px solid var(--ink); }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 22px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
+    h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.18; letter-spacing: -0.035em;
+         font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
+    .lede { font-size: 16px; color: var(--ink-2); margin-bottom: 0; max-width: 560px;
+            line-height: 1.6; text-wrap: pretty; }
+    .lede .brand { color: var(--ink); font-weight: 600; }
+    .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px;
+              -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+
+    /* sections */
+    section.section { padding: 44px 0 36px; border-bottom: 1px solid var(--ink); }
+    .section-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                     color: var(--ink-3); margin-bottom: 18px; }
+    .section-label::before { content: '— '; color: var(--green); }
+    h2 { font-size: 26px; line-height: 1.15; letter-spacing: -0.025em; font-weight: 700;
+         margin-bottom: 6px; text-wrap: balance; }
+    .section-sub { font-size: 14px; color: var(--ink-2); margin-bottom: 26px; }
+
+    /* roadmap board */
+    .board { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--ink); }
+    .col { padding: 14px; }
+    .col + .col { border-left: 1px solid var(--ink); }
+    .col-head { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700;
+                letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px;
+                padding-bottom: 10px; border-bottom: 1px dashed var(--ink); }
+    .col-head .blip { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .col.now { background: var(--bg-2); }
+    .col.now .col-head { color: var(--green); }
+    .col.now .blip { background: var(--green); animation: pulse 1.6s ease-in-out infinite; }
+    .col.next .col-head { color: var(--ink); }
+    .col.next .blip { background: var(--ink); }
+    .col.later .col-head { color: var(--ink-3); }
+    .col.later .blip { background: var(--ink-3); }
+    .road-item { font-size: 12.5px; color: var(--ink); line-height: 1.5; padding: 9px 0; }
+    .road-item + .road-item { border-top: 1px dotted var(--ink); }
+    .col.later .road-item { color: var(--ink-2); }
+    .road-item .rd { display: block; font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+    .board-foot { font-size: 11px; color: var(--ink-3); margin-top: 12px; line-height: 1.6; }
+    .board-foot a { color: var(--green); text-decoration: none; }
+    .board-foot a:hover { text-decoration: underline; }
+
+    /* changelog feed */
+    .feed { display: flex; flex-direction: column; }
+    .entry { display: grid; grid-template-columns: 96px 1fr; gap: 18px; padding: 22px 0; }
+    .entry + .entry { border-top: 1px solid var(--ink); }
+    .entry-meta { font-size: 11px; color: var(--ink-3); padding-top: 3px; line-height: 1.5; }
+    .entry-meta .ver { display: block; color: var(--ink-2); font-weight: 700; margin-top: 4px; }
+    .entry-body h3 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px;
+                     line-height: 1.3; }
+    .entry-body p { font-size: 13.5px; color: var(--ink-2); line-height: 1.65; margin-bottom: 6px; }
+    .entry-body p b { color: var(--ink); font-weight: 600; }
+    .entry-body a.tryit { color: var(--green); text-decoration: none; border-bottom: 1px solid var(--green-soft); }
+    .entry-body a.tryit:hover { border-bottom-color: var(--green); }
+    .tag { display: inline-block; font-size: 9.5px; letter-spacing: 0.1em; font-weight: 700;
+           text-transform: uppercase; padding: 1px 7px; border: 1px solid var(--ink);
+           margin-bottom: 10px; }
+    .tag.new { background: var(--green); color: var(--bg-2); border-color: var(--green); }
+    .tag.improved { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+    .tag.fixed { background: transparent; color: var(--ink-2); border-color: var(--ink-2); }
+
+    /* notify cta */
+    .notify { border: 1px solid var(--ink); background: var(--bg-2); padding: 20px;
+              display: flex; justify-content: space-between; align-items: center; gap: 16px;
+              flex-wrap: wrap; margin-top: 4px; }
+    .notify-t { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .notify-s { font-size: 12px; color: var(--ink-2); max-width: 360px; }
+    .notify a.btn { height: 40px; padding: 0 18px; background: var(--ink); color: var(--bg-2);
+                    border: none; font: inherit; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em;
+                    cursor: pointer; transition: background 0.15s; white-space: nowrap;
+                    text-decoration: none; display: inline-flex; align-items: center; }
+    .notify a.btn:hover { background: var(--green); }
+
+    /* footer */
+    footer { padding-top: 18px; border-top: 1px solid var(--ink); display: flex;
+             justify-content: space-between; font-size: 11px; color: var(--ink-2);
+             gap: 14px; flex-wrap: wrap; }
+    footer .right { color: var(--green); }
+    footer .footer-links { display: flex; gap: 14px; }
+    footer .footer-links a { color: var(--ink-2); text-decoration: none; }
+    footer .footer-links a:hover { color: var(--green); }
+
+    /* mobile */
+    @media (max-width: 540px) {
+      .wrap { padding: 16px 18px 32px; }
+      .board { grid-template-columns: 1fr; }
+      .col + .col { border-left: none; border-top: 1px solid var(--ink); }
+      .entry { grid-template-columns: 1fr; gap: 8px; }
+      .entry-meta { padding-top: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/">← try it</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">Built in the open</div>
+      <h1>What's new,<br>what's <span class="hl">next.</span></h1>
+      <p class="lede"><span class="brand">filter.fyi</span> ships continuously. Here's what we've shipped, what we're building right now, and what's on the horizon —&nbsp;so you always know <b>where&nbsp;this&nbsp;is&nbsp;going</b>.</p>
+    </section>
+
+    <!-- ROADMAP ===================================================== -->
+    <section class="section">
+      <div class="section-label">Roadmap</div>
+      <h2>Where we're headed</h2>
+      <p class="section-sub">No hard dates — buckets we actually keep current. Things move left as they ship.</p>
+
+      <div class="board" id="board"></div>
+      <p class="board-foot">
+        Want something on this list? <a href="mailto:hello@filter.fyi?subject=Roadmap%20request">Tell us what you need →</a>
+      </p>
+    </section>
+
+    <!-- CHANGELOG =================================================== -->
+    <section class="section">
+      <div class="section-label">Changelog</div>
+      <h2>Recently shipped</h2>
+      <p class="section-sub">Every meaningful change to filter.fyi, newest first.</p>
+
+      <div class="feed" id="feed"></div>
+    </section>
+
+    <!-- NOTIFY ====================================================== -->
+    <section class="section" style="border-bottom:none;">
+      <div class="notify">
+        <div>
+          <div class="notify-t">Get the next update in your inbox</div>
+          <div class="notify-s">We email early-access members when something worth knowing about ships. No noise — that's the whole point.</div>
+        </div>
+        <a class="btn" href="/about">Get early access →</a>
+      </div>
+    </section>
+
+    <footer>
+      <div>filter.fyi · 2026</div>
+      <span class="footer-links">
+        <a href="/about">about</a>
+        <a href="/privacy">privacy</a>
+        <a href="/terms">terms</a>
+      </span>
+      <div class="right">relevant, not noise.</div>
+    </footer>
+  </div>
+
+  <script>
+    /* =====================================================================
+       EDIT HERE. Two data lists drive this whole page.
+
+       ROADMAP — keep these honest and current. A stale roadmap is worse than
+       none. Move an item into CHANGELOG when it actually ships.
+         bucket: "now" | "next" | "later"
+         text:   the OUTCOME for the user, not the internal feature name
+         note:   optional one-line context (shown smaller)
+
+       CHANGELOG — newest first. Write headlines as BENEFITS, not commits.
+         date: "YYYY-MM-DD"   (rendered human-readable)
+         ver:  optional version/tag string, e.g. "v0.4"
+         tag:  "new" | "improved" | "fixed"
+         title: the benefit, one line
+         body:  1-2 sentences in plain language (HTML allowed)
+         try:   optional { href, label } to link the live feature
+       Keep internal plumbing (refactors, security/infra hardening) OUT —
+       this page is user-visible value only.
+    ===================================================================== */
+
+    const ROADMAP = [
+      // NOW — the strategic focus
+      { bucket: "now",   text: "From verdict to action — make the insights and concrete next steps the star, not just a watch/skip call", note: "in progress" },
+      // NEXT
+      // { bucket: "next",   text: "Measurably better verdicts — an LLM-as-judge loop that keeps quality climbing" },
+      { bucket: "next",  text: "Chat with your content — deep, personalized retrieval across your whole library" },
+      { bucket: "next",  text: "Multiple lenses — see how the same content matters to each of your roles" },
+      { bucket: "next",  text: "Paste text directly, not just links — including paywalled pieces you can already read" },
+      { bucket: "next",  text: "Read anything in any language, auto-translated" },
+      // LATER
+      { bucket: "later", text: "Community — public profile pages, share a lens, follow people you trust" },
+      { bucket: "later", text: "CLI & MCP connector — filter.fyi in your terminal and inside your AI chats" },
+    ];
+
+    const CHANGELOG = [
+      {
+        date: "2026-06-06", tag: "improved",
+        title: "Summaries that stay true to the source",
+        body: "Summaries now keep the original language, get dates right, and never stop mid-sentence. Signed-in members get a more capable model for sharper results.",
+      },
+      {
+        date: "2026-06-04", tag: "improved",
+        title: "Faster, cheaper repeat reads",
+        body: "A link that's already been analyzed now comes back instantly — and identically whether you send it on the web or via Telegram.",
+      },
+      {
+        date: "2026-06-01", tag: "new",
+        title: "See the reasoning behind every verdict",
+        body: "Every result now shows the brief it was built from, so you can see <b>why</b> it got that call — not just the score.",
+        try: { href: "/", label: "Try it on any link" },
+      },
+      {
+        date: "2026-05-26", tag: "new",
+        title: "Watch it work in real time",
+        body: "Long articles and videos no longer time out. You'll see each step — fetching, summarizing, judging — as it happens.",
+      },
+      {
+        date: "2026-05-21", tag: "new",
+        title: "A read tuned to you",
+        body: "Set a personal lens and every verdict speaks to your situation — with two ways to follow up: a quick win and a bigger play.",
+      },
+      {
+        date: "2026-05-20", tag: "improved",
+        title: "Tougher on hard sources, clearer in its calls",
+        body: "Better with YouTube, paywalls and bot-walls — and verdicts now spell it out: <b>yes, watch · hm, skim · no, skip</b>.",
+      },
+      {
+        date: "2026-05-19", tag: "new",
+        title: "Bring your Telegram history into your library",
+        body: "Link the bot to your account and everything you've sent it follows you to the web.",
+      },
+      {
+        date: "2026-05-18", tag: "new",
+        title: "Sign in and keep everything",
+        body: "Create an account with a magic link and build a personal library of everything you've filtered.",
+      },
+      {
+        date: "2026-05-17", tag: "new",
+        title: "Try filter.fyi on the web",
+        body: "Paste a URL and get an instant read on whether it's worth your time — no signup required.",
+        try: { href: "/", label: "Paste a link" },
+      },
+      {
+        date: "2026-03-06", tag: "new",
+        title: "Where it started: the Telegram bot",
+        body: "filter.fyi began life as a Telegram bot — forward any link (YouTube, Vimeo, X, PDFs, articles) and get a verdict back in seconds. Still going strong.",
+      },
+    ];
+
+    /* ---- rendering (no need to edit below) ---- */
+    const BUCKETS = [
+      { key: "now",   label: "Now" },
+      { key: "next",  label: "Next" },
+      { key: "later", label: "Later" },
+    ];
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;" }[c]));
+    const fmtDate = iso => {
+      const [y, m, d] = iso.split("-").map(Number);
+      const mon = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1];
+      return `${mon} ${d}, ${y}`;
+    };
+
+    document.getElementById("board").innerHTML = BUCKETS.map(b => {
+      const items = ROADMAP.filter(r => r.bucket === b.key).map(r =>
+        `<div class="road-item">${esc(r.text)}${r.note ? `<span class="rd">${esc(r.note)}</span>` : ""}</div>`
+      ).join("") || `<div class="road-item" style="color:var(--ink-3)">—</div>`;
+      return `<div class="col ${b.key}"><div class="col-head"><span class="blip"></span>${b.label}</div>${items}</div>`;
+    }).join("");
+
+    document.getElementById("feed").innerHTML = CHANGELOG.map(e =>
+      `<article class="entry">
+        <div class="entry-meta">${esc(fmtDate(e.date))}${e.ver ? `<span class="ver">${esc(e.ver)}</span>` : ""}</div>
+        <div class="entry-body">
+          <span class="tag ${esc(e.tag)}">${esc(e.tag)}</span>
+          <h3>${esc(e.title)}</h3>
+          <p>${e.body}</p>
+          ${e.try ? `<p><a class="tryit" href="${esc(e.try.href)}">${esc(e.try.label)} →</a></p>` : ""}
+        </div>
+      </article>`
+    ).join("");
+  </script>
+</body>
+</html>
