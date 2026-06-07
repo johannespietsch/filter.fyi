@@ -128,29 +128,27 @@
     .result-grounded { font-size: 12px; color: var(--ink-3); margin-bottom: 16px;
                        border-left: 2px solid var(--ink-3); padding-left: 8px; }
 
-    /* Actions — the hero of the card */
-    .result-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
-    .action { position: relative; padding: 14px 38px 14px 14px;
-              border: 1px solid var(--green); background: var(--green-soft); }
-    .action.action-bigger { border-color: var(--amber); background: var(--amber-soft); }
-    .action-label { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
-                    font-weight: 700; color: var(--green); margin-bottom: 5px; }
-    .action.action-bigger .action-label { color: var(--amber); }
-    .action-text { font-size: 14.5px; line-height: 1.45; color: var(--ink); margin-bottom: 10px; }
-    /* dismiss (✕) */
-    .action-dismiss { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px;
-                      border: none; background: transparent; color: var(--ink-3); cursor: pointer;
-                      font-size: 15px; line-height: 1; padding: 0; }
-    .action-dismiss:hover { color: var(--ink); }
-    /* "try this →" expander */
-    .action-do > summary { cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-                           text-transform: uppercase; color: var(--ink); list-style: none;
-                           display: inline-flex; align-items: center; gap: 4px; }
-    .action-do > summary::-webkit-details-marker { display: none; }
-    .action-do > summary:hover { color: var(--green); }
-    .action.action-bigger .action-do > summary:hover { color: var(--amber); }
-    .action-do[open] > summary { margin-bottom: 10px; }
-    /* free tier: the detailed instructions, readable by everyone */
+    /* Actions — the hero of the card: 0–5 suggestion boxes */
+    .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+    .actions-empty { padding: 14px; border: 1px dashed var(--ink-3); background: var(--bg-2);
+                     font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+    .action { padding: 13px 14px; border: 1px solid var(--green); background: var(--green-soft); }
+    .action-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .action-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .action-effort { font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+                     padding: 2px 6px; border: 1px solid var(--green); color: var(--green);
+                     background: var(--bg); border-radius: 2px; }
+    .action-text { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); margin-bottom: 10px; }
+    .action-buttons { display: flex; gap: 8px; }
+    .action-open, .action-dismiss-btn { font: inherit; font-size: 11px; font-weight: 700;
+                     letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px;
+                     border: 1px solid var(--ink); cursor: pointer; }
+    .action-open { background: var(--ink); color: var(--bg); }
+    .action-dismiss-btn { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
+    .action-open:hover { opacity: 0.88; }
+    .action-dismiss-btn:hover { color: var(--ink); border-color: var(--ink); }
+    .action-panel { margin-top: 11px; }
+    /* the detailed instruction, readable by everyone */
     .action-brief { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
                     line-height: 1.5; padding: 10px; border: 1px solid var(--ink);
                     background: var(--bg); color: var(--ink-2); white-space: pre-wrap;
@@ -485,18 +483,24 @@
 
       function actionsFromSummary(summary) {
         if (Array.isArray(summary.actions) && summary.actions.length) return summary.actions;
-        // Fallback: synthesize from flat analysis fields (older payloads).
+        // Fallback: synthesize from the analysis (newer suggestions[] or older
+        // quick_win/bigger_play) when the server didn't build actions[].
         const a = summary.analysis || {};
+        if (Array.isArray(a.suggestions) && a.suggestions.length) {
+          return a.suggestions.map(function(s, i) {
+            return { index: i, title: s.title || 'Try this', detail: s.detail || '', effort: s.effort || '', first_step: s.first_step || '' };
+          });
+        }
         const out = [];
-        if (a.quick_win) out.push({ kind: 'quick_win', label: '⚡ Quick win', text: a.quick_win, brief: '' });
-        if (a.bigger_play) out.push({ kind: 'bigger_play', label: '🚀 Bigger play', text: a.bigger_play, brief: '' });
-        if (!out.length && a.suggested_experiment) out.push({ kind: 'quick_win', label: 'Try this', text: a.suggested_experiment, brief: '' });
+        if (a.quick_win) out.push({ index: 0, title: 'Quick win', detail: a.quick_win, effort: 'a weekend', first_step: a.first_step || '' });
+        if (a.bigger_play) out.push({ index: out.length, title: 'Bigger play', detail: a.bigger_play, effort: 'multi-week', first_step: '' });
+        if (!out.length && a.suggested_experiment) out.push({ index: 0, title: 'Try this', detail: a.suggested_experiment, effort: '', first_step: '' });
         return out;
       }
 
-      // Fire-and-forget: record a dismissed suggestion (+ optional reason) so we
-      // can tune suggestion quality. Best-effort — never blocks the UI.
-      function sendSuggestionFeedback(summary, action, reason) {
+      // Fire-and-forget interest signal. event ∈ shown|open|copy|open_chatgpt|
+      // open_claude|dismiss. Best-effort — never blocks the UI.
+      function sendSignal(summary, action, event, reason) {
         try {
           fetch('/api/v1/suggestion-feedback', {
             method: 'POST',
@@ -504,8 +508,9 @@
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
               url: summary.url || '',
-              suggestion_kind: action.kind || '',
-              suggestion_text: action.text || '',
+              event: event,
+              suggestion_index: typeof action.index === 'number' ? action.index : null,
+              suggestion_text: action.title || action.detail || '',
               reason: reason || '',
             }),
             keepalive: true,
@@ -514,9 +519,9 @@
       }
 
       // The one-click handoff row (copy + open-in links). Free users read the
-      // instructions above; this convenience layer is gated to signed-in users,
-      // shown grayed with a premium badge otherwise.
-      function buildHandoff(briefFull, briefLink) {
+      // instructions; this convenience layer is gated to signed-in users, shown
+      // grayed with a premium badge otherwise. Each use is logged as a signal.
+      function buildHandoff(summary, action, briefFull, briefLink) {
         const wrap = document.createElement('div');
         wrap.className = 'action-handoff';
         const signedIn = !!window.__fyiSignedIn;
@@ -531,6 +536,7 @@
         copyBtn.textContent = '📋 copy';
         if (signedIn) {
           copyBtn.addEventListener('click', function() {
+            sendSignal(summary, action, 'copy');
             const done = function() {
               copyBtn.textContent = '✓ copied';
               setTimeout(function() { copyBtn.textContent = '📋 copy'; }, 1600);
@@ -551,7 +557,13 @@
           link_el.target = '_blank';
           link_el.rel = 'noopener';
           link_el.textContent = 'open in ' + link.name + ' ↗';
-          if (!signedIn) link_el.tabIndex = -1;
+          if (signedIn) {
+            link_el.addEventListener('click', function() {
+              sendSignal(summary, action, link.name === 'ChatGPT' ? 'open_chatgpt' : 'open_claude');
+            });
+          } else {
+            link_el.tabIndex = -1;
+          }
           row.appendChild(link_el);
         });
 
@@ -581,60 +593,90 @@
       function renderActions(summary) {
         const container = document.getElementById('actions');
         container.textContent = '';
-        actionsFromSummary(summary).forEach(function(action) {
-          const card = document.createElement('div');
-          card.className = 'action' + (action.kind === 'bigger_play' ? ' action-bigger' : '');
-
-          // dismiss (✕) → optional reason capture, with undo
-          const dismissBtn = document.createElement('button');
-          dismissBtn.type = 'button';
-          dismissBtn.className = 'action-dismiss';
-          dismissBtn.setAttribute('aria-label', 'Dismiss this suggestion');
-          dismissBtn.textContent = '✕';
-          dismissBtn.addEventListener('click', function() {
-            renderDismissed(card, summary, action);
-          });
-          card.appendChild(dismissBtn);
-
-          const label = document.createElement('div');
-          label.className = 'action-label';
-          label.textContent = action.label || 'Suggestion';
-          card.appendChild(label);
-
-          const text = document.createElement('div');
-          text.className = 'action-text';
-          text.textContent = action.text || '';
-          card.appendChild(text);
-
-          const briefFull = buildBrief(action, summary, 'full');
-          const briefLink = buildBrief(action, summary, 'link');
-          if (briefFull) {
-            const details = document.createElement('details');
-            details.className = 'action-do';
-            const sum = document.createElement('summary');
-            sum.textContent = 'try this →';
-            details.appendChild(sum);
-
-            // free tier: the detailed instructions, readable by everyone
-            const pre = document.createElement('div');
-            pre.className = 'action-brief';
-            pre.textContent = briefFull;
-            details.appendChild(pre);
-
-            // paid tier: one-click copy (full) + open-in links (concise); gated
-            details.appendChild(buildHandoff(briefFull, briefLink));
-
-            card.appendChild(details);
-          }
-          container.appendChild(card);
+        const actions = actionsFromSummary(summary);
+        if (!actions.length) {
+          // 0 suggestions is a real, valued outcome — say why, don't leave a gap.
+          const empty = document.createElement('div');
+          empty.className = 'actions-empty';
+          empty.textContent = "No next steps for this one — it's a read to stay informed, not something to act on. We only suggest actions when they're genuinely worth your time.";
+          container.appendChild(empty);
+          return;
+        }
+        actions.forEach(function(action) {
+          container.appendChild(buildActionBox(summary, action));
+          sendSignal(summary, action, 'shown'); // funnel denominator
         });
       }
 
-      // Replace a card with a "dismissed" state: optional reason + undo. The
-      // dismissal is recorded immediately (fire-and-forget); the reason is sent
-      // on submit. Undo restores the original card.
+      // One suggestion box: title + effort + one-line detail, with open/dismiss.
+      // "open" reveals the full instruction + the copy / open-in hand-off.
+      function buildActionBox(summary, action) {
+        const card = document.createElement('div');
+        card.className = 'action';
+
+        const head = document.createElement('div');
+        head.className = 'action-head';
+        const title = document.createElement('span');
+        title.className = 'action-title';
+        title.textContent = action.title || 'Try this';
+        head.appendChild(title);
+        if (action.effort) {
+          const eff = document.createElement('span');
+          eff.className = 'action-effort';
+          eff.textContent = action.effort;
+          head.appendChild(eff);
+        }
+        card.appendChild(head);
+
+        if (action.detail) {
+          const detail = document.createElement('div');
+          detail.className = 'action-text';
+          detail.textContent = action.detail;
+          card.appendChild(detail);
+        }
+
+        const briefFull = buildBrief(action, summary, 'full');
+        const briefLink = buildBrief(action, summary, 'link');
+
+        const panel = document.createElement('div');
+        panel.className = 'action-panel';
+        panel.hidden = true;
+        const pre = document.createElement('div');
+        pre.className = 'action-brief';
+        pre.textContent = briefFull;
+        panel.appendChild(pre);
+        panel.appendChild(buildHandoff(summary, action, briefFull, briefLink));
+
+        const btnRow = document.createElement('div');
+        btnRow.className = 'action-buttons';
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'action-open';
+        openBtn.textContent = 'open ▸';
+        let opened = false;
+        openBtn.addEventListener('click', function() {
+          const show = panel.hidden;
+          panel.hidden = !show;
+          openBtn.textContent = show ? 'close ▾' : 'open ▸';
+          if (show && !opened) { opened = true; sendSignal(summary, action, 'open'); }
+        });
+        const dismissBtn = document.createElement('button');
+        dismissBtn.type = 'button';
+        dismissBtn.className = 'action-dismiss-btn';
+        dismissBtn.textContent = 'dismiss';
+        dismissBtn.addEventListener('click', function() { renderDismissed(card, summary, action); });
+        btnRow.appendChild(openBtn);
+        btnRow.appendChild(dismissBtn);
+        card.appendChild(btnRow);
+        card.appendChild(panel);
+        return card;
+      }
+
+      // Replace a box with a "dismissed" state: optional reason + undo. The
+      // dismissal is logged immediately; the reason is sent on submit. Undo
+      // restores the original box.
       function renderDismissed(card, summary, action) {
-        sendSuggestionFeedback(summary, action, '');
+        sendSignal(summary, action, 'dismiss', '');
         const panel = document.createElement('div');
         panel.className = 'action action-dismissed';
 
@@ -655,7 +697,7 @@
         sendBtn.className = 'action-btn';
         sendBtn.textContent = 'send';
         sendBtn.addEventListener('click', function() {
-          if (input.value.trim()) sendSuggestionFeedback(summary, action, input.value.trim());
+          if (input.value.trim()) sendSignal(summary, action, 'dismiss', input.value.trim());
           msg.textContent = 'Thanks — noted.';
           row.remove();
           undo.remove();

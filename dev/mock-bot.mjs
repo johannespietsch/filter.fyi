@@ -46,12 +46,26 @@ function buildSuccess(url, sourceType) {
       grounded_in:
         "They report a 350M model beating GPT-4-as-reranker on nDCG@10 after fine-tuning on 30 days of click data.",
       category: "ml-engineering",
-      quick_win:
-        "Fine-tune a 350M-param model on your last 30 days of click-through data and compare nDCG@10 to your current LLM reranker.",
-      first_step:
-        "Export the last 30 days of (query, clicked_result) pairs to a CSV and load them into a training notebook.",
-      bigger_play:
-        "Stand up a production relevance service backed by the small model with an offline eval harness gating every retrain.",
+      suggestions: [
+        {
+          title: "Add a reranker",
+          detail: "Wrap your current retriever with a cross-encoder reranker and measure the nDCG@10 lift.",
+          first_step: "pip install sentence-transformers and rerank the top 50 hits in your search path.",
+          effort: "~2 hrs",
+        },
+        {
+          title: "Fine-tune on click data",
+          detail: "Fine-tune a 350M model on your last 30 days of click-through data and compare to your LLM reranker.",
+          first_step: "Export (query, clicked_result) pairs for the last 30 days to a CSV.",
+          effort: "a weekend",
+        },
+        {
+          title: "Productionise relevance",
+          detail: "Stand up a relevance service backed by the small model with an offline eval harness gating every retrain.",
+          first_step: "Sketch the eval set: 100 queries with known-good results.",
+          effort: "multi-week",
+        },
+      ],
       time_required: "12 min read",
     },
     youtube: {
@@ -64,14 +78,23 @@ function buildSuccess(url, sourceType) {
       grounded_in:
         "Around 6:30 they show their own vault: 4,000 notes captured, 38 ever reopened.",
       category: "productivity",
-      quick_win:
-        "Add a required 'so what' one-liner to your note template; delete anything still blank at the end of the week.",
-      first_step:
-        "Open your note template and add a mandatory 'Next action:' field at the top.",
-      bigger_play:
-        "Build a weekly review automation that surfaces note-less captures and prompts you to action or archive them.",
+      suggestions: [
+        {
+          title: "Add a 'so what' field",
+          detail: "Add a required 'so what' one-liner to your note template; delete anything still blank at week's end.",
+          first_step: "Open your note template and add a mandatory 'Next action:' field at the top.",
+          effort: "~30 min",
+        },
+        {
+          title: "Automate weekly review",
+          detail: "Build a weekly review that surfaces note-less captures and prompts you to action or archive them.",
+          first_step: "List where your captures live (notes app, bookmarks, read-later).",
+          effort: "a weekend",
+        },
+      ],
       time_required: "8 min watch",
     },
+    // Pure-news/skip content → ZERO suggestions, to exercise the placeholder.
     social: {
       title: "Thread on agent eval harnesses",
       verdict: "skip",
@@ -79,9 +102,9 @@ function buildSuccess(url, sourceType) {
         "Engineer argues most public agent benchmarks are gameable; suggests private, task-specific evals instead.",
       why_it_matters:
         "Useful framing if you're building agents, but the thread is light on concrete examples — the linked blog post covers the same ground better.",
+      grounded_in: "",
       category: "ai-evals",
-      suggested_experiment:
-        "Skip the thread; read the linked blog post directly. Try writing 3 task-specific evals for your own agent in under an hour.",
+      suggestions: [],
       time_required: "2 min read",
     },
     pdf: {
@@ -91,9 +114,16 @@ function buildSuccess(url, sourceType) {
         "Revisits the original Transformer paper with eight years of hindsight; flags which design choices held up and which got replaced.",
       why_it_matters:
         "If you've only read the paper once, the annotations surface what's still load-bearing vs. what was a historical artifact (e.g., specific positional encoding choices).",
+      grounded_in: "They flag the original sinusoidal positional encoding as one of the first choices to be superseded.",
       category: "ml-fundamentals",
-      suggested_experiment:
-        "Open the original paper alongside the annotations; spend 20 min on Section 3.2 and write down every choice that's been superseded.",
+      suggestions: [
+        {
+          title: "Re-read §3.2 critically",
+          detail: "Read Section 3.2 alongside the annotations and note every choice that's since been superseded.",
+          first_step: "Open the paper and the annotations side by side at Section 3.2.",
+          effort: "~30 min",
+        },
+      ],
       time_required: "45 min read",
     },
   };
@@ -126,15 +156,11 @@ function buildSuccess(url, sourceType) {
       why_it_matters: a.why_it_matters,
       grounded_in: a.grounded_in,
       category: a.category,
-      quick_win: a.quick_win,
-      first_step: a.first_step,
-      bigger_play: a.bigger_play,
-      suggested_experiment: a.suggested_experiment, // legacy samples only
+      suggestions: a.suggestions || [],
       time_required: a.time_required,
     },
-    // Mirror the backend's actions[] (build_actions): one paste-able brief per
-    // tier. Legacy samples without quick_win/bigger_play emit none, so the
-    // frontend's suggested_experiment fallback path gets exercised too.
+    // Mirror the backend's actions[] (build_actions): one entry per suggestion.
+    // social → [] exercises the zero-suggestions placeholder.
     actions: buildActions(a, { title: a.title, url, summary: a.why_it_matters }),
   };
 }
@@ -160,22 +186,22 @@ function composeBrief(o) {
 }
 
 function buildActions(a, source) {
-  const tiers = [
-    ["quick_win", "⚡ Quick win", a.first_step],
-    ["bigger_play", "🚀 Bigger play", ""],
-  ];
   const out = [];
-  for (const [kind, label, firstStep] of tiers) {
-    const text = a[kind];
-    if (!text) continue;
-    const base = { action: text, firstStep, groundedIn: a.grounded_in, profile: "",
-                   title: source.title, url: source.url, summary: source.summary || "" };
+  (a.suggestions || []).forEach((s, i) => {
+    const title = s.title || "Try this";
+    const detail = s.detail || "";
+    if (!title && !detail) return;
+    const base = { action: detail || title, firstStep: s.first_step || "", groundedIn: a.grounded_in,
+                   profile: "", title: source.title, url: source.url, summary: source.summary || "" };
     out.push({
-      kind, label, text,
+      index: i,
+      title,
+      detail,
+      effort: s.effort || "",
       brief: composeBrief({ ...base, variant: "full" }),
       brief_link: composeBrief({ ...base, variant: "link" }),
     });
-  }
+  });
   return out;
 }
 
