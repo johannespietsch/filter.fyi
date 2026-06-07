@@ -85,3 +85,20 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions (expires_at);
+
+-- Dismissed "try this" suggestions + optional free-text reason. Pure UX signal
+-- for tuning suggestion quality in future releases — not user-facing. Written
+-- from the anonymous landing page, so keyed by anon_id (the same UUID used for
+-- anon_summaries); user_id is set instead when the dismisser is signed in.
+CREATE TABLE IF NOT EXISTS suggestion_feedback (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  anon_id         TEXT,
+  user_id         INTEGER,
+  url             TEXT,
+  suggestion_kind TEXT,
+  suggestion_text TEXT,
+  reason          TEXT,
+  created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_suggestion_feedback_created ON suggestion_feedback (created_at DESC);
