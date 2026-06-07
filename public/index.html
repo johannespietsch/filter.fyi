@@ -658,7 +658,7 @@
         const groundedEl = document.getElementById('grounded-in');
         if (a.grounded_in) { groundedEl.textContent = '📎 based on: ' + a.grounded_in; groundedEl.hidden = false; }
         else { groundedEl.hidden = true; }
-        // Actions are the hero: each gets a paste-able "do this with your AI" brief.
+        // Actions are the hero: each gets a paste-able "try this" handoff brief.
         renderActions(summary);
         const metaBits = [];
         if (a.category) metaBits.push(`<b>category</b> ${a.category}`);

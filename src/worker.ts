@@ -440,7 +440,7 @@ interface BotResponse {
     suggested_experiment?: string; // legacy items
     time_required?: string;
   };
-  // Agent-handoff actions: one paste-able "do this with your AI" brief per tier.
+  // Agent-handoff actions: one paste-able "try this" handoff brief per tier.
   // Built by the backend so web + Telegram share the same wording.
   actions?: Array<{ kind: string; label: string; text: string; brief: string }>;
 }
