@@ -77,6 +77,7 @@ All tables live in the same D1 (`filter-fyi-waitlist`):
 | `users`        | magic-link accounts                                                    |
 | `login_tokens` | single-use email sign-in tokens (15-minute TTL)                        |
 | `sessions`     | browser sessions backing the `fyi_session` HttpOnly cookie (30-day TTL) |
+| `suggestion_feedback` | dismissed "try this" suggestions + optional reason (`POST /api/v1/suggestion-feedback`), keyed by `anon_id` or `user_id` — UX signal for tuning suggestion quality |
 
 Local and remote D1 are separate stores — apply the schema to both:
 

@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>filter.fyi — relevant, not noise</title>
-  <meta name="description" content="Paste any URL — article, tweet, YouTube, PDF — get a verdict in seconds. filter.fyi tells you whether it's worth your time.">
-  <meta property="og:title" content="filter.fyi — relevant, not noise">
-  <meta property="og:description" content="For everyone trying to keep up with AI. Less noise, more signal — a verdict for everything you paste.">
+  <title>filter.fyi — from noise to next steps</title>
+  <meta name="description" content="Paste any URL — article, tweet, YouTube, PDF — and filter.fyi turns it into concrete next steps you can hand straight to your AI tools. Less noise, more signal.">
+  <meta property="og:title" content="filter.fyi — from noise to next steps">
+  <meta property="og:description" content="For everyone trying to keep up with AI. Turn anything you read into actionable 'try this' next steps — not just another verdict.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://filter.fyi">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:description" content="Turn anything you read, watch, or listen to into concrete next steps you can hand straight to your AI tools.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -524,8 +525,8 @@
         } else {
           const badge = document.createElement('a');
           badge.className = 'premium-badge';
-          badge.href = '/about';
-          badge.textContent = '🔒 premium';
+          badge.href = '/about#pricing';
+          badge.textContent = '🔒 pro';
           row.appendChild(badge);
         }
         wrap.appendChild(row);
@@ -533,7 +534,7 @@
         if (!signedIn) {
           const note = document.createElement('div');
           note.className = 'action-locknote';
-          note.innerHTML = 'One-click copy &amp; hand-off is a premium feature — <a href="/about">join the waitlist</a>.';
+          note.innerHTML = 'One-click copy &amp; hand-off is a Pro feature — <a href="/about#pricing">free for early adopters</a>. Sign in to use it.';
           wrap.appendChild(note);
         }
         return wrap;
