@@ -427,12 +427,17 @@ interface BotResponse {
   analysis?: {
     main_idea?: string;
     why_it_matters?: string;
+    grounded_in?: string;
     category?: string;
     quick_win?: string;
+    first_step?: string;
     bigger_play?: string;
     suggested_experiment?: string; // legacy items
     time_required?: string;
   };
+  // Agent-handoff actions: one paste-able "do this with your AI" brief per tier.
+  // Built by the backend so web + Telegram share the same wording.
+  actions?: Array<{ kind: string; label: string; text: string; brief: string }>;
 }
 
 async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
