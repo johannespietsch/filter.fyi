@@ -128,6 +128,19 @@
     .body .sug-open:hover { opacity: 0.88; }
     .body .sug-dismiss:hover { color: var(--ink); border-color: var(--ink); }
     .body .sug-panel { margin-top: 10px; }
+    /* dismissed state — optional reason + undo (mirrors the landing page) */
+    .body .sug-dismissed { border-style: dashed; border-color: var(--ink-3); background: var(--bg-2); }
+    .body .sug-dismiss-msg { font-size: 12.5px; color: var(--ink-2); }
+    .body .sug-reason-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .body .sug-reason { flex: 1 1 200px; font: inherit; font-size: 12px; padding: 6px 8px;
+                        border: 1px solid var(--ink); background: var(--bg); color: var(--ink); }
+    .body .sug-reason-send { font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+                            text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--ink);
+                            background: var(--ink); color: var(--bg-2); cursor: pointer; }
+    .body .sug-reason-send:hover { opacity: 0.88; }
+    .body .sug-undo { background: none; border: none; color: var(--ink-3); cursor: pointer;
+                      font: inherit; font-size: 11px; text-decoration: underline; padding: 0; margin-top: 6px; }
+    .body .sug-undo:hover { color: var(--ink); }
     /* in-item "try this" hand-off (you're signed in here, so it's unlocked) */
     .body .tryit { margin-top: 8px; }
     .body .tryit > summary { cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
@@ -623,9 +636,7 @@
           }
           const sdismiss = e.target.closest('.sug-dismiss');
           if (sdismiss) {
-            const box = sdismiss.closest('.sug');
-            logSuggestion(box, 'dismiss');
-            box.remove();
+            dismissSuggestion(sdismiss.closest('.sug'));
             return;
           }
           const copy = e.target.closest('.tryit-copy');
@@ -657,7 +668,7 @@
 
       // Suggestion interest signal (open / copy / open_chatgpt / open_claude /
       // dismiss), keyed by the saved item's URL + the box's index/title.
-      function logSuggestion(box, event) {
+      function logSuggestion(box, event, reason) {
         const art = box.closest('article.item');
         fetch('/api/v1/suggestion-feedback', {
           method: 'POST', credentials: 'same-origin',
@@ -667,9 +678,59 @@
             event,
             suggestion_index: Number(box.dataset.index),
             suggestion_text: box.dataset.title || '',
+            reason: reason || '',
           }),
           keepalive: true,
         }).catch(() => {});
+      }
+
+      // Dismiss a suggestion the same way the landing page does: record it, then
+      // offer an optional "why didn't this fit?" reason with an undo — never a
+      // silent, unrecoverable remove.
+      function dismissSuggestion(box) {
+        logSuggestion(box, 'dismiss', '');
+        box.hidden = true;
+        const panel = document.createElement('div');
+        panel.className = 'sug sug-dismissed';
+
+        const msg = document.createElement('div');
+        msg.className = 'sug-dismiss-msg';
+        msg.textContent = 'Dismissed. Why didn’t this fit? (optional — helps us improve)';
+        panel.appendChild(msg);
+
+        const row = document.createElement('div');
+        row.className = 'sug-reason-row';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'sug-reason';
+        input.maxLength = 280;
+        input.placeholder = 'too generic, not relevant, already done…';
+        row.appendChild(input);
+        const send = document.createElement('button');
+        send.type = 'button';
+        send.className = 'sug-reason-send';
+        send.textContent = 'send';
+        send.addEventListener('click', function() {
+          if (input.value.trim()) logSuggestion(box, 'dismiss', input.value.trim());
+          msg.textContent = 'Thanks — noted.';
+          row.remove();
+          undo.remove();
+        });
+        row.appendChild(send);
+        panel.appendChild(row);
+
+        const undo = document.createElement('button');
+        undo.type = 'button';
+        undo.className = 'sug-undo';
+        undo.textContent = 'undo';
+        undo.addEventListener('click', function() {
+          panel.remove();
+          box.hidden = false;
+        });
+        panel.appendChild(undo);
+
+        box.parentNode.insertBefore(panel, box.nextSibling);
+        input.focus();
       }
 
       // Copy a suggestion's hand-off brief to the clipboard (reads the .tryit-brief
