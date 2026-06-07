@@ -143,6 +143,11 @@ export default {
       return handleFeedback(req, env);
     }
 
+    if (url.pathname === "/api/v1/suggestion-feedback") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleSuggestionFeedback(req, env);
+    }
+
     const jobMatch = url.pathname.match(/^\/api\/v1\/job\/([0-9a-f-]{36})$/i);
     if (jobMatch) {
       if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
@@ -427,12 +432,17 @@ interface BotResponse {
   analysis?: {
     main_idea?: string;
     why_it_matters?: string;
+    grounded_in?: string;
     category?: string;
     quick_win?: string;
+    first_step?: string;
     bigger_play?: string;
     suggested_experiment?: string; // legacy items
     time_required?: string;
   };
+  // Agent-handoff actions: one paste-able "try this" handoff brief per tier.
+  // Built by the backend so web + Telegram share the same wording.
+  actions?: Array<{ kind: string; label: string; text: string; brief: string }>;
 }
 
 async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1442,6 +1452,55 @@ async function handleFeedback(req: Request, env: Env): Promise<Response> {
     console.error("feedback failed", err);
     return json({ error: "upstream-unreachable" }, 502);
   }
+}
+
+// Records a dismissed "try this" suggestion (+ optional free-text reason) to D1.
+// Unlike /feedback this needs no backend round-trip and works for anonymous
+// visitors — the landing page is anon-heavy, and this is just UX signal for
+// tuning suggestion quality later. Keyed by anon_id, or user_id when signed in.
+async function handleSuggestionFeedback(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  const anonRaw = cookies[ANON_COOKIE];
+  const anonId = anonRaw && isValidAnonId(anonRaw) ? anonRaw : null;
+
+  // Need at least one identity to attribute the dismissal to.
+  if (!session && !anonId) return json({ error: "no-identity" }, 400);
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+
+  const clip = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
+  const url = clip(body.url, 2048);
+  const kind = clip(body.suggestion_kind, 64);
+  const text = clip(body.suggestion_text, 2048);
+  const reason = clip(body.reason, 2048);
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO suggestion_feedback
+         (anon_id, user_id, url, suggestion_kind, suggestion_text, reason, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        anonId,
+        session ? session.userId : null,
+        url || null,
+        kind || null,
+        text || null,
+        reason || null,
+        new Date().toISOString()
+      )
+      .run();
+  } catch (err) {
+    console.error("suggestion_feedback insert failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+  return json({ ok: true });
 }
 
 function randomTokenHex(bytes: number): string {
