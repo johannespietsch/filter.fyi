@@ -442,7 +442,7 @@ interface BotResponse {
   };
   // Agent-handoff actions: one paste-able "try this" handoff brief per tier.
   // Built by the backend so web + Telegram share the same wording.
-  actions?: Array<{ kind: string; label: string; text: string; brief: string }>;
+  actions?: Array<{ kind: string; label: string; text: string; brief: string; brief_link?: string }>;
 }
 
 async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
