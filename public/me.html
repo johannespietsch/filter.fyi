@@ -110,6 +110,24 @@
     /* "based on" grounding line */
     .body .grounded { margin: 10px 0 0; font-size: 12px; color: var(--ink-3);
                       border-left: 2px solid var(--ink-3); padding-left: 8px; }
+    /* 0–5 suggestion boxes */
+    .body .sug { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--green); background: var(--green-soft); }
+    .body .sug-empty { margin-top: 10px; padding: 12px; border: 1px dashed var(--ink-3);
+                       background: var(--bg-2); font-size: 13px; color: var(--ink-2); }
+    .body .sug-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .body .sug-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .body .sug-effort { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+                        padding: 2px 6px; border: 1px solid var(--green); color: var(--green); background: var(--bg); }
+    .body .sug-detail { font-size: 13px; line-height: 1.45; color: var(--ink-2); margin-top: 4px; }
+    .body .sug-buttons { display: flex; gap: 8px; margin-top: 9px; }
+    .body .sug-open, .body .sug-dismiss { font: inherit; font-size: 10.5px; font-weight: 700;
+                        letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 11px;
+                        border: 1px solid var(--ink); cursor: pointer; }
+    .body .sug-open { background: var(--ink); color: var(--bg-2); }
+    .body .sug-dismiss { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
+    .body .sug-open:hover { opacity: 0.88; }
+    .body .sug-dismiss:hover { color: var(--ink); border-color: var(--ink); }
+    .body .sug-panel { margin-top: 10px; }
     /* in-item "try this" hand-off (you're signed in here, so it's unlocked) */
     .body .tryit { margin-top: 8px; }
     .body .tryit > summary { cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
@@ -392,11 +410,27 @@
         return out.join('\n');
       }
 
-      function tryitBlock(label, text, a, row, cls, withFirstStep, summary) {
-        if (!text) return '';
+      // Normalize stored analysis to suggestions[] — newer items carry it
+      // directly; older ones get synthesized from quick_win/bigger_play/legacy.
+      function suggestionsOf(a) {
+        if (Array.isArray(a.suggestions) && a.suggestions.length) return a.suggestions;
+        const out = [];
+        if (a.quick_win) out.push({ title: 'Quick win', detail: a.quick_win, first_step: a.first_step || '', effort: 'a weekend' });
+        if (a.bigger_play) out.push({ title: 'Bigger play', detail: a.bigger_play, first_step: '', effort: 'multi-week' });
+        if (!out.length && a.suggested_experiment) out.push({ title: 'Try this', detail: a.suggested_experiment, first_step: '', effort: '' });
+        return out;
+      }
+
+      // One suggestion box: title + effort + detail, with open/dismiss. "open"
+      // reveals the full instruction + the copy / open-in hand-off (unlocked —
+      // the library is signed-in only). data-* carry the interest-signal payload.
+      function suggestionBox(s, index, a, row, summary) {
+        const title = s.title || 'Try this';
+        const detail = s.detail || '';
+        const effort = s.effort || '';
         const base = {
-          action: text,
-          firstStep: withFirstStep ? (a.first_step || '') : '',
+          action: detail || title,
+          firstStep: s.first_step || '',
           groundedIn: a.grounded_in || '',
           profile: (document.getElementById('profile-input') || {}).value || '',
           title: row.title || '',
@@ -407,16 +441,19 @@
         const briefLink = composeBrief(Object.assign({}, base, { variant: 'link' }));
         const q = encodeURIComponent(briefLink);
         const links = q.length > 6000 ? '' :
-            `<a class="tryit-open" href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener">open in ChatGPT ↗</a>`
-          + `<a class="tryit-open" href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener">open in Claude ↗</a>`;
-        // .tryit-brief holds the full brief — the copy button reads it; the
-        // open-in links carry the concise variant.
-        return `<div class="exp ${cls}"><b>${label}</b>${escapeHtml(text)}`
-          + `<details class="tryit"><summary>try this →</summary>`
+            `<a class="tryit-open" data-sig="open_chatgpt" href="https://chatgpt.com/?q=${q}" target="_blank" rel="noopener">open in ChatGPT ↗</a>`
+          + `<a class="tryit-open" data-sig="open_claude" href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener">open in Claude ↗</a>`;
+        const head = `<div class="sug-head"><span class="sug-title">${escapeHtml(title)}</span>`
+          + (effort ? `<span class="sug-effort">${escapeHtml(effort)}</span>` : '') + `</div>`;
+        const det = detail ? `<div class="sug-detail">${escapeHtml(detail)}</div>` : '';
+        const buttons = `<div class="sug-buttons"><button type="button" class="sug-open">open ▸</button>`
+          + `<button type="button" class="sug-dismiss">dismiss</button></div>`;
+        const panel = `<div class="sug-panel" hidden>`
           + `<div class="tryit-brief">${escapeHtml(briefFull)}</div>`
           + `<div class="tryit-row"><button type="button" class="tryit-copy">📋 copy</button>${links}`
           + `<span class="tryit-hint">paste into ChatGPT, Claude, Cursor, Codex…</span></div>`
-          + `</details></div>`;
+          + `</div>`;
+        return `<div class="sug" data-index="${index}" data-title="${escapeHtml(title)}">${head}${det}${buttons}${panel}</div>`;
       }
 
       function renderAnalysisInto(bodyEl, analysisJson, briefText, row) {
@@ -432,13 +469,14 @@
           ? `<p class="why">${escapeHtml(a.why_it_matters)}</p>` : '';
         const grounded = a.grounded_in
           ? `<p class="grounded">📎 based on: ${escapeHtml(a.grounded_in)}</p>` : '';
-        // "Try this" suggestions, each with a hand-off brief; legacy fallback to
-        // the single suggested_experiment field for older saved items.
+        // 0–5 suggestion boxes (normalized from suggestions[] or legacy fields).
         const srcSummary = typeof briefText === 'string' ? briefText : '';
-        let exp = tryitBlock('⚡ quick win — this weekend', a.quick_win, a, row, '', true, srcSummary)
-                + tryitBlock("🚀 bigger play — when you're ready", a.bigger_play, a, row, 'exp-bigger', false, srcSummary);
-        if (!a.quick_win && !a.bigger_play && a.suggested_experiment) {
-          exp = tryitBlock('try this →', a.suggested_experiment, a, row, '', false, srcSummary);
+        const sugs = suggestionsOf(a);
+        let exp;
+        if (sugs.length) {
+          exp = sugs.map((s, i) => suggestionBox(s, i, a, row, srcSummary)).join('');
+        } else {
+          exp = `<div class="sug-empty">No next steps for this one — it's a read to stay informed. We only suggest actions when they're genuinely worth your time.</div>`;
         }
         // Transparency: the stored brief the analyzer reasoned over. Collapsed
         // and capped in height — briefs can run to thousands of words.
@@ -572,12 +610,36 @@
           if (del) { deleteItem(del); return; }
           const chip = e.target.closest('.fb-chip');
           if (chip) { sendFeedback(chip); return; }
+          // Suggestion box: open / dismiss / copy / open-in — each a signal.
+          const sopen = e.target.closest('.sug-open');
+          if (sopen) {
+            const box = sopen.closest('.sug');
+            const panel = box.querySelector('.sug-panel');
+            const show = panel.hidden;
+            panel.hidden = !show;
+            sopen.textContent = show ? 'close ▾' : 'open ▸';
+            if (show && box.dataset.opened !== '1') { box.dataset.opened = '1'; logSuggestion(box, 'open'); }
+            return;
+          }
+          const sdismiss = e.target.closest('.sug-dismiss');
+          if (sdismiss) {
+            const box = sdismiss.closest('.sug');
+            logSuggestion(box, 'dismiss');
+            box.remove();
+            return;
+          }
           const copy = e.target.closest('.tryit-copy');
           if (copy) { copyBrief(copy); return; }
+          const openLink = e.target.closest('.tryit-open');
+          if (openLink) {
+            // Don't preventDefault — let the link open; just log the signal.
+            const box = openLink.closest('.sug');
+            if (box) logSuggestion(box, openLink.dataset.sig || 'open_chatgpt');
+            return;
+          }
           // Implicit signal: clicking through to the source = they engaged.
-          // "open in <assistant>" hand-off links aren't the source, so skip them.
           const link = e.target.closest('a[href]');
-          if (link && !link.classList.contains('tryit-open')) {
+          if (link) {
             const art = link.closest('article.item');
             if (art) recordSignal(art.dataset.id, 'opened');
           }
@@ -593,11 +655,28 @@
         }).catch(() => {});
       }
 
-      // Copy a suggestion's hand-off brief to the clipboard (reads the sibling
-      // .tryit-brief so we don't have to stash long text in a data attribute).
+      // Suggestion interest signal (open / copy / open_chatgpt / open_claude /
+      // dismiss), keyed by the saved item's URL + the box's index/title.
+      function logSuggestion(box, event) {
+        const art = box.closest('article.item');
+        fetch('/api/v1/suggestion-feedback', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            url: (art && art.dataset.url) || '',
+            event,
+            suggestion_index: Number(box.dataset.index),
+            suggestion_text: box.dataset.title || '',
+          }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+
+      // Copy a suggestion's hand-off brief to the clipboard (reads the .tryit-brief
+      // inside the box so we don't stash long text in a data attribute) + log it.
       function copyBrief(btn) {
-        const wrap = btn.closest('.tryit');
-        const briefEl = wrap && wrap.querySelector('.tryit-brief');
+        const box = btn.closest('.sug') || btn.closest('.tryit');
+        const briefEl = box && box.querySelector('.tryit-brief');
         if (!briefEl) return;
         const text = briefEl.textContent || '';
         const done = () => {
@@ -607,6 +686,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(done).catch(() => {});
         }
+        if (box && box.classList.contains('sug')) logSuggestion(box, 'copy');
       }
 
       function sendFeedback(chip) {

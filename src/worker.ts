@@ -434,15 +434,17 @@ interface BotResponse {
     why_it_matters?: string;
     grounded_in?: string;
     category?: string;
+    suggestions?: Array<{ title?: string; detail?: string; first_step?: string; effort?: string }>;
+    // legacy fields (pre 0–5 migration) — still present on older stored items
     quick_win?: string;
     first_step?: string;
     bigger_play?: string;
-    suggested_experiment?: string; // legacy items
+    suggested_experiment?: string;
     time_required?: string;
   };
-  // Agent-handoff actions: one paste-able "try this" handoff brief per tier.
+  // Agent-handoff actions: one paste-able "try this" brief per suggestion (0–5).
   // Built by the backend so web + Telegram share the same wording.
-  actions?: Array<{ kind: string; label: string; text: string; brief: string; brief_link?: string }>;
+  actions?: Array<{ index: number; title: string; detail: string; effort: string; brief: string; brief_link?: string }>;
 }
 
 async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -1454,17 +1456,21 @@ async function handleFeedback(req: Request, env: Env): Promise<Response> {
   }
 }
 
-// Records a dismissed "try this" suggestion (+ optional free-text reason) to D1.
-// Unlike /feedback this needs no backend round-trip and works for anonymous
-// visitors — the landing page is anon-heavy, and this is just UX signal for
-// tuning suggestion quality later. Keyed by anon_id, or user_id when signed in.
+// Records a suggestion interaction event to D1 — the interest signal for tuning
+// suggestion quality (shown / open / copy / open_chatgpt / open_claude / dismiss
+// [+reason]). Needs no backend round-trip and works for anonymous visitors (the
+// landing page is anon-heavy). Keyed by anon_id, or user_id when signed in.
+const SUGGESTION_EVENTS = new Set([
+  "shown", "open", "copy", "open_chatgpt", "open_claude", "dismiss",
+]);
+
 async function handleSuggestionFeedback(req: Request, env: Env): Promise<Response> {
   const cookies = parseCookies(req.headers.get("cookie"));
   const session = await loadSession(cookies[SESSION_COOKIE], env);
   const anonRaw = cookies[ANON_COOKIE];
   const anonId = anonRaw && isValidAnonId(anonRaw) ? anonRaw : null;
 
-  // Need at least one identity to attribute the dismissal to.
+  // Need at least one identity to attribute the event to.
   if (!session && !anonId) return json({ error: "no-identity" }, 400);
 
   let body: Record<string, unknown>;
@@ -1475,22 +1481,26 @@ async function handleSuggestionFeedback(req: Request, env: Env): Promise<Respons
   }
 
   const clip = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
+  const event = clip(body.event, 32) || "dismiss"; // default keeps old callers working
+  if (!SUGGESTION_EVENTS.has(event)) return json({ error: "invalid-event" }, 400);
   const url = clip(body.url, 2048);
-  const kind = clip(body.suggestion_kind, 64);
   const text = clip(body.suggestion_text, 2048);
   const reason = clip(body.reason, 2048);
+  const idxRaw = body.suggestion_index;
+  const index = Number.isInteger(idxRaw) ? (idxRaw as number) : null;
 
   try {
     await env.DB.prepare(
       `INSERT INTO suggestion_feedback
-         (anon_id, user_id, url, suggestion_kind, suggestion_text, reason, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+         (anon_id, user_id, url, event, suggestion_index, suggestion_text, reason, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         anonId,
         session ? session.userId : null,
         url || null,
-        kind || null,
+        event,
+        index,
         text || null,
         reason || null,
         new Date().toISOString()
