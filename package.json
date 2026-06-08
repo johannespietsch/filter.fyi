@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test dev/*.test.mjs",
     "dev": "wrangler dev",
     "mock-bot": "node dev/mock-bot.mjs",
     "deploy": "wrangler deploy",

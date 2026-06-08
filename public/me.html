@@ -9,6 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Safe-subset Markdown renderer (module — attaches window.renderMarkdown).
+       Used by the detail view to format the stored brief + suggestion text. -->
+  <script type="module" src="/md.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -27,9 +30,11 @@
     a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
     a:hover { color: var(--green); }
 
-    .wrap { max-width: 720px; margin: 0 auto; padding: 24px 28px 48px; }
-    nav { display: flex; justify-content: space-between; align-items: center;
-          padding-bottom: 14px; border-bottom: 1px solid var(--ink); gap: 12px; flex-wrap: wrap; }
+    /* ---- App shell: sidebar + content ---------------------------------- */
+    .app { display: flex; max-width: 1120px; margin: 0 auto; min-height: 100vh; }
+    .sidebar { width: 232px; flex-shrink: 0; border-right: 1px solid var(--ink);
+               padding: 24px 18px; position: sticky; top: 0; height: 100vh;
+               display: flex; flex-direction: column; gap: 26px; background: var(--bg); }
     .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
             color: var(--ink); display: inline-flex; align-items: center; }
     .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
@@ -37,18 +42,36 @@
                         animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
     .mark .dot { color: var(--green); }
     .mark .fyi { color: var(--ink-3); }
-    .nav-meta { display: flex; gap: 12px; font-size: 11px; color: var(--ink-2); align-items: center; }
-    .nav-meta a, .nav-meta button {
-      color: var(--green); text-decoration: none; padding: 3px 8px;
-      border: 1px solid var(--green); background: var(--green-soft);
-      transition: 0.15s; font: inherit; font-size: 11px; cursor: pointer;
-    }
-    .nav-meta a:hover, .nav-meta button:hover { background: var(--green); color: var(--bg-2); }
-    .nav-meta .signout { color: var(--ink-2); border-color: var(--ink-2); background: transparent; }
-    .nav-meta .signout:hover { background: var(--ink); color: var(--bg-2); border-color: var(--ink); }
     @keyframes pulse { 50% { opacity: 0.3; } }
 
-    .hero { padding: 36px 0 24px; border-bottom: 1px dashed var(--ink); }
+    .side-nav { display: flex; flex-direction: column; gap: 3px; }
+    .side-nav a { display: block; text-decoration: none; color: var(--ink-2);
+                  padding: 8px 11px; font-size: 13px; border-left: 2px solid transparent;
+                  transition: 0.12s; }
+    .side-nav a:hover { color: var(--ink); background: var(--bg-2); }
+    .side-nav a.active { color: var(--green); border-left-color: var(--green); background: var(--green-soft); }
+    .side-foot { margin-top: auto; display: flex; flex-direction: column;
+                 align-items: flex-start; gap: 9px; font-size: 11px; }
+    .side-foot a, .side-foot button {
+      color: var(--ink-2); text-decoration: none; font: inherit; font-size: 11px;
+      background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+    .side-foot a:hover, .side-foot button:hover { color: var(--green); }
+    .side-foot .signout:hover { color: var(--red); }
+
+    .content { flex: 1; min-width: 0; padding: 24px 30px 48px; }
+    .content-inner { max-width: 740px; }
+
+    /* Mobile top bar with hamburger — hidden on desktop. */
+    .topbar { display: none; }
+    .burger { display: inline-flex; flex-direction: column; justify-content: center; gap: 4px;
+              width: 34px; height: 30px; padding: 6px; background: var(--bg-2);
+              border: 1px solid var(--ink); cursor: pointer; }
+    .burger span { display: block; height: 2px; background: var(--ink); }
+    .topbar .mark { font-size: 14px; }
+    .backdrop { display: none; }
+
+    /* ---- Hero ---------------------------------------------------------- */
+    .hero { padding: 4px 0 20px; border-bottom: 1px dashed var(--ink); margin-bottom: 4px; }
     .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
                color: var(--ink-2); margin-bottom: 14px; }
     .eyebrow::before { content: '— '; color: var(--green); }
@@ -57,6 +80,9 @@
     .who { font-size: 13px; color: var(--ink-2); }
     .who b { color: var(--ink); font-weight: 500; }
     .tg-linked { color: var(--green); font-weight: 500; }
+
+    .pane-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .pane-intro { font-size: 13px; color: var(--ink-2); margin-bottom: 18px; }
 
     .loading { padding: 24px 22px; color: var(--ink-2); font-size: 13px; }
     .loading-dot { display: inline-block; width: 8px; height: 8px; background: var(--green);
@@ -67,20 +93,42 @@
     .empty h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
     .empty a { color: var(--green); }
 
-    .list { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
-    .item { background: var(--bg-2); border: 1px solid var(--ink); padding: 16px 18px; }
-    .item-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-                 font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-                 color: var(--ink-3); margin-bottom: 8px; }
+    /* ---- Library tile grid --------------------------------------------- */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px; margin-top: 22px; }
+    .tile { display: flex; flex-direction: column; gap: 8px; text-decoration: none;
+            background: var(--bg-2); border: 1px solid var(--ink); padding: 14px 15px;
+            min-height: 116px; transition: 0.12s; }
+    .tile:hover { background: #fffdf7; color: var(--ink); transform: translateY(-1px);
+                  box-shadow: 3px 3px 0 var(--ink); }
+    .tile-head { display: flex; align-items: center; gap: 8px; }
+    .tile-date { margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+                 color: var(--ink-3); }
+    .tile-title { font-size: 14px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em;
+                  color: var(--ink); text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3;
+                  -webkit-box-orient: vertical; overflow: hidden; }
+    .tile-host { margin-top: auto; font-size: 11px; color: var(--ink-3); }
+
+    /* shared verdict badge */
     .badge { display: inline-block; padding: 2px 7px; font-size: 10.5px; font-weight: 700;
              letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--ink); background: var(--bg); }
     .badge.verdict-watch { background: var(--green-soft); border-color: var(--green); color: var(--green); }
     .badge.verdict-skim  { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
     .badge.verdict-skip  { background: var(--red-soft);   border-color: var(--red);   color: var(--red); }
-    .item-title { font-size: 15px; line-height: 1.35; letter-spacing: -0.015em; font-weight: 700;
-                  margin-bottom: 6px; text-wrap: balance; }
-    .item-title a { text-decoration: none; color: var(--ink); }
-    .item-title a:hover { color: var(--green); }
+
+    /* ---- Item detail view ---------------------------------------------- */
+    .detail-back { display: inline-block; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+                   color: var(--ink-2); text-decoration: none; margin-bottom: 16px; }
+    .detail-back::before { content: '← '; }
+    .detail-back:hover { color: var(--green); }
+    .item { background: var(--bg-2); border: 1px solid var(--ink); padding: 18px 20px; }
+    .item-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+                 font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--ink-3); margin-bottom: 10px; }
+    .detail-title { font-size: clamp(18px, 3vw, 22px); line-height: 1.25; letter-spacing: -0.02em;
+                    font-weight: 700; margin-bottom: 6px; text-wrap: balance; }
+    .detail-title a { text-decoration: none; color: var(--ink); }
+    .detail-title a:hover { color: var(--green); }
     .item-meta { font-size: 11px; color: var(--ink-3); }
     .item-meta b { color: var(--ink-2); font-weight: 500; }
     .item-delete { font: inherit; font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
@@ -90,23 +138,10 @@
     .item-delete.armed { color: var(--red); border-color: var(--red); background: var(--red-soft); }
     .item-delete:disabled { opacity: 0.5; cursor: default; }
 
-    .item details { margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--ink); }
-    .item summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em;
-                    text-transform: uppercase; color: var(--ink-2); list-style: none;
-                    user-select: none; padding: 2px 0; }
-    .item summary::-webkit-details-marker { display: none; }
-    .item summary::before { content: '+ '; color: var(--green); font-weight: 700; }
-    .item details[open] summary::before { content: '− '; }
-    .item summary:hover { color: var(--green); }
-    .body { margin-top: 10px; font-size: 13.5px; color: var(--ink); }
+    .body { margin-top: 16px; padding-top: 14px; border-top: 1px dotted var(--ink);
+            font-size: 13.5px; color: var(--ink); }
     .body p { margin-bottom: 10px; }
     .body .why { color: var(--ink-2); }
-    .body .exp { margin-top: 10px; padding: 10px 12px; background: var(--green-soft);
-                 border-left: 2px solid var(--green); font-size: 13px; color: var(--ink); }
-    .body .exp b { display: block; font-size: 10.5px; letter-spacing: 0.14em;
-                   text-transform: uppercase; color: var(--green); margin-bottom: 4px; font-weight: 700; }
-    .body .exp.exp-bigger { background: var(--amber-soft); border-left-color: var(--amber); }
-    .body .exp.exp-bigger b { color: var(--amber); }
     /* "based on" grounding line */
     .body .grounded { margin: 10px 0 0; font-size: 12px; color: var(--ink-3);
                       border-left: 2px solid var(--ink-3); padding-left: 8px; }
@@ -142,11 +177,6 @@
                       font: inherit; font-size: 11px; text-decoration: underline; padding: 0; margin-top: 6px; }
     .body .sug-undo:hover { color: var(--ink); }
     /* in-item "try this" hand-off (you're signed in here, so it's unlocked) */
-    .body .tryit { margin-top: 8px; }
-    .body .tryit > summary { cursor: pointer; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-                             text-transform: uppercase; color: var(--ink); list-style: none; }
-    .body .tryit > summary::-webkit-details-marker { display: none; }
-    .body .tryit > summary:hover { color: var(--green); }
     .body .tryit-brief { margin-top: 8px; max-height: 200px; overflow: auto; padding: 9px 10px;
                          border: 1px solid var(--ink); background: var(--bg-2);
                          font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
@@ -159,7 +189,7 @@
     .body .tryit-open { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
     .body .tryit-hint { font-size: 11px; color: var(--ink-3); }
 
-    /* "what we read" transparency disclosure inside an item's analysis */
+    /* "what we read" transparency disclosure inside the analysis */
     .body .brief { margin-top: 12px; padding-top: 10px; border-top: 1px dotted var(--ink); }
     .body .brief > summary { cursor: pointer; font-size: 10.5px; letter-spacing: 0.14em;
                               text-transform: uppercase; color: var(--ink-3); list-style: none;
@@ -168,51 +198,50 @@
     .body .brief > summary::before { content: '+ '; color: var(--green); font-weight: 700; }
     .body .brief[open] > summary::before { content: '− '; }
     .body .brief > summary:hover { color: var(--green); }
-    .body .brief-body { margin-top: 8px; max-height: 320px; overflow: auto;
-                        padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--ink);
-                        font-size: 13px; line-height: 1.55; color: var(--ink);
-                        white-space: pre-wrap; word-wrap: break-word; }
+    .body .brief-body { margin-top: 8px; max-height: 360px; overflow: auto;
+                        padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--ink);
+                        font-size: 13px; line-height: 1.6; color: var(--ink); }
 
-    /* feedback chips on an item — the "did you act on it?" signal */
+    /* feedback chips — the "did you act on it?" signal (in the detail view) */
     .item-feedback { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-                     margin-top: 10px; padding-top: 10px; border-top: 1px dotted var(--ink); }
+                     margin-top: 12px; padding-top: 12px; border-top: 1px dotted var(--ink); }
     .fb-label { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
     .fb-chip { font: inherit; font-size: 11px; padding: 2px 9px; border: 1px solid var(--ink-3);
                background: var(--bg); color: var(--ink-2); cursor: pointer; transition: 0.12s; }
     .fb-chip:hover { border-color: var(--green); color: var(--green); }
     .fb-chip.sent { background: var(--green); border-color: var(--green); color: var(--bg-2); cursor: default; }
 
-    /* personalization lens editor */
-    .lens { margin-top: 24px; padding: 16px 18px; background: var(--bg-2); border: 1px solid var(--ink); }
-    .lens-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 6px; }
-    .lens-title::before { content: '— '; color: var(--green); }
-    .lens-hint { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+    /* ---- Rendered markdown (brief + suggestion detail) ----------------- */
+    .md > :first-child { margin-top: 0; }
+    .md > :last-child { margin-bottom: 0; }
+    .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
+      font-size: 13.5px; letter-spacing: 0; margin: 14px 0 6px; color: var(--ink); font-weight: 700; }
+    .md h1 { font-size: 15px; } .md h2 { font-size: 14px; }
+    .md p { margin: 0 0 10px; }
+    .md ul, .md ol { margin: 0 0 10px; padding-left: 20px; }
+    .md li { margin-bottom: 3px; }
+    .md blockquote { margin: 0 0 10px; padding-left: 10px; border-left: 2px solid var(--ink-3); color: var(--ink-2); }
+    .md code { background: var(--bg); border: 1px solid var(--ink-3); padding: 0 4px; font-size: 12px; }
+    .md pre { background: var(--bg); border: 1px solid var(--ink-3); padding: 10px 12px; overflow: auto; margin: 0 0 10px; }
+    .md pre code { border: 0; padding: 0; background: none; }
+    .md a { color: var(--green); }
+    .md hr { border: 0; border-top: 1px dashed var(--ink-3); margin: 12px 0; }
+
+    /* ---- Lens (personalization profile) editor ------------------------- */
     .lens-input { width: 100%; background: var(--bg); border: 1px solid var(--ink); color: var(--ink);
-                  font: inherit; font-size: 13px; padding: 10px 12px; resize: vertical; min-height: 84px; }
+                  font: inherit; font-size: 13px; padding: 10px 12px; resize: vertical; min-height: 120px; }
     .lens-input:focus { outline: none; background: var(--bg-2); }
-    .lens-actions { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
-    .lens-save { color: var(--green); padding: 4px 12px; border: 1px solid var(--green); background: var(--green-soft);
+    .lens-actions { display: flex; gap: 12px; align-items: center; margin-top: 12px; }
+    .lens-save { color: var(--green); padding: 5px 14px; border: 1px solid var(--green); background: var(--green-soft);
                  font: inherit; font-size: 12px; cursor: pointer; text-transform: lowercase; transition: 0.12s; }
     .lens-save:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
     .lens-save:disabled { opacity: 0.5; cursor: default; }
     .lens-status { font-size: 12px; color: var(--ink-3); }
 
-    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
-             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between;
-             gap: 14px; flex-wrap: wrap; }
-    footer a { color: var(--ink-3); text-decoration: none; }
-    footer a:hover { color: var(--green); }
-    .footer-links { display: flex; gap: 14px; }
-
-    /* Telegram-link section */
-    .link-tg { margin-top: 24px; padding: 16px 18px; background: var(--bg-2);
-               border: 1px solid var(--ink); }
-    .link-tg-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-                     color: var(--ink-2); margin-bottom: 6px; }
-    .link-tg-title::before { content: '— '; color: var(--green); }
-    .link-tg p { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+    /* ---- Telegram-link section ----------------------------------------- */
+    .link-tg p { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
     .link-tg p b { color: var(--ink); font-weight: 500; }
-    .link-tg-btn { color: var(--green); padding: 4px 10px; border: 1px solid var(--green);
+    .link-tg-btn { color: var(--green); padding: 5px 12px; border: 1px solid var(--green);
                    background: var(--green-soft); font: inherit; font-size: 12px;
                    cursor: pointer; text-transform: lowercase; }
     .link-tg-btn:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
@@ -224,17 +253,14 @@
     .link-tg-expires { font-size: 11px; color: var(--ink-3); }
     .link-tg-error { font-size: 12px; color: var(--red); }
 
-    /* account / data controls */
-    .account { margin-top: 24px; padding: 16px 18px; background: var(--bg-2); border: 1px solid var(--ink); }
-    .account-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-                     color: var(--ink-2); margin-bottom: 6px; }
-    .account-title::before { content: '— '; color: var(--green); }
+    /* ---- account / data controls --------------------------------------- */
     .account-row { display: flex; gap: 14px; align-items: center; justify-content: space-between;
-                   padding: 12px 0; border-top: 1px dotted var(--ink); }
+                   padding: 14px 0; border-top: 1px dotted var(--ink); }
+    .account-row:first-of-type { border-top: 0; }
     .account-text { min-width: 0; }
     .account-label { font-size: 13px; font-weight: 600; color: var(--ink); }
     .account-hint { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
-    .account-btn { flex-shrink: 0; color: var(--green); padding: 4px 12px; border: 1px solid var(--green);
+    .account-btn { flex-shrink: 0; color: var(--green); padding: 5px 14px; border: 1px solid var(--green);
                    background: var(--green-soft); font: inherit; font-size: 12px; text-decoration: none;
                    cursor: pointer; text-transform: lowercase; transition: 0.12s; }
     .account-btn:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
@@ -244,98 +270,161 @@
     .account-btn.danger.armed { background: var(--red); color: var(--bg-2); }
     .account-error { font-size: 12px; color: var(--red); margin-top: 8px; }
 
-    @media (max-width: 540px) {
-      .wrap { padding: 16px 18px 32px; }
+    footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between;
+             gap: 14px; flex-wrap: wrap; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+    .footer-links { display: flex; gap: 14px; }
+
+    /* ---- Responsive: sidebar collapses to a drawer --------------------- */
+    @media (max-width: 820px) {
+      .app { display: block; max-width: none; }
+      .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+                border-bottom: 1px solid var(--ink); position: sticky; top: 0;
+                background: var(--bg); z-index: 20; }
+      .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 264px; height: 100%;
+                 transform: translateX(-100%); transition: transform 0.2s ease; z-index: 40;
+                 box-shadow: 4px 0 0 rgba(0,0,0,0.06); }
+      body.nav-open .sidebar { transform: none; }
+      body.nav-open .backdrop { display: block; position: fixed; inset: 0;
+                                background: rgba(0,0,0,0.34); z-index: 30; }
+      .content { padding: 18px 18px 32px; }
+      .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <nav>
+  <div class="topbar">
+    <button class="burger" id="burger" type="button" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+  </div>
+  <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
       <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
-      <div class="nav-meta">
+      <nav class="side-nav" id="side-nav">
+        <a href="#library" data-section="library">Library</a>
+        <a href="#lens" data-section="lens">Lens</a>
+        <a href="#telegram" data-section="telegram">Telegram</a>
+        <a href="#account" data-section="account">Data &amp; account</a>
+      </nav>
+      <div class="side-foot">
         <a href="/">← try another</a>
         <a href="/about">about →</a>
         <button class="signout" id="signout-btn" type="button">sign out</button>
       </div>
-    </nav>
+    </aside>
 
-    <section class="hero">
-      <div class="eyebrow">Your library</div>
-      <h1>Saved.</h1>
-      <p class="who">Signed in as <b id="user-email">…</b><span id="tg-linked" class="tg-linked" hidden> · Telegram linked ✓</span></p>
-    </section>
+    <main class="content">
+      <div class="content-inner">
+        <div class="loading" id="boot"><span class="loading-dot"></span>Loading your account…</div>
 
-    <section class="lens" id="lens" hidden>
-      <div class="lens-title">Your lens</div>
-      <p class="lens-hint">This is the perspective filter.fyi judges your content against — the sharper and more specific it is, the more your verdicts and suggested next steps fit <i>you</i> rather than a generic reader. Edit it anytime.</p>
-      <textarea id="profile-input" class="lens-input" rows="5" placeholder="e.g. Senior backend engineer moving into ML infra. I want production-grade patterns over hype, short and honest time estimates, and I'm short on evenings."></textarea>
-      <div class="lens-actions">
-        <button class="lens-save" id="profile-save" type="button">save lens</button>
-        <span class="lens-status" id="profile-status" hidden></span>
+        <!-- ===== Library pane ===== -->
+        <section class="pane" data-pane="library" hidden>
+          <div class="hero" id="hero">
+            <div class="eyebrow">Your library</div>
+            <h1>Saved.</h1>
+            <p class="who">Signed in as <b id="user-email">…</b><span id="tg-linked" class="tg-linked" hidden> · Telegram linked ✓</span></p>
+          </div>
+
+          <div class="empty" id="empty" hidden>
+            <h2>Nothing here yet.</h2>
+            <p><a href="/">Paste a URL on the home page</a> — anything you submit while signed in will land here.</p>
+          </div>
+
+          <div class="grid" id="grid" hidden></div>
+          <div class="detail" id="detail" hidden></div>
+        </section>
+
+        <!-- ===== Lens pane ===== -->
+        <section class="pane" data-pane="lens" hidden>
+          <div class="pane-title">Your lens</div>
+          <p class="pane-intro">This is the perspective filter.fyi judges your content against — the sharper and more specific it is, the more your verdicts and suggested next steps fit <i>you</i> rather than a generic reader. Edit it anytime.</p>
+          <textarea id="profile-input" class="lens-input" rows="6" placeholder="e.g. Senior backend engineer moving into ML infra. I want production-grade patterns over hype, short and honest time estimates, and I'm short on evenings."></textarea>
+          <div class="lens-actions">
+            <button class="lens-save" id="profile-save" type="button">save lens</button>
+            <span class="lens-status" id="profile-status" hidden></span>
+          </div>
+        </section>
+
+        <!-- ===== Telegram pane ===== -->
+        <section class="pane link-tg" data-pane="telegram" hidden>
+          <div class="pane-title">Link Telegram</div>
+          <p class="pane-intro" id="link-tg-intro">Connect your Telegram chat with the filter.fyi bot so both surfaces share the same library.</p>
+          <div id="link-tg-action">
+            <button class="link-tg-btn" id="link-tg-btn" type="button">get a link code</button>
+          </div>
+          <div id="link-tg-error" class="link-tg-error" hidden></div>
+        </section>
+
+        <!-- ===== Data & account pane ===== -->
+        <section class="pane" data-pane="account" hidden>
+          <div class="pane-title">Data &amp; account</div>
+          <p class="pane-intro">Signed in as <b id="user-email-2">…</b>.</p>
+          <div class="account-row">
+            <div class="account-text">
+              <div class="account-label">Export your data</div>
+              <p class="account-hint">Download everything we hold for your account as JSON.</p>
+            </div>
+            <a class="account-btn" id="export-btn" href="/api/v1/account/export">export →</a>
+          </div>
+          <div class="account-row">
+            <div class="account-text">
+              <div class="account-label">Delete account</div>
+              <p class="account-hint">Permanently removes your account, saved items, and any linked surfaces. This can't be undone.</p>
+            </div>
+            <button class="account-btn danger" id="delete-account-btn" type="button">delete account</button>
+          </div>
+          <p id="account-error" class="account-error" hidden></p>
+        </section>
+
+        <footer>
+          <span>filter.fyi — relevant, not noise.</span>
+          <span class="footer-links">
+            <a href="/privacy">privacy</a>
+            <a href="/terms">terms</a>
+            <a href="/">← home</a>
+          </span>
+        </footer>
       </div>
-    </section>
-
-    <section class="link-tg">
-      <div class="link-tg-title">Link Telegram</div>
-      <p id="link-tg-intro">Connect your Telegram chat with the filter.fyi bot so both surfaces share the same library.</p>
-      <div id="link-tg-action">
-        <button class="link-tg-btn" id="link-tg-btn" type="button">get a link code</button>
-      </div>
-      <div id="link-tg-error" class="link-tg-error" hidden></div>
-    </section>
-
-    <div class="loading" id="loading"><span class="loading-dot"></span>Loading your library…</div>
-
-    <div class="empty" id="empty" hidden>
-      <h2>Nothing here yet.</h2>
-      <p><a href="/">Paste a URL on the home page</a> — anything you submit while signed in will land here.</p>
-    </div>
-
-    <div class="list" id="list" hidden></div>
-
-    <section class="account" id="account" hidden>
-      <div class="account-title">Your data</div>
-      <div class="account-row">
-        <div class="account-text">
-          <div class="account-label">Export your data</div>
-          <p class="account-hint">Download everything we hold for your account as JSON.</p>
-        </div>
-        <a class="account-btn" id="export-btn" href="/api/v1/account/export">export →</a>
-      </div>
-      <div class="account-row">
-        <div class="account-text">
-          <div class="account-label">Delete account</div>
-          <p class="account-hint">Permanently removes your account, saved items, and any linked surfaces. This can't be undone.</p>
-        </div>
-        <button class="account-btn danger" id="delete-account-btn" type="button">delete account</button>
-      </div>
-      <p id="account-error" class="account-error" hidden></p>
-    </section>
-
-    <footer>
-      <span>filter.fyi — relevant, not noise.</span>
-      <span class="footer-links">
-        <a href="/privacy">privacy</a>
-        <a href="/terms">terms</a>
-        <a href="/">← home</a>
-      </span>
-    </footer>
+    </main>
   </div>
 
   <script>
     (() => {
-      const loading = document.getElementById('loading');
+      const boot = document.getElementById('boot');
       const empty = document.getElementById('empty');
-      const list = document.getElementById('list');
+      const grid = document.getElementById('grid');
+      const detail = document.getElementById('detail');
+      const hero = document.getElementById('hero');
       const userEmail = document.getElementById('user-email');
+      const userEmail2 = document.getElementById('user-email-2');
       const signoutBtn = document.getElementById('signout-btn');
       // Spell out the call so the colour isn't carrying the meaning alone.
       const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
+      const SECTIONS = ['library', 'lens', 'telegram', 'account'];
+
+      // Lean library rows from /api/v1/me, keyed by id — the detail header
+      // renders instantly from these while the full analysis lazy-loads.
+      const rowsById = {};
+      let booted = false;
 
       function escapeHtml(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g,
           (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      // Markdown → HTML for the brief + suggestion detail. Falls back to escaped
+      // text if the module hasn't loaded (it's a separate <script type=module>).
+      function md(text) {
+        const t = (text == null ? '' : String(text)).trim();
+        if (!t) return '';
+        if (typeof window.renderMarkdown === 'function') return window.renderMarkdown(t);
+        return '<p>' + escapeHtml(t).replace(/\n/g, '<br>') + '</p>';
       }
 
       function hostOf(url) {
@@ -349,44 +438,24 @@
         } catch { return iso; }
       }
 
-      function renderItem(row) {
-        const verdict = String(row.verdict || '').toLowerCase();
-        const badgeClass = ['watch','skim','skip'].includes(verdict) ? `verdict-${verdict}` : '';
-        const verdictLabel = VERDICT_LABELS[verdict] || verdict || 'verdict';
+      function badgeFor(verdict) {
+        const v = String(verdict || '').toLowerCase();
+        const cls = ['watch','skim','skip'].includes(v) ? `verdict-${v}` : '';
+        const label = VERDICT_LABELS[v] || v || 'verdict';
+        return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+      }
+
+      // A library tile — a link to the in-page detail route (#item/:id). Kept
+      // deliberately lean: verdict, title, host, date. No inline expand.
+      function renderTile(row) {
         const title = row.title || row.url;
-        const sourceType = row.source_type || '';
         const host = hostOf(row.url);
-
-        const headBits = [
-          `<span class="badge ${badgeClass}">${escapeHtml(verdictLabel)}</span>`,
-          sourceType ? `<span>· ${escapeHtml(sourceType)}</span>` : '',
-          `<span style="margin-left:auto;">${escapeHtml(fmtDate(row.created_at))}</span>`,
-          `<button type="button" class="item-delete" aria-label="Delete this item">delete</button>`,
-        ].filter(Boolean).join('');
-
-        const metaBits = host
-          ? `<b>source</b> <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`
-          : '';
-
-        // Full analysis is fetched on demand from /api/v1/library/:id when
-        // the <details> element is opened — keeps the list payload lean.
         return `
-          <article class="item" data-id="${escapeHtml(row.id)}" data-url="${escapeHtml(row.url || '')}" data-title="${escapeHtml(row.title || '')}">
-            <div class="item-head">${headBits}</div>
-            <h2 class="item-title"><a href="${escapeHtml(row.url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
-            <div class="item-meta">${metaBits}</div>
-            <div class="item-feedback" role="group" aria-label="Did you act on this?">
-              <span class="fb-label">acted on it?</span>
-              <button type="button" class="fb-chip" data-signal="tried">tried it</button>
-              <button type="button" class="fb-chip" data-signal="done">done</button>
-              <button type="button" class="fb-chip" data-signal="not_for_me">not for me</button>
-            </div>
-            <details>
-              <summary>Show analysis</summary>
-              <div class="body" data-loaded="0">Loading…</div>
-            </details>
-          </article>
-        `;
+          <a class="tile" href="#item/${encodeURIComponent(row.id)}" data-id="${escapeHtml(row.id)}">
+            <div class="tile-head">${badgeFor(row.verdict)}<span class="tile-date">${escapeHtml(fmtDate(row.created_at))}</span></div>
+            <div class="tile-title">${escapeHtml(title)}</div>
+            <div class="tile-host">${escapeHtml(host)}</div>
+          </a>`;
       }
 
       // Trim to <= limit chars on a sentence/word boundary (mirrors backend
@@ -458,7 +527,7 @@
           + `<a class="tryit-open" data-sig="open_claude" href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener">open in Claude ↗</a>`;
         const head = `<div class="sug-head"><span class="sug-title">${escapeHtml(title)}</span>`
           + (effort ? `<span class="sug-effort">${escapeHtml(effort)}</span>` : '') + `</div>`;
-        const det = detail ? `<div class="sug-detail">${escapeHtml(detail)}</div>` : '';
+        const det = detail ? `<div class="sug-detail md">${md(detail)}</div>` : '';
         const buttons = `<div class="sug-buttons"><button type="button" class="sug-open">open ▸</button>`
           + `<button type="button" class="sug-dismiss">dismiss</button></div>`;
         const panel = `<div class="sug-panel" hidden>`
@@ -491,44 +560,154 @@
         } else {
           exp = `<div class="sug-empty">No next steps for this one — it's a read to stay informed. We only suggest actions when they're genuinely worth your time.</div>`;
         }
-        // Transparency: the stored brief the analyzer reasoned over. Collapsed
-        // and capped in height — briefs can run to thousands of words.
+        // Transparency: the stored brief the analyzer reasoned over, rendered
+        // from Markdown. Collapsed and capped in height — briefs can run long.
         const brief = typeof briefText === 'string' ? briefText.trim() : '';
         let briefBlock = '';
         if (brief) {
           const words = (brief.match(/\S+/g) || []).length;
           briefBlock = `<details class="brief"><summary>show what we read · ${words.toLocaleString()} words</summary>`
-                     + `<div class="brief-body">${escapeHtml(brief)}</div></details>`;
+                     + `<div class="brief-body md">${md(brief)}</div></details>`;
         }
         bodyEl.innerHTML = mainIdea || why || grounded || exp || briefBlock
           ? `${mainIdea}${why}${grounded}${exp}${briefBlock}`
           : '<p><i>(no analysis stored)</i></p>';
       }
 
-      async function loadAnalysis(article) {
-        const body = article.querySelector('.body');
-        if (!body || body.dataset.loaded === '1') return;
-        const id = article.dataset.id;
-        body.dataset.loaded = '1'; // optimistic — don't refetch on subsequent toggles
+      // ---- In-page routing: sections + #item/:id detail ------------------
+      function setActiveNav(section) {
+        document.querySelectorAll('#side-nav a').forEach((a) => {
+          a.classList.toggle('active', a.dataset.section === section);
+        });
+      }
+
+      function showSection(section) {
+        document.querySelectorAll('.pane').forEach((p) => {
+          p.hidden = p.dataset.pane !== section;
+        });
+      }
+
+      function showLibraryList() {
+        detail.hidden = true;
+        detail.innerHTML = '';
+        hero.hidden = false;
+        const hasTiles = !!grid.querySelector('.tile');
+        grid.hidden = !hasTiles;
+        empty.hidden = hasTiles;
+      }
+
+      function closeDrawer() {
+        document.body.classList.remove('nav-open');
+        const b = document.getElementById('burger');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+
+      function route() {
+        const hash = location.hash.replace(/^#/, '');
+        const itemMatch = hash.match(/^item\/(\d+)$/);
+        if (itemMatch) {
+          setActiveNav('library');
+          showSection('library');
+          showDetail(itemMatch[1]);
+          closeDrawer();
+          window.scrollTo(0, 0);
+          return;
+        }
+        const section = SECTIONS.includes(hash) ? hash : 'library';
+        setActiveNav(section);
+        showSection(section);
+        if (section === 'library') showLibraryList();
+        closeDrawer();
+      }
+
+      // Detail view for one item. Header renders immediately from the lean row;
+      // the full analysis is fetched from /api/v1/library/:id. Built so a future
+      // public share route can reuse renderAnalysisInto over the same payload.
+      async function showDetail(id) {
+        const row = rowsById[id] || null;
+        hero.hidden = true;
+        grid.hidden = true;
+        empty.hidden = true;
+        detail.hidden = false;
+        detail.innerHTML = detailSkeleton(row, id);
+
+        const body = detail.querySelector('.body');
         try {
           const res = await fetch(`/api/v1/library/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
-          if (!res.ok) {
-            body.textContent = 'Could not load analysis.';
-            return;
-          }
+          if (res.status === 404) { body.textContent = 'This item no longer exists.'; return; }
+          if (!res.ok) { body.textContent = 'Could not load analysis.'; return; }
           const item = await res.json();
+          // Deep-linked before the list loaded? Backfill the header from the
+          // analysis JSON (verdict + main_idea live inside it).
+          if (!row) patchDetailHeader(item);
+          const art = detail.querySelector('article.item');
           renderAnalysisInto(body, item.analysis, item.content, {
-            url: article.dataset.url || item.source || '',
-            title: article.dataset.title || '',
+            url: (art && art.dataset.url) || item.source || '',
+            title: (art && art.dataset.title) || '',
           });
         } catch {
           body.textContent = 'Could not load analysis.';
         }
       }
 
+      function detailSkeleton(row, id) {
+        const url = (row && row.url) || '';
+        const title = (row && (row.title || row.url)) || 'Saved item';
+        const host = hostOf(url);
+        const meta = host
+          ? `<b>source</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`
+          : '';
+        const sourceType = (row && row.source_type) || '';
+        const date = row ? fmtDate(row.created_at) : '';
+        return `
+          <a class="detail-back" href="#library">all reads</a>
+          <article class="item detail" data-id="${escapeHtml(id)}" data-url="${escapeHtml(url)}" data-title="${escapeHtml((row && row.title) || '')}">
+            <div class="item-head">
+              ${row ? badgeFor(row.verdict) : '<span class="badge">verdict</span>'}
+              ${sourceType ? `<span>· ${escapeHtml(sourceType)}</span>` : ''}
+              <span style="margin-left:auto;">${escapeHtml(date)}</span>
+              <button type="button" class="item-delete" aria-label="Delete this item">delete</button>
+            </div>
+            <h2 class="detail-title"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
+            <div class="item-meta">${meta}</div>
+            <div class="item-feedback" role="group" aria-label="Did you act on this?">
+              <span class="fb-label">acted on it?</span>
+              <button type="button" class="fb-chip" data-signal="tried">tried it</button>
+              <button type="button" class="fb-chip" data-signal="done">done</button>
+              <button type="button" class="fb-chip" data-signal="not_for_me">not for me</button>
+            </div>
+            <div class="body" data-loaded="0">Loading…</div>
+          </article>`;
+      }
+
+      // Fill in verdict/title/source for a deep-linked item whose lean row we
+      // never loaded (e.g. opening /me#item/5 cold). The single-item endpoint
+      // returns the raw row, so verdict + main_idea come out of analysis JSON.
+      function patchDetailHeader(item) {
+        let a = {};
+        try { a = JSON.parse(item.analysis || '{}') || {}; } catch {}
+        const art = detail.querySelector('article.item');
+        if (!art) return;
+        const url = item.source || '';
+        const title = a.main_idea || url || 'Saved item';
+        art.dataset.url = url;
+        art.dataset.title = a.main_idea || '';
+        const head = art.querySelector('.item-head');
+        if (head) {
+          const badge = head.querySelector('.badge');
+          if (badge) badge.outerHTML = badgeFor(a.verdict);
+        }
+        const titleEl = art.querySelector('.detail-title a');
+        if (titleEl) { titleEl.textContent = title; titleEl.href = url || '#'; }
+        const host = hostOf(url);
+        const metaEl = art.querySelector('.item-meta');
+        if (metaEl && host) {
+          metaEl.innerHTML = `<b>source</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`;
+        }
+      }
+
       // "Delete account" — two-step confirm (arms on first click, deletes on a
       // second within 5s), then GDPR-erases on the backend and sends home.
-      // Wired once, when the page first loads for a signed-in user.
       let deleteAccountWired = false;
       function wireDeleteAccount() {
         if (deleteAccountWired) return;
@@ -576,7 +755,7 @@
           res = await fetch('/api/v1/me', { credentials: 'same-origin' });
           payload = await res.json().catch(() => ({}));
         } catch {
-          loading.textContent = 'Network problem. Refresh to retry.';
+          boot.textContent = 'Network problem. Refresh to retry.';
           return;
         }
         if (res.status === 401) {
@@ -584,77 +763,30 @@
           return;
         }
         if (!res.ok) {
-          loading.textContent = 'Something went wrong loading your library.';
+          boot.textContent = 'Something went wrong loading your library.';
           return;
         }
-        userEmail.textContent = payload.user?.email || '';
+        const email = payload.user?.email || '';
+        userEmail.textContent = email;
+        userEmail2.textContent = email;
         if (payload.user?.telegram_linked) {
           document.getElementById('tg-linked').hidden = false;
-          // The "Link Telegram" CTA is redundant once linked.
-          const linkSection = document.querySelector('.link-tg');
-          if (linkSection) linkSection.hidden = true;
+          // Hide the whole Telegram nav entry + pane once linked — it's redundant.
+          const tgNav = document.querySelector('#side-nav a[data-section="telegram"]');
+          if (tgNav) tgNav.hidden = true;
         }
-        loading.hidden = true;
-        // Lens + export/delete are available regardless of library size, so
-        // reveal them before the empty-library early return.
         profileInput.value = payload.user?.profile || '';
-        document.getElementById('lens').hidden = false;
-        document.getElementById('account').hidden = false;
         wireDeleteAccount();
+
         const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
-        if (rows.length === 0) {
-          empty.hidden = false;
-          return;
+        rows.forEach((row) => { rowsById[row.id] = row; });
+        if (rows.length) {
+          grid.innerHTML = rows.map(renderTile).join('');
         }
-        list.innerHTML = rows.map(renderItem).join('');
-        list.hidden = false;
-        // Lazy-fetch full analysis when the user opens "Show analysis".
-        list.addEventListener('toggle', (e) => {
-          const details = e.target;
-          if (!(details instanceof HTMLDetailsElement) || !details.open) return;
-          const article = details.closest('article.item');
-          if (article) loadAnalysis(article);
-        }, true);
-        // Delete, via event delegation. Two-step: first click arms the button,
-        // a second click (within a few seconds) actually deletes. Avoids a
-        // jarring native confirm() while still guarding against misclicks.
-        list.addEventListener('click', (e) => {
-          const del = e.target.closest('.item-delete');
-          if (del) { deleteItem(del); return; }
-          const chip = e.target.closest('.fb-chip');
-          if (chip) { sendFeedback(chip); return; }
-          // Suggestion box: open / dismiss / copy / open-in — each a signal.
-          const sopen = e.target.closest('.sug-open');
-          if (sopen) {
-            const box = sopen.closest('.sug');
-            const panel = box.querySelector('.sug-panel');
-            const show = panel.hidden;
-            panel.hidden = !show;
-            sopen.textContent = show ? 'close ▾' : 'open ▸';
-            if (show && box.dataset.opened !== '1') { box.dataset.opened = '1'; logSuggestion(box, 'open'); }
-            return;
-          }
-          const sdismiss = e.target.closest('.sug-dismiss');
-          if (sdismiss) {
-            dismissSuggestion(sdismiss.closest('.sug'));
-            return;
-          }
-          const copy = e.target.closest('.tryit-copy');
-          if (copy) { copyBrief(copy); return; }
-          const openLink = e.target.closest('.tryit-open');
-          if (openLink) {
-            // Don't preventDefault — let the link open; just log the signal.
-            const box = openLink.closest('.sug');
-            if (box) logSuggestion(box, openLink.dataset.sig || 'open_chatgpt');
-            return;
-          }
-          // Implicit signal: clicking through to the source = they engaged.
-          const link = e.target.closest('a[href]');
-          if (link) {
-            const art = link.closest('article.item');
-            if (art) recordSignal(art.dataset.id, 'opened');
-          }
-        });
+
+        boot.hidden = true;
+        booted = true;
+        route(); // reveal the active pane now that data is in place
       }
 
       // Fire-and-forget feedback event for an item (never blocks the UI).
@@ -736,7 +868,7 @@
       // Copy a suggestion's hand-off brief to the clipboard (reads the .tryit-brief
       // inside the box so we don't stash long text in a data attribute) + log it.
       function copyBrief(btn) {
-        const box = btn.closest('.sug') || btn.closest('.tryit');
+        const box = btn.closest('.sug');
         const briefEl = box && box.querySelector('.tryit-brief');
         if (!briefEl) return;
         const text = briefEl.textContent || '';
@@ -747,7 +879,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(done).catch(() => {});
         }
-        if (box && box.classList.contains('sug')) logSuggestion(box, 'copy');
+        if (box) logSuggestion(box, 'copy');
       }
 
       function sendFeedback(chip) {
@@ -758,6 +890,79 @@
         chip.classList.add('sent');
         recordSignal(art.dataset.id, chip.dataset.signal);
       }
+
+      async function deleteItem(btn) {
+        const article = btn.closest('article.item');
+        if (!article) return;
+        const id = article.dataset.id;
+
+        if (btn.dataset.armed !== '1') {
+          btn.dataset.armed = '1';
+          btn.classList.add('armed');
+          btn.textContent = 'confirm?';
+          btn._disarm = setTimeout(() => {
+            btn.dataset.armed = '0';
+            btn.classList.remove('armed');
+            btn.textContent = 'delete';
+          }, 4000);
+          return;
+        }
+
+        clearTimeout(btn._disarm);
+        btn.disabled = true;
+        btn.textContent = 'deleting…';
+        try {
+          const res = await fetch(`/api/v1/library/${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            credentials: 'same-origin',
+          });
+          if (!res.ok) throw new Error('delete-failed');
+          delete rowsById[id];
+          const tile = grid.querySelector(`.tile[data-id="${CSS.escape(String(id))}"]`);
+          if (tile) tile.remove();
+          location.hash = 'library'; // back to the grid (route() handles empty)
+        } catch {
+          btn.disabled = false;
+          btn.dataset.armed = '0';
+          btn.classList.remove('armed');
+          btn.textContent = 'retry delete';
+        }
+      }
+
+      // Single delegated click handler for the detail pane (delete, feedback
+      // chips, suggestion open/dismiss/copy/open-in, source link signals).
+      detail.addEventListener('click', (e) => {
+        const del = e.target.closest('.item-delete');
+        if (del) { deleteItem(del); return; }
+        const chip = e.target.closest('.fb-chip');
+        if (chip) { sendFeedback(chip); return; }
+        const sopen = e.target.closest('.sug-open');
+        if (sopen) {
+          const box = sopen.closest('.sug');
+          const panel = box.querySelector('.sug-panel');
+          const show = panel.hidden;
+          panel.hidden = !show;
+          sopen.textContent = show ? 'close ▾' : 'open ▸';
+          if (show && box.dataset.opened !== '1') { box.dataset.opened = '1'; logSuggestion(box, 'open'); }
+          return;
+        }
+        const sdismiss = e.target.closest('.sug-dismiss');
+        if (sdismiss) { dismissSuggestion(sdismiss.closest('.sug')); return; }
+        const copy = e.target.closest('.tryit-copy');
+        if (copy) { copyBrief(copy); return; }
+        const openLink = e.target.closest('.tryit-open');
+        if (openLink) {
+          const box = openLink.closest('.sug');
+          if (box) logSuggestion(box, openLink.dataset.sig || 'open_chatgpt');
+          return;
+        }
+        // Implicit signal: clicking through to the source = they engaged.
+        const link = e.target.closest('.detail-title a, .item-meta a');
+        if (link) {
+          const art = link.closest('article.item');
+          if (art) recordSignal(art.dataset.id, 'opened');
+        }
+      });
 
       // --- Lens (personalization profile) editor ---
       const profileInput = document.getElementById('profile-input');
@@ -784,44 +989,6 @@
           profileSave.disabled = false;
         }
       });
-
-      async function deleteItem(btn) {
-        const article = btn.closest('article.item');
-        if (!article) return;
-
-        if (btn.dataset.armed !== '1') {
-          btn.dataset.armed = '1';
-          btn.classList.add('armed');
-          btn.textContent = 'confirm?';
-          btn._disarm = setTimeout(() => {
-            btn.dataset.armed = '0';
-            btn.classList.remove('armed');
-            btn.textContent = 'delete';
-          }, 4000);
-          return;
-        }
-
-        clearTimeout(btn._disarm);
-        btn.disabled = true;
-        btn.textContent = 'deleting…';
-        try {
-          const res = await fetch(`/api/v1/library/${encodeURIComponent(article.dataset.id)}`, {
-            method: 'DELETE',
-            credentials: 'same-origin',
-          });
-          if (!res.ok) throw new Error('delete-failed');
-          article.remove();
-          if (!list.querySelector('article.item')) {
-            list.hidden = true;
-            empty.hidden = false;
-          }
-        } catch {
-          btn.disabled = false;
-          btn.dataset.armed = '0';
-          btn.classList.remove('armed');
-          btn.textContent = 'retry delete';
-        }
-      }
 
       // --- Link Telegram --------------------------------------------------
       const linkTgBtn = document.getElementById('link-tg-btn');
@@ -864,6 +1031,16 @@
         location.replace('/');
       });
 
+      // --- Drawer (mobile) ---
+      const burger = document.getElementById('burger');
+      const backdrop = document.getElementById('backdrop');
+      burger.addEventListener('click', () => {
+        const open = document.body.classList.toggle('nav-open');
+        burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      backdrop.addEventListener('click', closeDrawer);
+
+      window.addEventListener('hashchange', () => { if (booted) route(); });
       load();
     })();
   </script>
