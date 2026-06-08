@@ -99,6 +99,8 @@
     .step-marker { font-size: 9px; line-height: 1; }
     .job-step.step-active .step-marker { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
     .job-step-sep { color: var(--ink-3); opacity: 0.35; font-size: 12px; }
+    .job-estimate { margin-top: 10px; font-size: 11px; color: var(--ink-3);
+                    font-variant-numeric: tabular-nums; min-height: 14px; }
 
     /* result card */
     .result { display: none; background: var(--bg-2); border: 1px solid var(--ink);
@@ -217,10 +219,12 @@
     .notice.visible { display: block; }
     .notice.warn  { background: var(--amber-soft); border-color: var(--amber); }
     .notice.error { background: var(--red-soft);   border-color: var(--red); }
+    .notice.info  { background: var(--green-soft); border-color: var(--green); }
     .notice-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
                     color: var(--ink-2); margin-bottom: 6px; }
     .notice.warn .notice-title  { color: var(--amber); }
     .notice.error .notice-title { color: var(--red); }
+    .notice.info .notice-title  { color: var(--green); }
     .notice p { color: var(--ink); }
     .notice a { color: var(--ink); }
 
@@ -276,6 +280,7 @@
           <span class="job-step-sep">→</span>
           <span class="job-step step-pending" id="step-analyzing"><span class="step-marker">○</span>next steps</span>
         </div>
+        <div class="job-estimate" id="job-estimate" aria-live="polite"></div>
       </div>
 
       <article class="result" id="result" aria-live="polite">
@@ -316,6 +321,10 @@
       <div class="notice error" id="notice-error" role="alert">
         <div class="notice-title">something went wrong</div>
         <p id="notice-error-msg">Couldn't process that URL. Try a different one or come back in a moment.</p>
+      </div>
+      <div class="notice info" id="notice-pending" role="status">
+        <div class="notice-title">still working</div>
+        <p id="notice-pending-msg"></p>
       </div>
     </section>
 
@@ -389,6 +398,7 @@
       const noticeUnsupported = document.getElementById('notice-unsupported');
       const noticeRatelimit = document.getElementById('notice-ratelimit');
       const noticeError = document.getElementById('notice-error');
+      const noticePending = document.getElementById('notice-pending');
       const nudgeWaitlist = document.getElementById('nudge-waitlist');
       const nudgeClose = document.getElementById('nudge-close');
       const NUDGE_DISMISSED_KEY = 'fyi_nudge_dismissed';
@@ -397,7 +407,7 @@
       const VERDICT_LABELS = { watch: 'worth the time', skim: 'worth a skim', skip: 'skip-able' };
 
       function hideAll() {
-        for (const el of [loading, result, noticeUnsupported, noticeRatelimit, noticeError, nudgeWaitlist]) {
+        for (const el of [loading, result, noticeUnsupported, noticeRatelimit, noticeError, noticePending, nudgeWaitlist]) {
           el.classList.remove('visible');
         }
         urlInput.classList.remove('err');
@@ -779,9 +789,58 @@
       let _settled = false;      // ensures a terminal state is handled exactly once
       let _triesUsed = null;
       let _triesLimit = null;
+      let _signedIn = false;     // from job-start: drives the "still working" copy
 
       function stopPolling() {
         if (_pollTimer !== null) { clearInterval(_pollTimer); _pollTimer = null; }
+      }
+
+      // A live elapsed counter under the step boxes. We can't predict the exact
+      // duration (it scales with document/transcript length), so we show honest
+      // elapsed time plus a reassurance that shifts as it runs — no fake bar.
+      // The tick self-stops once the loading panel is hidden by any path.
+      let _estTimer = null;
+      let _estStartMs = 0;
+      function startEstimate() {
+        stopEstimate();
+        _estStartMs = Date.now();
+        const el = document.getElementById('job-estimate');
+        function tick() {
+          if (!loading.classList.contains('visible')) { stopEstimate(); return; }
+          const s = Math.floor((Date.now() - _estStartMs) / 1000);
+          const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, '0');
+          let hint;
+          if (s < 45) hint = 'usually under a minute';
+          else if (s < 90) hint = 'almost there';
+          else hint = 'long reads take a little longer — hang tight';
+          el.textContent = mm + ':' + ss + ' · ' + hint;
+        }
+        tick();
+        _estTimer = setInterval(tick, 1000);
+      }
+      function stopEstimate() {
+        if (_estTimer !== null) { clearInterval(_estTimer); _estTimer = null; }
+        const el = document.getElementById('job-estimate');
+        if (el) el.textContent = '';
+      }
+
+      // Polling exceeded its ceiling but the job is still running server-side.
+      // Don't error — the work finishes in the background. For signed-in users
+      // it lands in their library; anon results are cached, so a resubmit is
+      // instant. (We don't surface sign-in here — /login is intentionally
+      // unlinked from the landing page.)
+      function showStillFinishing() {
+        stopPolling();
+        stopEstimate();
+        loading.classList.remove('visible');
+        submitBtn.disabled = false;
+        const el = document.getElementById('notice-pending-msg');
+        if (_signedIn) {
+          el.innerHTML = 'This is a long one, so we’re finishing it in the background — it’ll appear in <a href="/me">your library</a> in a moment. No need to resubmit.';
+        } else {
+          el.textContent = 'This is a long one, so we’re finishing it in the background. Give it a moment, then submit the same link again — it’ll load instantly.';
+        }
+        show(noticePending);
       }
 
       const _STEPS = ['fetching', 'summarizing', 'analyzing'];
@@ -809,6 +868,7 @@
 
       function showError(msg) {
         stopPolling();
+        stopEstimate();
         loading.classList.remove('visible');
         submitBtn.disabled = false;
         document.getElementById('notice-error-msg').textContent = msg || 'Couldn\'t process that URL. Try a different one or come back in a moment.';
@@ -817,7 +877,7 @@
 
       async function pollJob(jobId) {
         let attempts = 0;
-        const MAX_ATTEMPTS = 60; // ~2 min at 2s interval
+        const MAX_ATTEMPTS = 90; // ~3 min at 2s interval — long PDFs/transcripts
         stopPolling();
         _settled = false;
         _pollInFlight = false;
@@ -826,7 +886,7 @@
           attempts++;
           if (attempts > MAX_ATTEMPTS) {
             _settled = true;
-            showError('This one is taking too long. Try again in a moment.');
+            showStillFinishing(); // job keeps running server-side; don't error
             return;
           }
           _pollInFlight = true;
@@ -851,6 +911,7 @@
           }
           _settled = true;
           stopPolling();
+          stopEstimate();
           loading.classList.remove('visible');
           submitBtn.disabled = false;
           if (payload.status === 'error') {
@@ -872,9 +933,11 @@
       async function submitUrl(url) {
         hideAll();
         stopPolling();
+        stopEstimate();
         setJobStep('fetching');
         submitBtn.disabled = true;
         show(loading);
+        startEstimate();
         let res, payload;
         try {
           res = await fetch('/api/v1/try', {
@@ -926,6 +989,7 @@
         if (payload.pending && payload.job_id) {
           _triesUsed = payload.tries_used;
           _triesLimit = payload.tries_limit;
+          _signedIn = !!payload.signed_in;
           pollJob(payload.job_id);
           return;
         }
