@@ -5,6 +5,7 @@
 //
 // Trigger error/edge cases via query params on the submitted URL:
 //   ?mock=no-transcript   → 422 {error:"no-transcript"} (Worker maps to 415)
+//   ?mock=paywalled       → job error with a specific user-facing `message`
 //   ?mock=500             → 500 server error
 //   ?mock=slow            → 3s delay, then success
 //   ?mock=hang            → 30s delay (for testing Worker fetch timeout)
@@ -230,6 +231,13 @@ function scheduleJobCompletion(jobId, url, delayMs) {
     if (/mock=no-transcript\b/.test(url) || /\/no-transcript/.test(url)) {
       job.status = "error";
       job.error = "no-transcript";
+    } else if (/mock=paywalled\b/.test(url)) {
+      // Mirrors the backend: a specific fetch failure carries a user-facing
+      // `message` the Worker should surface verbatim.
+      job.status = "error";
+      job.error = "extraction-failed";
+      job.message =
+        "This looks like it's behind a paywall or login — only the teaser was visible, so there's no full article to analyse.";
     } else if (/mock=500\b/.test(url)) {
       job.status = "error";
       job.error = "internal-error";
@@ -284,7 +292,7 @@ const server = createServer(async (req, res) => {
     const job = jobs.get(jobId);
     if (!job) return send(res, 404, { error: "not-found" });
     if (job.status === "pending") return send(res, 200, { status: "pending", step: job.step || "fetching" });
-    if (job.status === "error") return send(res, 200, { status: "error", error: job.error });
+    if (job.status === "error") return send(res, 200, { status: "error", error: job.error, message: job.message });
     return send(res, 200, { status: "done", result: job.result });
   }
 
