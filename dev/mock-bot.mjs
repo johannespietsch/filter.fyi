@@ -7,8 +7,9 @@
 //   ?mock=no-transcript   → 422 {error:"no-transcript"} (Worker maps to 415)
 //   ?mock=paywalled       → job error with a specific user-facing `message`
 //   ?mock=500             → 500 server error
-//   ?mock=slow            → 3s delay, then success
-//   ?mock=hang            → 30s delay (for testing Worker fetch timeout)
+//   ?mock=slow            → 6s delay, then success
+//   ?mock=hang            → 120s delay (for testing Worker fetch timeout)
+//   ?mock=verylong        → 5min pending → client "still working in background" state
 //   ?mock=invalid         → 400 {error:"invalid-url"}
 
 import { createServer } from "node:http";
@@ -274,7 +275,10 @@ const server = createServer(async (req, res) => {
     }
     // Must be UUID-shaped so it matches the Worker's /api/v1/job/:id route regex.
     const jobId = randomUUID();
-    const totalMs = /mock=slow\b/.test(url) ? 6000 : /mock=hang\b/.test(url) ? 120_000 : 1500;
+    const totalMs = /mock=slow\b/.test(url) ? 6000
+      : /mock=hang\b/.test(url) ? 120_000
+      : /mock=verylong\b/.test(url) ? 300_000  // > client poll ceiling → "still working" state
+      : 1500;
     jobs.set(jobId, { status: "pending", step: "fetching", url });
     // Advance step markers so the UI gets real-time feedback during slow jobs.
     if (totalMs > 1500) {
