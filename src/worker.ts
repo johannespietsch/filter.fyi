@@ -682,7 +682,7 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
   type BackendJobStatus =
     | { status: "pending"; step?: string }
     | { status: "done"; result: BotResponse }
-    | { status: "error"; error: string };
+    | { status: "error"; error: string; message?: string };
 
   let statusPayload: BackendJobStatus;
   try {
@@ -706,7 +706,13 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
         }
       );
     }
-    return json({ status: "error", error: "upstream-error", message: "The summarizer had a problem. Try a different URL?" });
+    // Prefer the backend's specific explanation (paywall, JS-wall, fetch
+    // failure, …); fall back to a generic line only when it didn't send one.
+    return json({
+      status: "error",
+      error: "upstream-error",
+      message: statusPayload.message || "The summarizer had a problem. Try a different URL?",
+    });
   }
 
   // status === "done" — for anonymous users, persist to D1.anon_summaries.
