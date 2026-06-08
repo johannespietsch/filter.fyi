@@ -14,6 +14,11 @@
   <script type="module" src="/md.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* The [hidden] attribute must win over class display rules (.grid uses
+       display:grid, .side-nav a uses display:block). Without this, toggling
+       el.hidden = true does nothing for them — equal specificity, and author
+       styles beat the UA stylesheet's [hidden] rule. */
+    [hidden] { display: none !important; }
     :root {
       --bg:#efece4; --bg-2:#f7f4ec;
       --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
