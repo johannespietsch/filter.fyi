@@ -249,6 +249,7 @@
              Persistent links (about, future: pricing, docs…) stay as static
              markup so they're never wiped when auth state changes. -->
         <a href="/me" id="nav-library" hidden>your library →</a>
+        <a href="/login" id="nav-login">sign in →</a>
         <a href="/about">about →</a>
       </div>
     </nav>
@@ -360,9 +361,12 @@
         .then((data) => {
           if (!data?.user?.email) return;
           window.__fyiSignedIn = true;
-          // Reveal the library link; leave persistent nav links in place.
+          // Swap the anon "sign in" link for the signed-in library link;
+          // leave persistent nav links (about) in place.
           const navLibrary = document.getElementById('nav-library');
           if (navLibrary) navLibrary.hidden = false;
+          const navLogin = document.getElementById('nav-login');
+          if (navLogin) navLogin.hidden = true;
           const save = document.getElementById('result-save');
           if (save) {
             save.innerHTML = 'Saved to <a href="/me">your library</a>.';
