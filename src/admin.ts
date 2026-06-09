@@ -133,6 +133,10 @@ export async function handleAdminRequest(
     return adminHeaders(await renderCostOverview(req, env, identity));
   }
 
+  if (pathname === "/usage" || pathname === "/usage/") {
+    return adminHeaders(await renderUsageOverview(req, env, identity));
+  }
+
   return adminHeaders(new Response("Not Found", { status: 404 }));
 }
 
@@ -168,8 +172,8 @@ function renderAdminHome(email: string): Response {
   <main>
     <ul class="pillars">
       <li><a href="/cost"><strong>Cost</strong></a> — $/day, tokens/day, $/user, $/source_type (from <code>llm_calls</code>)</li>
+      <li><a href="/usage"><strong>Usage</strong></a> — processed URLs, transcript source split, error breakdown</li>
       <li class="soon"><strong>Growth</strong> — waitlist signups, users, sessions over time</li>
-      <li class="soon"><strong>Usage</strong> — scans/day, source-type mix, verdict mix, feedback</li>
       <li class="soon"><strong>Reliability</strong> — job error rate, error_log top fingerprints, P95 latency</li>
       <li class="soon"><strong>Platform</strong> — link-outs to Cloudflare Workers Observability and Fly metrics</li>
     </ul>
@@ -505,6 +509,267 @@ function renderTopUsers(rows: TopUser[]): string {
 }
 
 // ---------------------------------------------------------------------------
+// Usage overview
+// ---------------------------------------------------------------------------
+
+interface UsageKpis {
+  total: number;
+  ok: number;
+  errors: number;
+  error_rate: number;
+}
+
+interface UsageBySourceType {
+  source_type: string;
+  total: number;
+  ok: number;
+  errors: number;
+}
+
+interface UsageByErrorCode {
+  error_code: string;
+  count: number;
+}
+
+interface UsageTranscriptSource {
+  source: string;
+  count: number;
+}
+
+interface UsageRow {
+  id: number;
+  ts: string;
+  url: string;
+  title: string;
+  source_type: string;
+  user_id: number | null;
+  anon_id: string | null;
+  status: string;
+  error_code: string;
+  transcript_source: string;
+  latency_ms: number;
+}
+
+interface UsageOverview {
+  range_days: number;
+  as_of: string;
+  kpis: UsageKpis;
+  by_source_type: UsageBySourceType[];
+  by_error_code: UsageByErrorCode[];
+  transcript_sources: UsageTranscriptSource[];
+  rows: UsageRow[];
+  total_rows: number;
+  limit: number;
+  offset: number;
+}
+
+async function fetchUsageOverview(
+  env: AdminEnv,
+  days: number,
+  limit: number,
+  offset: number,
+): Promise<UsageOverview | Response> {
+  if (!env.BOT_API_URL || !env.BOT_ADMIN_KEY) {
+    console.error("admin: BOT_API_URL or BOT_ADMIN_KEY not configured");
+    return new Response("admin backend not configured", { status: 503 });
+  }
+  const url = `${backendBase(env.BOT_API_URL)}/api/admin/usage-overview` +
+              `?days=${days}&limit=${limit}&offset=${offset}`;
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      headers: { "x-filter-fyi-admin-secret": env.BOT_ADMIN_KEY },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    console.error("admin: usage-overview fetch threw", err);
+    return new Response("upstream unreachable", { status: 502 });
+  }
+  if (!upstream.ok) {
+    console.error("admin: usage-overview upstream non-ok", upstream.status);
+    return new Response(`upstream ${upstream.status}`, { status: 502 });
+  }
+  try {
+    return (await upstream.json()) as UsageOverview;
+  } catch (err) {
+    console.error("admin: usage-overview response not JSON", err);
+    return new Response("upstream malformed", { status: 502 });
+  }
+}
+
+async function renderUsageOverview(req: Request, env: AdminEnv, email: string): Promise<Response> {
+  const url = new URL(req.url);
+  const daysParam = Number(url.searchParams.get("days") ?? "30");
+  const days = Number.isFinite(daysParam) && daysParam >= 1 && daysParam <= 365 ? Math.floor(daysParam) : 30;
+  const limitParam = Number(url.searchParams.get("limit") ?? "50");
+  const limit = Number.isFinite(limitParam) && limitParam >= 1 && limitParam <= 200 ? Math.floor(limitParam) : 50;
+  const offsetParam = Number(url.searchParams.get("offset") ?? "0");
+  const offset = Number.isFinite(offsetParam) && offsetParam >= 0 ? Math.floor(offsetParam) : 0;
+
+  const data = await fetchUsageOverview(env, days, limit, offset);
+  if (data instanceof Response) return data;
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Usage · filter.fyi admin</title>
+  <style>${ADMIN_CSS}</style>
+</head>
+<body>
+  <header>
+    <h1><a href="/" class="back">←</a> Usage</h1>
+    <p class="who">Last ${data.range_days} days · as of ${escapeHtml(data.as_of)} · <code>${escapeHtml(email)}</code></p>
+    <nav class="range">
+      ${[7, 30, 90].map(n => `<a href="/usage?days=${n}"${n === data.range_days ? ' class="current"' : ''}>${n}d</a>`).join(" · ")}
+    </nav>
+  </header>
+  <main>
+    ${renderUsageKpis(data.kpis)}
+    ${renderTranscriptSources(data.transcript_sources)}
+    ${renderUsageBySourceType(data.by_source_type)}
+    ${renderUsageByErrorCode(data.by_error_code)}
+    ${renderProcessedUrlList(data, days, limit, offset)}
+  </main>
+</body>
+</html>`;
+  return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+}
+
+function renderUsageKpis(k: UsageKpis): string {
+  return `<section class="kpis">
+    <div class="kpi"><span class="label">URLs processed</span><span class="value">${formatInt(k.total)}</span></div>
+    <div class="kpi"><span class="label">Successful</span><span class="value">${formatInt(k.ok)}</span></div>
+    <div class="kpi"><span class="label">Errors</span><span class="value">${formatInt(k.errors)}</span></div>
+    <div class="kpi"><span class="label">Error rate</span><span class="value">${formatPct(k.error_rate)}</span></div>
+  </section>`;
+}
+
+function renderTranscriptSources(rows: UsageTranscriptSource[]): string {
+  if (rows.length === 0) {
+    return `<section class="tile">
+      <h2>Video transcript source</h2>
+      <p class="empty">No video URLs in range — this tile populates once someone scans a YouTube or video URL.</p>
+    </section>`;
+  }
+  const total = rows.reduce((acc, r) => acc + r.count, 0);
+  const SOURCE_LABELS: Record<string, string> = {
+    youtube: "YouTube captions",
+    whisper: "Whisper transcription",
+    description: "Description fallback",
+    none: "No transcript available",
+    "(none)": "No transcript source recorded",
+  };
+  const body = rows.map(r => {
+    const pct = total > 0 ? (r.count / total) * 100 : 0;
+    return `<tr>
+      <td>${escapeHtml(SOURCE_LABELS[r.source] ?? r.source)}</td>
+      <td class="num">${formatInt(r.count)}</td>
+      <td class="bar-cell"><span class="bar-track"><span class="bar-fill" style="width:${pct.toFixed(1)}%"></span></span><span class="pct">${pct.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join("");
+  return `<section class="tile">
+    <h2>Video transcript source</h2>
+    <table>
+      <thead><tr><th>Source</th><th class="num">Count</th><th>Share</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p class="sub">Whisper rows are the expensive ones — we only fall back to audio transcription when YouTube doesn't expose captions and the video is short enough.</p>
+  </section>`;
+}
+
+function renderUsageBySourceType(rows: UsageBySourceType[]): string {
+  if (rows.length === 0) {
+    return `<section class="tile"><h2>By source type</h2><p class="empty">Nothing yet.</p></section>`;
+  }
+  const body = rows.map(r => `<tr>
+    <td>${escapeHtml(r.source_type)}</td>
+    <td class="num">${formatInt(r.total)}</td>
+    <td class="num">${formatInt(r.ok)}</td>
+    <td class="num">${r.errors > 0 ? `<span class="err">${formatInt(r.errors)}</span>` : "0"}</td>
+  </tr>`).join("");
+  return `<section class="tile">
+    <h2>By source type</h2>
+    <table>
+      <thead><tr><th>Type</th><th class="num">Total</th><th class="num">OK</th><th class="num">Errors</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </section>`;
+}
+
+function renderUsageByErrorCode(rows: UsageByErrorCode[]): string {
+  if (rows.length === 0) {
+    return `<section class="tile"><h2>Top error reasons</h2><p class="empty">No failures in range. (Or no traffic.)</p></section>`;
+  }
+  const body = rows.map(r => `<tr>
+    <td><code>${escapeHtml(r.error_code)}</code></td>
+    <td class="num">${formatInt(r.count)}</td>
+  </tr>`).join("");
+  return `<section class="tile">
+    <h2>Top error reasons</h2>
+    <table>
+      <thead><tr><th>Error code</th><th class="num">Count</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </section>`;
+}
+
+function renderProcessedUrlList(
+  data: UsageOverview,
+  days: number,
+  limit: number,
+  offset: number,
+): string {
+  if (data.rows.length === 0) {
+    return `<section class="tile"><h2>Recent URLs</h2><p class="empty">No URLs in this window.</p></section>`;
+  }
+  const body = data.rows.map(r => {
+    const who = r.user_id !== null
+      ? `<code>user ${r.user_id}</code>`
+      : r.anon_id
+        ? `<code>anon ${escapeHtml(r.anon_id.slice(0, 8))}…</code>`
+        : `<span class="muted">—</span>`;
+    const statusCell = r.status === "ok"
+      ? `<span class="status-ok">ok</span>`
+      : `<span class="err" title="${escapeHtml(r.error_code)}">${escapeHtml(r.error_code || "error")}</span>`;
+    const titleOrUrl = r.title || r.url;
+    return `<tr>
+      <td class="ts">${escapeHtml(r.ts.replace("T", " "))}</td>
+      <td class="title"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(titleOrUrl)}</a><br><span class="muted">${escapeHtml(r.source_type || "?")}${r.transcript_source ? ` · ${escapeHtml(r.transcript_source)}` : ""}</span></td>
+      <td>${who}</td>
+      <td>${statusCell}</td>
+    </tr>`;
+  }).join("");
+
+  const start = offset + 1;
+  const end = Math.min(offset + data.rows.length, data.total_rows);
+  const prevOffset = Math.max(0, offset - limit);
+  const nextOffset = offset + limit;
+  const prevDisabled = offset === 0;
+  const nextDisabled = end >= data.total_rows;
+  const linkBase = `/usage?days=${days}&limit=${limit}`;
+
+  return `<section class="tile">
+    <h2>Recent URLs</h2>
+    <p class="sub">Showing ${formatInt(start)}–${formatInt(end)} of ${formatInt(data.total_rows)}</p>
+    <table class="url-list">
+      <thead><tr><th>When (UTC)</th><th>Title / source</th><th>Who</th><th>Status</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <nav class="paginator">
+      ${prevDisabled
+        ? `<span class="paginator-disabled">← previous</span>`
+        : `<a href="${linkBase}&offset=${prevOffset}">← previous</a>`}
+      ${nextDisabled
+        ? `<span class="paginator-disabled">next →</span>`
+        : `<a href="${linkBase}&offset=${nextOffset}">next →</a>`}
+    </nav>
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
 // Formatting + shared CSS
 // ---------------------------------------------------------------------------
 
@@ -587,5 +852,15 @@ const ADMIN_CSS = `
   .identity-card dd { margin: 0; font-variant-numeric: tabular-nums; }
   .cache-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .75rem; margin-bottom: .75rem; }
   .cache-kpis .kpi { background: rgba(128,128,128,.06); }
+  .muted { color: var(--muted); }
+  .status-ok { color: #2c8a3d; font-weight: 600; }
+  table.url-list { font-size: .8rem; }
+  table.url-list td.ts { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
+  table.url-list td.title { max-width: 350px; word-break: break-word; }
+  table.url-list td.title a { text-decoration: none; }
+  table.url-list td.title a:hover { text-decoration: underline; }
+  table.url-list .muted { font-size: .75rem; }
+  nav.paginator { margin-top: .75rem; display: flex; gap: 1rem; font-size: .85rem; }
+  nav.paginator .paginator-disabled { color: var(--muted); }
   @media (max-width: 520px) { .identity-cards { grid-template-columns: 1fr; } }
 `;
