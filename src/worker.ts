@@ -937,7 +937,7 @@ async function loadSession(sessionId: string | undefined, env: Env): Promise<Ses
     const row = await env.DB.prepare(
       `SELECT id, user_id, email, expires_at FROM sessions WHERE id = ?`
     )
-      .bind(sessionId)
+      .bind(await hashToken(sessionId))
       .first<{ id: string; user_id: number; email: string; expires_at: string }>();
     if (!row) return null;
     if (new Date(row.expires_at).getTime() <= Date.now()) return null;
@@ -1013,7 +1013,7 @@ async function handleLogin(
       `INSERT INTO login_tokens (token, email, expires_at, created_at)
        VALUES (?, ?, ?, ?)`
     )
-      .bind(token, email, expiresIso, nowIso)
+      .bind(await hashToken(token), email, expiresIso, nowIso)
       .run();
   } catch (err) {
     console.error("login_tokens insert failed", err);
@@ -1050,13 +1050,16 @@ async function handleLoginVerify(
   if (!isValidToken(token)) {
     return Response.redirect(`${url.origin}/login?error=invalid-link`, 302);
   }
+  // Look up and burn the token by its hash; the plaintext only ever arrives
+  // from the emailed link, never the DB.
+  const tokenHash = await hashToken(token);
 
   let tokenRow: { email: string; expires_at: string; used_at: string | null } | null;
   try {
     tokenRow = await env.DB.prepare(
       `SELECT email, expires_at, used_at FROM login_tokens WHERE token = ?`
     )
-      .bind(token)
+      .bind(tokenHash)
       .first<{ email: string; expires_at: string; used_at: string | null }>();
   } catch (err) {
     console.error("login_tokens lookup failed", err);
@@ -1086,7 +1089,7 @@ async function handleLoginVerify(
     // Mark token used immediately so a second click can't double-spend it,
     // even if the rest of this handler is slow.
     await env.DB.prepare(`UPDATE login_tokens SET used_at = ? WHERE token = ?`)
-      .bind(nowIso, token)
+      .bind(nowIso, tokenHash)
       .run();
 
     // Get-or-create the canonical user on the backend. Post unified-identity
@@ -1133,7 +1136,7 @@ async function handleLoginVerify(
     await env.DB.prepare(
       `INSERT INTO sessions (id, user_id, email, expires_at, created_at) VALUES (?, ?, ?, ?, ?)`
     )
-      .bind(sessionId, userId, email, sessionExpires, nowIso)
+      .bind(await hashToken(sessionId), userId, email, sessionExpires, nowIso)
       .run();
   } catch (err) {
     console.error("sessions insert failed", err);
@@ -1153,7 +1156,7 @@ async function handleLogout(req: Request, env: Env): Promise<Response> {
   const sessionId = cookies[SESSION_COOKIE];
   if (sessionId && isValidToken(sessionId)) {
     try {
-      await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(sessionId).run();
+      await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(await hashToken(sessionId)).run();
     } catch (err) {
       console.error("session delete failed", err);
     }
@@ -1675,6 +1678,18 @@ function randomTokenHex(bytes: number): string {
   const buf = new Uint8Array(bytes);
   crypto.getRandomValues(buf);
   return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Magic-link and session tokens are stored only as their SHA-256 hash, so a
+// stolen read of D1 (login_tokens / sessions) can't be replayed to hijack a
+// session or burn a login link — the plaintext exists only in the emailed
+// link and the cookie. No salt/stretching: the input is already a 256-bit
+// random secret, not a guessable password. Output is 64 lowercase hex chars,
+// same shape as randomTokenHex(32), so it satisfies isValidToken and the
+// existing column width.
+async function hashToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function isValidToken(s: string): boolean {
