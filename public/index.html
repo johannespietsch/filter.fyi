@@ -142,12 +142,14 @@
                      background: var(--bg); border-radius: 2px; }
     .action-text { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); margin-bottom: 10px; }
     .action-buttons { display: flex; gap: 8px; }
-    .action-open, .action-dismiss-btn { font: inherit; font-size: 11px; font-weight: 700;
+    .action-open, .action-later-btn, .action-dismiss-btn { font: inherit; font-size: 11px; font-weight: 700;
                      letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px;
                      border: 1px solid var(--ink); cursor: pointer; }
     .action-open { background: var(--ink); color: var(--bg); }
+    .action-later-btn { background: var(--green-soft); color: var(--green); border-color: var(--green); }
     .action-dismiss-btn { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
     .action-open:hover { opacity: 0.88; }
+    .action-later-btn:hover { background: var(--green); color: var(--bg-2); }
     .action-dismiss-btn:hover { color: var(--ink); border-color: var(--ink); }
     .action-panel { margin-top: 11px; }
     /* the detailed instruction, readable by everyone */
@@ -662,24 +664,46 @@
         const openBtn = document.createElement('button');
         openBtn.type = 'button';
         openBtn.className = 'action-open';
-        openBtn.textContent = 'open ▸';
+        openBtn.textContent = 'now ▾';
         let opened = false;
         openBtn.addEventListener('click', function() {
           const show = panel.hidden;
           panel.hidden = !show;
-          openBtn.textContent = show ? 'close ▾' : 'open ▸';
+          openBtn.textContent = show ? 'now ▴' : 'now ▾';
           if (show && !opened) { opened = true; sendSignal(summary, action, 'open'); }
         });
+        // "later ▸" — saving to a Shortlist needs an account. Login isn't
+        // publicly open yet, so this logs the interest and nudges to the
+        // waitlist rather than offering a save that can't land anywhere.
+        const laterBtn = document.createElement('button');
+        laterBtn.type = 'button';
+        laterBtn.className = 'action-later-btn';
+        laterBtn.textContent = 'later ▸';
+        laterBtn.addEventListener('click', function() { renderLaterNudge(btnRow, summary, action); });
         const dismissBtn = document.createElement('button');
         dismissBtn.type = 'button';
         dismissBtn.className = 'action-dismiss-btn';
-        dismissBtn.textContent = 'dismiss';
+        dismissBtn.textContent = 'never ✕';
         dismissBtn.addEventListener('click', function() { renderDismissed(card, summary, action); });
         btnRow.appendChild(openBtn);
+        btnRow.appendChild(laterBtn);
         btnRow.appendChild(dismissBtn);
         card.appendChild(btnRow);
         card.appendChild(panel);
         return card;
+      }
+
+      // "later ▸" on the landing page: record the save-interest signal, then
+      // replace the button row with a waitlist nudge (or a library pointer if
+      // somehow signed in). Keeps the action visible so it can still be opened.
+      function renderLaterNudge(btnRow, summary, action) {
+        sendSignal(summary, action, 'save');
+        const note = document.createElement('div');
+        note.className = 'action-locknote';
+        note.innerHTML = window.__fyiSignedIn
+          ? 'Saving to your <a href="/me#shortlist">Shortlist</a> happens from your library — open this read there to keep it.'
+          : 'Saving for later is coming with accounts — <a href="/about">join the waitlist</a> to get it.';
+        btnRow.replaceWith(note);
       }
 
       // Replace a box with a "dismissed" state: optional reason + undo. The

@@ -151,48 +151,48 @@
     .body .grounded { margin: 10px 0 0; font-size: 12px; color: var(--ink-3);
                       border-left: 2px solid var(--ink-3); padding-left: 8px; }
     /* 0–5 suggestion boxes */
-    .body .sug { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--green); background: var(--green-soft); }
-    .body .sug-empty { margin-top: 10px; padding: 12px; border: 1px dashed var(--ink-3);
+    .sug { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--green); background: var(--green-soft); }
+    .sug-empty { margin-top: 10px; padding: 12px; border: 1px dashed var(--ink-3);
                        background: var(--bg-2); font-size: 13px; color: var(--ink-2); }
-    .body .sug-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-    .body .sug-title { font-size: 13px; font-weight: 700; color: var(--ink); }
-    .body .sug-effort { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    .sug-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .sug-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .sug-effort { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
                         padding: 2px 6px; border: 1px solid var(--green); color: var(--green); background: var(--bg); }
-    .body .sug-detail { font-size: 13px; line-height: 1.45; color: var(--ink-2); margin-top: 4px; }
-    .body .sug-buttons { display: flex; gap: 8px; margin-top: 9px; }
-    .body .sug-open, .body .sug-dismiss { font: inherit; font-size: 10.5px; font-weight: 700;
+    .sug-detail { font-size: 13px; line-height: 1.45; color: var(--ink-2); margin-top: 4px; }
+    .sug-buttons { display: flex; gap: 8px; margin-top: 9px; }
+    .sug-open, .body .sug-dismiss { font: inherit; font-size: 10.5px; font-weight: 700;
                         letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 11px;
                         border: 1px solid var(--ink); cursor: pointer; }
-    .body .sug-open { background: var(--ink); color: var(--bg-2); }
-    .body .sug-dismiss { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
-    .body .sug-open:hover { opacity: 0.88; }
-    .body .sug-dismiss:hover { color: var(--ink); border-color: var(--ink); }
-    .body .sug-panel { margin-top: 10px; }
+    .sug-open { background: var(--ink); color: var(--bg-2); }
+    .sug-dismiss { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
+    .sug-open:hover { opacity: 0.88; }
+    .sug-dismiss:hover { color: var(--ink); border-color: var(--ink); }
+    .sug-panel { margin-top: 10px; }
     /* dismissed state — optional reason + undo (mirrors the landing page) */
-    .body .sug-dismissed { border-style: dashed; border-color: var(--ink-3); background: var(--bg-2); }
-    .body .sug-dismiss-msg { font-size: 12.5px; color: var(--ink-2); }
-    .body .sug-reason-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .body .sug-reason { flex: 1 1 200px; font: inherit; font-size: 12px; padding: 6px 8px;
+    .sug-dismissed { border-style: dashed; border-color: var(--ink-3); background: var(--bg-2); }
+    .sug-dismiss-msg { font-size: 12.5px; color: var(--ink-2); }
+    .sug-reason-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .sug-reason { flex: 1 1 200px; font: inherit; font-size: 12px; padding: 6px 8px;
                         border: 1px solid var(--ink); background: var(--bg); color: var(--ink); }
-    .body .sug-reason-send { font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+    .sug-reason-send { font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
                             text-transform: uppercase; padding: 5px 11px; border: 1px solid var(--ink);
                             background: var(--ink); color: var(--bg-2); cursor: pointer; }
-    .body .sug-reason-send:hover { opacity: 0.88; }
-    .body .sug-undo { background: none; border: none; color: var(--ink-3); cursor: pointer;
+    .sug-reason-send:hover { opacity: 0.88; }
+    .sug-undo { background: none; border: none; color: var(--ink-3); cursor: pointer;
                       font: inherit; font-size: 11px; text-decoration: underline; padding: 0; margin-top: 6px; }
-    .body .sug-undo:hover { color: var(--ink); }
+    .sug-undo:hover { color: var(--ink); }
     /* in-item "try this" hand-off (you're signed in here, so it's unlocked) */
-    .body .tryit-brief { margin-top: 8px; max-height: 200px; overflow: auto; padding: 9px 10px;
+    .tryit-brief { margin-top: 8px; max-height: 200px; overflow: auto; padding: 9px 10px;
                          border: 1px solid var(--ink); background: var(--bg-2);
                          font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
                          line-height: 1.5; color: var(--ink-2); white-space: pre-wrap; word-wrap: break-word; }
-    .body .tryit-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-    .body .tryit-copy { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    .tryit-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+    .tryit-copy { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
                         text-transform: uppercase; padding: 6px 11px; border: 1px solid var(--ink);
                         background: var(--ink); color: var(--bg-2); cursor: pointer; }
-    .body .tryit-copy:hover { opacity: 0.88; }
-    .body .tryit-open { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
-    .body .tryit-hint { font-size: 11px; color: var(--ink-3); }
+    .tryit-copy:hover { opacity: 0.88; }
+    .tryit-open { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+    .tryit-hint { font-size: 11px; color: var(--ink-3); }
 
     /* "what we read" transparency disclosure inside the analysis */
     .body .brief { margin-top: 12px; padding-top: 10px; border-top: 1px dotted var(--ink); }
@@ -215,6 +215,36 @@
                background: var(--bg); color: var(--ink-2); cursor: pointer; transition: 0.12s; }
     .fb-chip:hover { border-color: var(--green); color: var(--green); }
     .fb-chip.sent { background: var(--green); border-color: var(--green); color: var(--bg-2); cursor: default; }
+
+    /* now / later / never action row + post-save follow-up */
+    .sug-buttons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sug-decide { display: inline-flex; gap: 8px; align-items: center; }
+    .sug-later { font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+                 text-transform: uppercase; padding: 5px 11px; cursor: pointer;
+                 border: 1px solid var(--green); background: var(--green-soft); color: var(--green); }
+    .sug-later:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
+    .sug-later:disabled { opacity: 0.6; cursor: default; }
+    .sug-saved { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sug-saved-msg { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em;
+                     text-transform: uppercase; color: var(--green); }
+    .sug-status { font: inherit; font-size: 11px; padding: 2px 9px; cursor: pointer; transition: 0.12s;
+                  border: 1px solid var(--ink-3); background: var(--bg); color: var(--ink-2); }
+    .sug-status:hover { border-color: var(--green); color: var(--green); }
+    .sug-status.sent { background: var(--green); border-color: var(--green); color: var(--bg-2); }
+    .sug-remove { font: inherit; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+                  background: none; border: 1px solid transparent; color: var(--ink-3);
+                  padding: 2px 6px; cursor: pointer; }
+    .sug-remove:hover { color: var(--red); border-color: var(--red); }
+
+    /* ---- Shortlist pane ------------------------------------------------ */
+    .sl-list { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+    .sl-entry { display: flex; flex-direction: column; gap: 8px; }
+    .sl-source { align-self: flex-start; font-size: 11px; letter-spacing: 0.04em;
+                 text-transform: uppercase; color: var(--ink-3); text-decoration: none; }
+    .sl-source:hover { color: var(--green); }
+    /* In the Shortlist the box is the whole entry, so give it the card frame
+       it normally gets from .body context. */
+    .sl-entry .sug { background: var(--bg-2); }
 
     /* ---- Rendered markdown (brief + suggestion detail) ----------------- */
     .md > :first-child { margin-top: 0; }
@@ -313,6 +343,7 @@
       <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
       <nav class="side-nav" id="side-nav">
         <a href="#library" data-section="library">Library</a>
+        <a href="#shortlist" data-section="shortlist">Shortlist</a>
         <a href="#lens" data-section="lens">Lens</a>
         <a href="#telegram" data-section="telegram">Telegram</a>
         <a href="#account" data-section="account">Data &amp; account</a>
@@ -343,6 +374,18 @@
 
           <div class="grid" id="grid" hidden></div>
           <div class="detail" id="detail" hidden></div>
+        </section>
+
+        <!-- ===== Shortlist pane ===== -->
+        <section class="pane" data-pane="shortlist" hidden>
+          <div class="pane-title">Shortlist</div>
+          <p class="pane-intro">Suggestions you parked with <b>later&nbsp;▸</b> — your low-pressure pile of things worth coming back to. Open one with your AI, mark it tried or done, or drop it.</p>
+          <div class="loading" id="shortlist-loading"><span class="loading-dot"></span>Loading your shortlist…</div>
+          <div class="empty" id="shortlist-empty" hidden>
+            <h2>Nothing parked yet.</h2>
+            <p>In a read's analysis, hit <b>later&nbsp;▸</b> on a suggestion to keep it here.</p>
+          </div>
+          <div class="sl-list" id="shortlist-list" hidden></div>
         </section>
 
         <!-- ===== Lens pane ===== -->
@@ -409,9 +452,12 @@
       const userEmail = document.getElementById('user-email');
       const userEmail2 = document.getElementById('user-email-2');
       const signoutBtn = document.getElementById('signout-btn');
+      const shortlistList = document.getElementById('shortlist-list');
+      const shortlistEmpty = document.getElementById('shortlist-empty');
+      const shortlistLoading = document.getElementById('shortlist-loading');
       // Spell out the call so the colour isn't carrying the meaning alone.
       const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
-      const SECTIONS = ['library', 'lens', 'telegram', 'account'];
+      const SECTIONS = ['library', 'shortlist', 'lens', 'telegram', 'account'];
 
       // Lean library rows from /api/v1/me, keyed by id — the detail header
       // renders instantly from these while the full analysis lazy-loads.
@@ -508,21 +554,27 @@
         return out;
       }
 
-      // One suggestion box: title + effort + detail, with open/dismiss. "open"
-      // reveals the full instruction + the copy / open-in hand-off (unlocked —
-      // the library is signed-in only). data-* carry the interest-signal payload.
-      function suggestionBox(s, index, a, row, summary) {
-        const title = s.title || 'Try this';
-        const detail = s.detail || '';
-        const effort = s.effort || '';
+      // One suggestion box — the "now / later / never" action model:
+      //   now ▾   reveals the AI hand-off (copy / open-in; unlocked — signed in)
+      //   later ▸ parks it on the Shortlist, then the box shows the follow-up
+      //           (tried it · done · remove)
+      //   never ✕ the dismiss-with-reason flow
+      // `mode` is 'detail' (starts in the decide state) or 'shortlist' (already
+      // saved — starts in the follow-up state). data-* carry the save snapshot
+      // and interest-signal payload so the delegated click handlers stay
+      // self-contained on either surface.
+      function renderSuggestionBox(o) {
+        const title = o.title || 'Try this';
+        const detail = o.detail || '';
+        const effort = o.effort || '';
         const base = {
           action: detail || title,
-          firstStep: s.first_step || '',
-          groundedIn: a.grounded_in || '',
+          firstStep: o.firstStep || '',
+          groundedIn: o.groundedIn || '',
           profile: (document.getElementById('profile-input') || {}).value || '',
-          title: row.title || '',
-          url: row.url || '',
-          summary: summary || '',
+          title: o.srcTitle || '',
+          url: o.url || '',
+          summary: o.summary || '',
         };
         const briefFull = composeBrief(Object.assign({}, base, { variant: 'full' }));
         const briefLink = composeBrief(Object.assign({}, base, { variant: 'link' }));
@@ -533,14 +585,40 @@
         const head = `<div class="sug-head"><span class="sug-title">${escapeHtml(title)}</span>`
           + (effort ? `<span class="sug-effort">${escapeHtml(effort)}</span>` : '') + `</div>`;
         const det = detail ? `<div class="sug-detail md">${md(detail)}</div>` : '';
-        const buttons = `<div class="sug-buttons"><button type="button" class="sug-open">open ▸</button>`
-          + `<button type="button" class="sug-dismiss">dismiss</button></div>`;
+        const saved = o.mode === 'shortlist';
+        const status = o.status || 'saved';
+        const decide = `<span class="sug-decide"${saved ? ' hidden' : ''}>`
+          + `<button type="button" class="sug-later">later ▸</button>`
+          + `<button type="button" class="sug-dismiss">never ✕</button></span>`;
+        const followup = `<span class="sug-saved"${saved ? '' : ' hidden'}>`
+          + `<span class="sug-saved-msg">shortlisted ✓</span>`
+          + `<button type="button" class="sug-status${status === 'tried' ? ' sent' : ''}" data-status="tried">tried it</button>`
+          + `<button type="button" class="sug-status${status === 'done' ? ' sent' : ''}" data-status="done">done</button>`
+          + `<button type="button" class="sug-remove">remove</button></span>`;
+        const buttons = `<div class="sug-buttons">`
+          + `<button type="button" class="sug-open">now ▾</button>${decide}${followup}</div>`;
         const panel = `<div class="sug-panel" hidden>`
           + `<div class="tryit-brief">${escapeHtml(briefFull)}</div>`
           + `<div class="tryit-row"><button type="button" class="tryit-copy">📋 copy</button>${links}`
           + `<span class="tryit-hint">paste into ChatGPT, Claude, Cursor, Codex…</span></div>`
           + `</div>`;
-        return `<div class="sug" data-index="${index}" data-title="${escapeHtml(title)}">${head}${det}${buttons}${panel}</div>`;
+        const data = `data-index="${escapeHtml(o.index)}" data-title="${escapeHtml(title)}"`
+          + ` data-item-id="${escapeHtml(o.itemId || '')}" data-url="${escapeHtml(o.url || '')}"`
+          + ` data-detail="${escapeHtml(detail)}" data-effort="${escapeHtml(effort)}"`
+          + ` data-first-step="${escapeHtml(o.firstStep || '')}" data-grounded="${escapeHtml(o.groundedIn || '')}"`
+          + (o.savedId ? ` data-saved-id="${escapeHtml(o.savedId)}"` : '')
+          + ` data-mode="${escapeHtml(o.mode || 'detail')}" data-status="${escapeHtml(status)}"`;
+        return `<div class="sug" ${data}>${head}${det}${buttons}${panel}</div>`;
+      }
+
+      // Detail-view adapter: build a box from a stored suggestion + item context.
+      function suggestionBox(s, index, a, row, summary) {
+        return renderSuggestionBox({
+          title: s.title, detail: s.detail, effort: s.effort,
+          firstStep: s.first_step, groundedIn: a.grounded_in,
+          index, itemId: row.itemId || '', url: row.url || '', srcTitle: row.title || '',
+          summary: summary || '', mode: 'detail',
+        });
       }
 
       function renderAnalysisInto(bodyEl, analysisJson, briefText, row) {
@@ -622,8 +700,55 @@
         setActiveNav(section);
         showSection(section);
         if (section === 'library') showLibraryList();
+        if (section === 'shortlist') loadShortlist();
         closeDrawer();
       }
+
+      // --- Shortlist pane -------------------------------------------------
+      // One entry = a source back-link (to #item/:id) + the saved suggestion
+      // box rendered in 'shortlist' mode (starts in the follow-up state).
+      function renderShortlistEntry(t) {
+        const srcLabel = t.item_title || hostOf(t.source) || 'source';
+        const back = `<a class="sl-source" href="#item/${encodeURIComponent(t.item_id)}">from: ${escapeHtml(srcLabel)}</a>`;
+        const box = renderSuggestionBox({
+          title: t.title, detail: t.detail, effort: t.effort,
+          firstStep: t.first_step, groundedIn: t.grounded_in,
+          index: t.suggestion_index, itemId: t.item_id,
+          url: t.source, srcTitle: t.item_title, summary: '',
+          mode: 'shortlist', savedId: t.id, status: t.status,
+        });
+        return `<div class="sl-entry">${back}${box}</div>`;
+      }
+
+      // Re-fetched on each visit (cheap, and avoids staleness after a save in
+      // the detail view). The Shortlist nav is low-frequency.
+      async function loadShortlist() {
+        shortlistLoading.hidden = false;
+        shortlistLoading.textContent = '';
+        shortlistLoading.innerHTML = '<span class="loading-dot"></span>Loading your shortlist…';
+        shortlistList.hidden = true;
+        shortlistEmpty.hidden = true;
+        let rows = [];
+        try {
+          const res = await fetch('/api/v1/saved-suggestions', { credentials: 'same-origin' });
+          if (res.status === 401) { location.replace('/login'); return; }
+          if (!res.ok) throw new Error('load-failed');
+          rows = await res.json().catch(() => []);
+        } catch {
+          shortlistLoading.textContent = 'Could not load your shortlist. Refresh to retry.';
+          return;
+        }
+        shortlistLoading.hidden = true;
+        if (!Array.isArray(rows) || rows.length === 0) {
+          shortlistEmpty.hidden = false;
+          return;
+        }
+        shortlistList.innerHTML = rows.map(renderShortlistEntry).join('');
+        shortlistList.hidden = false;
+      }
+
+      // Shortlist boxes are the same .sug boxes, so they share the dispatcher.
+      shortlistList.addEventListener('click', (e) => { onSuggestionClick(e); });
 
       // Detail view for one item. Header renders immediately from the lean row;
       // the full analysis is fetched from /api/v1/library/:id. Built so a future
@@ -649,6 +774,7 @@
           renderAnalysisInto(body, item.analysis, item.content, {
             url: (art && art.dataset.url) || item.source || '',
             title: (art && art.dataset.title) || '',
+            itemId: id,
           });
         } catch {
           body.textContent = 'Could not load analysis.';
@@ -675,12 +801,6 @@
             </div>
             <h2 class="detail-title"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></h2>
             <div class="item-meta">${meta}</div>
-            <div class="item-feedback" role="group" aria-label="Did you act on this?">
-              <span class="fb-label">acted on it?</span>
-              <button type="button" class="fb-chip" data-signal="tried">tried it</button>
-              <button type="button" class="fb-chip" data-signal="done">done</button>
-              <button type="button" class="fb-chip" data-signal="not_for_me">not for me</button>
-            </div>
             <div class="body" data-loaded="0">Loading…</div>
           </article>`;
       }
@@ -811,7 +931,7 @@
           method: 'POST', credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            url: (art && art.dataset.url) || '',
+            url: box.dataset.url || (art && art.dataset.url) || '',
             event,
             suggestion_index: Number(box.dataset.index),
             suggestion_text: box.dataset.title || '',
@@ -887,13 +1007,130 @@
         if (box) logSuggestion(box, 'copy');
       }
 
-      function sendFeedback(chip) {
-        const art = chip.closest('article.item');
-        if (!art) return;
-        const group = chip.closest('.item-feedback');
-        if (group) group.querySelectorAll('.fb-chip').forEach((c) => c.classList.remove('sent'));
-        chip.classList.add('sent');
-        recordSignal(art.dataset.id, chip.dataset.signal);
+      // "now ▾" — toggle the AI hand-off panel (copy / open-in).
+      function toggleHandoff(sopen) {
+        const box = sopen.closest('.sug');
+        const panel = box.querySelector('.sug-panel');
+        const show = panel.hidden;
+        panel.hidden = !show;
+        sopen.textContent = show ? 'now ▴' : 'now ▾';
+        if (show && box.dataset.opened !== '1') { box.dataset.opened = '1'; logSuggestion(box, 'open'); }
+      }
+
+      // "later ▸" — park the suggestion on the Shortlist. Snapshots the text so
+      // the entry is self-contained; on success flips the box to the follow-up
+      // state and records the interest signal.
+      async function saveSuggestion(box) {
+        const later = box.querySelector('.sug-later');
+        const art = box.closest('article.item');
+        const itemId = box.dataset.itemId || (art && art.dataset.id) || '';
+        if (!itemId) return;
+        if (later) later.disabled = true;
+        try {
+          const res = await fetch('/api/v1/saved-suggestions', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              item_id: Number(itemId),
+              suggestion_index: Number(box.dataset.index),
+              title: box.dataset.title || '',
+              detail: box.dataset.detail || '',
+              effort: box.dataset.effort || '',
+              first_step: box.dataset.firstStep || '',
+              grounded_in: box.dataset.grounded || '',
+            }),
+          });
+          if (!res.ok) throw new Error('save-failed');
+          const data = await res.json().catch(() => ({}));
+          if (data.id != null) box.dataset.savedId = String(data.id);
+          showSavedState(box, 'saved');
+          logSuggestion(box, 'save');
+        } catch {
+          if (later) { later.disabled = false; later.textContent = 'later ▸ (retry)'; }
+        }
+      }
+
+      // Flip a box into its saved/follow-up state (decide → shortlisted).
+      function showSavedState(box, status) {
+        box.dataset.status = status || 'saved';
+        const decide = box.querySelector('.sug-decide');
+        const saved = box.querySelector('.sug-saved');
+        if (decide) decide.hidden = true;
+        if (saved) saved.hidden = false;
+        box.querySelectorAll('.sug-status').forEach((c) =>
+          c.classList.toggle('sent', c.dataset.status === status && status !== 'saved'));
+      }
+
+      // "tried it" / "done" — advance the shortlisted suggestion's status, and
+      // mirror it as an item-level personalization signal.
+      function setSuggestionStatus(box, status) {
+        const id = box.dataset.savedId;
+        if (!id) return;
+        box.dataset.status = status;
+        box.querySelectorAll('.sug-status').forEach((c) =>
+          c.classList.toggle('sent', c.dataset.status === status));
+        fetch(`/api/v1/saved-suggestions/${encodeURIComponent(id)}`, {
+          method: 'PATCH', credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ status }),
+        }).catch(() => {});
+        logSuggestion(box, status);
+        const art = box.closest('article.item');
+        const itemId = box.dataset.itemId || (art && art.dataset.id);
+        if (itemId) recordSignal(itemId, status);
+      }
+
+      // "remove" — drop it from the Shortlist. In the Shortlist pane the whole
+      // entry goes; in the detail view the box reverts to the decide state.
+      function removeSuggestion(box) {
+        const id = box.dataset.savedId;
+        if (id) {
+          fetch(`/api/v1/saved-suggestions/${encodeURIComponent(id)}`, {
+            method: 'DELETE', credentials: 'same-origin',
+          }).catch(() => {});
+        }
+        if (box.dataset.mode === 'shortlist') {
+          const entry = box.closest('.sl-entry');
+          if (entry) entry.remove();
+          if (!shortlistList.querySelector('.sl-entry')) {
+            shortlistList.hidden = true;
+            shortlistEmpty.hidden = false;
+          }
+          return;
+        }
+        delete box.dataset.savedId;
+        const decide = box.querySelector('.sug-decide');
+        const saved = box.querySelector('.sug-saved');
+        if (saved) saved.hidden = true;
+        if (decide) decide.hidden = false;
+        const later = box.querySelector('.sug-later');
+        if (later) { later.disabled = false; later.textContent = 'later ▸'; }
+        box.querySelectorAll('.sug-status').forEach((c) => c.classList.remove('sent'));
+      }
+
+      // Shared suggestion-box click dispatch — used by the detail pane and the
+      // Shortlist pane (both render the same .sug boxes). Returns true if it
+      // handled the event.
+      function onSuggestionClick(e) {
+        const sopen = e.target.closest('.sug-open');
+        if (sopen) { toggleHandoff(sopen); return true; }
+        const later = e.target.closest('.sug-later');
+        if (later) { saveSuggestion(later.closest('.sug')); return true; }
+        const sdismiss = e.target.closest('.sug-dismiss');
+        if (sdismiss) { dismissSuggestion(sdismiss.closest('.sug')); return true; }
+        const sstatus = e.target.closest('.sug-status');
+        if (sstatus) { setSuggestionStatus(sstatus.closest('.sug'), sstatus.dataset.status); return true; }
+        const sremove = e.target.closest('.sug-remove');
+        if (sremove) { removeSuggestion(sremove.closest('.sug')); return true; }
+        const copy = e.target.closest('.tryit-copy');
+        if (copy) { copyBrief(copy); return true; }
+        const openLink = e.target.closest('.tryit-open');
+        if (openLink) {
+          const box = openLink.closest('.sug');
+          if (box) logSuggestion(box, openLink.dataset.sig || 'open_chatgpt');
+          return true;
+        }
+        return false;
       }
 
       async function deleteItem(btn) {
@@ -934,33 +1171,12 @@
         }
       }
 
-      // Single delegated click handler for the detail pane (delete, feedback
-      // chips, suggestion open/dismiss/copy/open-in, source link signals).
+      // Delegated click handler for the detail pane: suggestion actions (shared
+      // dispatcher), the item delete, and the source-link engagement signal.
       detail.addEventListener('click', (e) => {
+        if (onSuggestionClick(e)) return;
         const del = e.target.closest('.item-delete');
         if (del) { deleteItem(del); return; }
-        const chip = e.target.closest('.fb-chip');
-        if (chip) { sendFeedback(chip); return; }
-        const sopen = e.target.closest('.sug-open');
-        if (sopen) {
-          const box = sopen.closest('.sug');
-          const panel = box.querySelector('.sug-panel');
-          const show = panel.hidden;
-          panel.hidden = !show;
-          sopen.textContent = show ? 'close ▾' : 'open ▸';
-          if (show && box.dataset.opened !== '1') { box.dataset.opened = '1'; logSuggestion(box, 'open'); }
-          return;
-        }
-        const sdismiss = e.target.closest('.sug-dismiss');
-        if (sdismiss) { dismissSuggestion(sdismiss.closest('.sug')); return; }
-        const copy = e.target.closest('.tryit-copy');
-        if (copy) { copyBrief(copy); return; }
-        const openLink = e.target.closest('.tryit-open');
-        if (openLink) {
-          const box = openLink.closest('.sug');
-          if (box) logSuggestion(box, openLink.dataset.sig || 'open_chatgpt');
-          return;
-        }
         // Implicit signal: clicking through to the source = they engaged.
         const link = e.target.closest('.detail-title a, .item-meta a');
         if (link) {

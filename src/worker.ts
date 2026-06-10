@@ -143,6 +143,21 @@ export default {
       return handleFeedback(req, env);
     }
 
+    if (url.pathname === "/api/v1/saved-suggestions") {
+      if (req.method !== "GET" && req.method !== "POST") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
+      return handleSavedSuggestions(req, env);
+    }
+
+    const savedItemMatch = url.pathname.match(/^\/api\/v1\/saved-suggestions\/(\d+)$/);
+    if (savedItemMatch) {
+      if (req.method !== "PATCH" && req.method !== "DELETE") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
+      return handleSavedSuggestionItem(req, env, Number(savedItemMatch[1]));
+    }
+
     if (url.pathname === "/api/v1/suggestion-feedback") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleSuggestionFeedback(req, env);
@@ -1462,12 +1477,149 @@ async function handleFeedback(req: Request, env: Env): Promise<Response> {
   }
 }
 
+// Shortlist (saved suggestions) — the durable "later" store. POST parks a
+// suggestion, GET lists the user's Shortlist. Backend-gated; the session
+// supplies user_id so a client can never pin against another account.
+async function handleSavedSuggestions(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+  const headers = { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY };
+
+  if (req.method === "GET") {
+    try {
+      const res = await fetch(`${base}/api/saved-suggestions?user_id=${session.userId}`, {
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!res.ok) {
+        console.error("saved-suggestions list upstream non-ok", res.status);
+        return json({ error: "upstream-error" }, 502);
+      }
+      return json(await res.json());
+    } catch (err) {
+      console.error("saved-suggestions list failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+  }
+
+  // POST — park a suggestion. Snapshot fields are clipped to bound row size.
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const itemId = Number(body.item_id);
+  const index = Number(body.suggestion_index);
+  if (!Number.isInteger(itemId) || itemId <= 0 || !Number.isInteger(index) || index < 0) {
+    return json({ error: "invalid-input" }, 400);
+  }
+  const clip = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
+  try {
+    const res = await fetch(`${base}/api/saved-suggestions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        user_id: session.userId,
+        item_id: itemId,
+        suggestion_index: index,
+        title: clip(body.title, 300),
+        detail: clip(body.detail, 2000),
+        effort: clip(body.effort, 80),
+        first_step: clip(body.first_step, 2000),
+        grounded_in: clip(body.grounded_in, 2000),
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("saved-suggestions create upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json(), 201);
+  } catch (err) {
+    console.error("saved-suggestions create failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+// PATCH (status: saved|tried|done) or DELETE one Shortlist entry by id.
+async function handleSavedSuggestionItem(
+  req: Request,
+  env: Env,
+  savedId: number
+): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+  const upstream = `${base}/api/saved-suggestions/${savedId}`;
+
+  if (req.method === "DELETE") {
+    try {
+      const res = await fetch(`${upstream}?user_id=${session.userId}`, {
+        method: "DELETE",
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.status === 404) return json({ error: "not-found" }, 404);
+      if (!res.ok) {
+        console.error("saved-suggestions delete upstream non-ok", res.status);
+        return json({ error: "upstream-error" }, 502);
+      }
+      return json({ ok: true });
+    } catch (err) {
+      console.error("saved-suggestions delete failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+  }
+
+  // PATCH status
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const status = typeof body.status === "string" ? body.status : "";
+  try {
+    const res = await fetch(upstream, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY },
+      body: JSON.stringify({ user_id: session.userId, status }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.status === 400) return json({ error: "invalid-status" }, 400);
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("saved-suggestions patch upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("saved-suggestions patch failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
 // Records a suggestion interaction event to D1 — the interest signal for tuning
 // suggestion quality (shown / open / copy / open_chatgpt / open_claude / dismiss
 // [+reason]). Needs no backend round-trip and works for anonymous visitors (the
 // landing page is anon-heavy). Keyed by anon_id, or user_id when signed in.
 const SUGGESTION_EVENTS = new Set([
   "shown", "open", "copy", "open_chatgpt", "open_claude", "dismiss",
+  // Shortlist actions: "save" = parked for later; "tried"/"done" = follow-up.
+  "save", "tried", "done",
 ]);
 
 async function handleSuggestionFeedback(req: Request, env: Env): Promise<Response> {
