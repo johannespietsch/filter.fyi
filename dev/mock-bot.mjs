@@ -224,6 +224,9 @@ async function readJson(req) {
 
 // In-memory job store: jobId → { status, result?, error?, url }
 const jobs = new Map();
+// In-memory Shortlist store for the saved-suggestions contract mirror.
+const savedSuggestions = new Map();
+let savedSeq = 1;
 
 function scheduleJobCompletion(jobId, url, delayMs) {
   setTimeout(() => {
@@ -311,6 +314,50 @@ const server = createServer(async (req, res) => {
     if (/mock=slow\b/.test(url)) await new Promise((r) => setTimeout(r, 3000));
     if (/mock=hang\b/.test(url)) await new Promise((r) => setTimeout(r, 30000));
     return send(res, 200, buildSuccess(url, classify(url)));
+  }
+
+  // --- Shortlist (saved suggestions) -------------------------------------
+  // In-memory contract mirror of the backend's /api/saved-suggestions. Note:
+  // the full /me flow also needs /api/library + /api/users, which this mock
+  // doesn't implement — run the real backend for end-to-end /me testing.
+  if (req.url.startsWith("/api/saved-suggestions")) {
+    const u = new URL(req.url, `http://localhost:${PORT}`);
+    const idMatch = u.pathname.match(/^\/api\/saved-suggestions\/(\d+)$/);
+    if (req.method === "POST" && u.pathname === "/api/saved-suggestions") {
+      let body; try { body = await readJson(req); } catch { return send(res, 400, { error: "invalid-json" }); }
+      const key = `${body.user_id}:${body.item_id}:${body.suggestion_index}`;
+      let row = [...savedSuggestions.values()].find((r) => r._key === key);
+      if (row) { Object.assign(row, body, { updated_at: new Date().toISOString() }); }
+      else {
+        const id = savedSeq++;
+        row = { id, _key: key, status: "saved", created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(), source: "https://example.com/x",
+                item_title: "Mock source", ...body };
+        savedSuggestions.set(id, row);
+      }
+      return send(res, 201, { id: row.id, status: "saved" });
+    }
+    if (req.method === "GET" && u.pathname === "/api/saved-suggestions") {
+      const uid = Number(u.searchParams.get("user_id"));
+      const rows = [...savedSuggestions.values()].filter((r) => r.user_id === uid)
+        .map(({ _key, ...r }) => r).reverse();
+      return send(res, 200, rows);
+    }
+    if (req.method === "PATCH" && idMatch) {
+      let body; try { body = await readJson(req); } catch { return send(res, 400, { error: "invalid-json" }); }
+      const row = savedSuggestions.get(Number(idMatch[1]));
+      if (!row || row.user_id !== body.user_id) return send(res, 404, { error: "not-found" });
+      if (!["saved", "tried", "done"].includes(body.status)) return send(res, 400, { error: "invalid-status" });
+      row.status = body.status; row.updated_at = new Date().toISOString();
+      return send(res, 200, { id: row.id, status: row.status });
+    }
+    if (req.method === "DELETE" && idMatch) {
+      const uid = Number(u.searchParams.get("user_id"));
+      const row = savedSuggestions.get(Number(idMatch[1]));
+      if (!row || row.user_id !== uid) return send(res, 404, { error: "not-found" });
+      savedSuggestions.delete(row.id);
+      return send(res, 200, { ok: true });
+    }
   }
 
   return send(res, 404, { error: "not-found" });
