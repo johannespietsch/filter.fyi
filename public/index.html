@@ -147,10 +147,11 @@
                      border: 1px solid var(--ink); cursor: pointer; }
     .action-open { background: var(--ink); color: var(--bg); }
     .action-later-btn { background: var(--green-soft); color: var(--green); border-color: var(--green); }
-    .action-dismiss-btn { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
+    /* "never ✕" — red outline reads as a clear decision (not a disabled/greyed control). */
+    .action-dismiss-btn { background: transparent; color: var(--red); border-color: var(--red); }
     .action-open:hover { opacity: 0.88; }
     .action-later-btn:hover { background: var(--green); color: var(--bg-2); }
-    .action-dismiss-btn:hover { color: var(--ink); border-color: var(--ink); }
+    .action-dismiss-btn:hover { background: var(--red); color: var(--bg); border-color: var(--red); }
     .action-panel { margin-top: 11px; }
     /* the detailed instruction, readable by everyone */
     .action-brief { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
