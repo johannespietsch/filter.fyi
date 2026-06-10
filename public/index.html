@@ -273,7 +273,7 @@
                  placeholder="https://..." required spellcheck="false" autocapitalize="off" />
           <button class="cta-btn" id="submit-btn" type="submit">Try it</button>
         </div>
-        <p class="form-fine-print" id="form-fine-print">No login required. 3 free reads per day. Long-form video transcription is coming with the full product.</p>
+        <p class="form-fine-print" id="form-fine-print">No login required — 3 free reads a day. <a href="/login">Sign in</a> for more, plus a saved library of your results.</p>
       </form>
 
       <div class="loading" id="loading">
@@ -306,11 +306,11 @@
           <div class="brief-body" id="brief-body"></div>
         </details>
         <p class="result-disclaimer">Actions and verdicts are AI-generated and can be wrong — review before you run anything. <a href="/terms">terms</a></p>
-        <p class="result-save" id="result-save">Saving these to an account is coming next — <a href="/about">join the waitlist</a> to be there for it.</p>
+        <p class="result-save" id="result-save">Want to keep these? <a href="/login">Sign in</a> to save them to your library.</p>
       </article>
 
       <div class="nudge" id="nudge-waitlist" role="status">
-        <p>One free read left today. <a href="/about">Join the waitlist</a> for early access — more daily reads, saved results, and channel monitoring are coming next.</p>
+        <p>One free read left today. <a href="/login">Sign in</a> for more daily reads and to save your results.</p>
         <button class="nudge-close" id="nudge-close" type="button" aria-label="Dismiss">×</button>
       </div>
 
@@ -320,7 +320,7 @@
       </div>
       <div class="notice warn" id="notice-ratelimit" role="alert">
         <div class="notice-title">daily limit reached</div>
-        <p>You've used your 3 free reads today. <a href="/about">Join the waitlist</a> for early access — saving results, more daily reads, and channel monitoring are coming next.</p>
+        <p>You've used your 3 free reads today. <a href="/login">Sign in</a> for more daily reads and saved results, or come back tomorrow.</p>
       </div>
       <div class="notice error" id="notice-error" role="alert">
         <div class="notice-title">something went wrong</div>
@@ -699,15 +699,15 @@
       }
 
       // "later ▸" on the landing page: record the save-interest signal, then
-      // replace the button row with a waitlist nudge (or a library pointer if
-      // somehow signed in). Keeps the action visible so it can still be opened.
+      // replace the button row with a sign-in nudge (or a library pointer if
+      // already signed in). Keeps the action visible so it can still be opened.
       function renderLaterNudge(btnRow, summary, action) {
         sendSignal(summary, action, 'save');
         const note = document.createElement('div');
         note.className = 'action-locknote';
         note.innerHTML = window.__fyiSignedIn
           ? 'Saving to your <a href="/me#shortlist">Shortlist</a> happens from your library — open this read there to keep it.'
-          : 'Saving for later is coming with accounts — <a href="/about">join the waitlist</a> to get it.';
+          : '<a href="/login">Sign in</a> to save this to your library.';
         btnRow.replaceWith(note);
       }
 
