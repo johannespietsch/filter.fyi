@@ -143,6 +143,21 @@ export default {
       return handleFeedback(req, env);
     }
 
+    if (url.pathname === "/api/v1/saved-suggestions") {
+      if (req.method !== "GET" && req.method !== "POST") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
+      return handleSavedSuggestions(req, env);
+    }
+
+    const savedItemMatch = url.pathname.match(/^\/api\/v1\/saved-suggestions\/(\d+)$/);
+    if (savedItemMatch) {
+      if (req.method !== "PATCH" && req.method !== "DELETE") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
+      return handleSavedSuggestionItem(req, env, Number(savedItemMatch[1]));
+    }
+
     if (url.pathname === "/api/v1/suggestion-feedback") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleSuggestionFeedback(req, env);
@@ -682,7 +697,7 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
   type BackendJobStatus =
     | { status: "pending"; step?: string }
     | { status: "done"; result: BotResponse }
-    | { status: "error"; error: string };
+    | { status: "error"; error: string; message?: string };
 
   let statusPayload: BackendJobStatus;
   try {
@@ -706,7 +721,13 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
         }
       );
     }
-    return json({ status: "error", error: "upstream-error", message: "The summarizer had a problem. Try a different URL?" });
+    // Prefer the backend's specific explanation (paywall, JS-wall, fetch
+    // failure, …); fall back to a generic line only when it didn't send one.
+    return json({
+      status: "error",
+      error: "upstream-error",
+      message: statusPayload.message || "The summarizer had a problem. Try a different URL?",
+    });
   }
 
   // status === "done" — for anonymous users, persist to D1.anon_summaries.
@@ -916,7 +937,7 @@ async function loadSession(sessionId: string | undefined, env: Env): Promise<Ses
     const row = await env.DB.prepare(
       `SELECT id, user_id, email, expires_at FROM sessions WHERE id = ?`
     )
-      .bind(sessionId)
+      .bind(await hashToken(sessionId))
       .first<{ id: string; user_id: number; email: string; expires_at: string }>();
     if (!row) return null;
     if (new Date(row.expires_at).getTime() <= Date.now()) return null;
@@ -992,7 +1013,7 @@ async function handleLogin(
       `INSERT INTO login_tokens (token, email, expires_at, created_at)
        VALUES (?, ?, ?, ?)`
     )
-      .bind(token, email, expiresIso, nowIso)
+      .bind(await hashToken(token), email, expiresIso, nowIso)
       .run();
   } catch (err) {
     console.error("login_tokens insert failed", err);
@@ -1029,13 +1050,16 @@ async function handleLoginVerify(
   if (!isValidToken(token)) {
     return Response.redirect(`${url.origin}/login?error=invalid-link`, 302);
   }
+  // Look up and burn the token by its hash; the plaintext only ever arrives
+  // from the emailed link, never the DB.
+  const tokenHash = await hashToken(token);
 
   let tokenRow: { email: string; expires_at: string; used_at: string | null } | null;
   try {
     tokenRow = await env.DB.prepare(
       `SELECT email, expires_at, used_at FROM login_tokens WHERE token = ?`
     )
-      .bind(token)
+      .bind(tokenHash)
       .first<{ email: string; expires_at: string; used_at: string | null }>();
   } catch (err) {
     console.error("login_tokens lookup failed", err);
@@ -1065,7 +1089,7 @@ async function handleLoginVerify(
     // Mark token used immediately so a second click can't double-spend it,
     // even if the rest of this handler is slow.
     await env.DB.prepare(`UPDATE login_tokens SET used_at = ? WHERE token = ?`)
-      .bind(nowIso, token)
+      .bind(nowIso, tokenHash)
       .run();
 
     // Get-or-create the canonical user on the backend. Post unified-identity
@@ -1112,7 +1136,7 @@ async function handleLoginVerify(
     await env.DB.prepare(
       `INSERT INTO sessions (id, user_id, email, expires_at, created_at) VALUES (?, ?, ?, ?, ?)`
     )
-      .bind(sessionId, userId, email, sessionExpires, nowIso)
+      .bind(await hashToken(sessionId), userId, email, sessionExpires, nowIso)
       .run();
   } catch (err) {
     console.error("sessions insert failed", err);
@@ -1132,7 +1156,7 @@ async function handleLogout(req: Request, env: Env): Promise<Response> {
   const sessionId = cookies[SESSION_COOKIE];
   if (sessionId && isValidToken(sessionId)) {
     try {
-      await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(sessionId).run();
+      await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(await hashToken(sessionId)).run();
     } catch (err) {
       console.error("session delete failed", err);
     }
@@ -1456,12 +1480,149 @@ async function handleFeedback(req: Request, env: Env): Promise<Response> {
   }
 }
 
+// Shortlist (saved suggestions) — the durable "later" store. POST parks a
+// suggestion, GET lists the user's Shortlist. Backend-gated; the session
+// supplies user_id so a client can never pin against another account.
+async function handleSavedSuggestions(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+  const headers = { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY };
+
+  if (req.method === "GET") {
+    try {
+      const res = await fetch(`${base}/api/saved-suggestions?user_id=${session.userId}`, {
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!res.ok) {
+        console.error("saved-suggestions list upstream non-ok", res.status);
+        return json({ error: "upstream-error" }, 502);
+      }
+      return json(await res.json());
+    } catch (err) {
+      console.error("saved-suggestions list failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+  }
+
+  // POST — park a suggestion. Snapshot fields are clipped to bound row size.
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const itemId = Number(body.item_id);
+  const index = Number(body.suggestion_index);
+  if (!Number.isInteger(itemId) || itemId <= 0 || !Number.isInteger(index) || index < 0) {
+    return json({ error: "invalid-input" }, 400);
+  }
+  const clip = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
+  try {
+    const res = await fetch(`${base}/api/saved-suggestions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        user_id: session.userId,
+        item_id: itemId,
+        suggestion_index: index,
+        title: clip(body.title, 300),
+        detail: clip(body.detail, 2000),
+        effort: clip(body.effort, 80),
+        first_step: clip(body.first_step, 2000),
+        grounded_in: clip(body.grounded_in, 2000),
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("saved-suggestions create upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json(), 201);
+  } catch (err) {
+    console.error("saved-suggestions create failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+// PATCH (status: saved|tried|done) or DELETE one Shortlist entry by id.
+async function handleSavedSuggestionItem(
+  req: Request,
+  env: Env,
+  savedId: number
+): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+  const upstream = `${base}/api/saved-suggestions/${savedId}`;
+
+  if (req.method === "DELETE") {
+    try {
+      const res = await fetch(`${upstream}?user_id=${session.userId}`, {
+        method: "DELETE",
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.status === 404) return json({ error: "not-found" }, 404);
+      if (!res.ok) {
+        console.error("saved-suggestions delete upstream non-ok", res.status);
+        return json({ error: "upstream-error" }, 502);
+      }
+      return json({ ok: true });
+    } catch (err) {
+      console.error("saved-suggestions delete failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+  }
+
+  // PATCH status
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const status = typeof body.status === "string" ? body.status : "";
+  try {
+    const res = await fetch(upstream, {
+      method: "PATCH",
+      headers: { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY },
+      body: JSON.stringify({ user_id: session.userId, status }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.status === 400) return json({ error: "invalid-status" }, 400);
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("saved-suggestions patch upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("saved-suggestions patch failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
 // Records a suggestion interaction event to D1 — the interest signal for tuning
 // suggestion quality (shown / open / copy / open_chatgpt / open_claude / dismiss
 // [+reason]). Needs no backend round-trip and works for anonymous visitors (the
 // landing page is anon-heavy). Keyed by anon_id, or user_id when signed in.
 const SUGGESTION_EVENTS = new Set([
   "shown", "open", "copy", "open_chatgpt", "open_claude", "dismiss",
+  // Shortlist actions: "save" = parked for later; "tried"/"done" = follow-up.
+  "save", "tried", "done",
 ]);
 
 async function handleSuggestionFeedback(req: Request, env: Env): Promise<Response> {
@@ -1517,6 +1678,18 @@ function randomTokenHex(bytes: number): string {
   const buf = new Uint8Array(bytes);
   crypto.getRandomValues(buf);
   return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Magic-link and session tokens are stored only as their SHA-256 hash, so a
+// stolen read of D1 (login_tokens / sessions) can't be replayed to hijack a
+// session or burn a login link — the plaintext exists only in the emailed
+// link and the cookie. No salt/stretching: the input is already a 256-bit
+// random secret, not a guessable password. Output is 64 lowercase hex chars,
+// same shape as randomTokenHex(32), so it satisfies isValidToken and the
+// existing column width.
+async function hashToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function isValidToken(s: string): boolean {

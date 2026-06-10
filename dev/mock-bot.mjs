@@ -5,9 +5,11 @@
 //
 // Trigger error/edge cases via query params on the submitted URL:
 //   ?mock=no-transcript   → 422 {error:"no-transcript"} (Worker maps to 415)
+//   ?mock=paywalled       → job error with a specific user-facing `message`
 //   ?mock=500             → 500 server error
-//   ?mock=slow            → 3s delay, then success
-//   ?mock=hang            → 30s delay (for testing Worker fetch timeout)
+//   ?mock=slow            → 6s delay, then success
+//   ?mock=hang            → 120s delay (for testing Worker fetch timeout)
+//   ?mock=verylong        → 5min pending → client "still working in background" state
 //   ?mock=invalid         → 400 {error:"invalid-url"}
 
 import { createServer } from "node:http";
@@ -222,6 +224,9 @@ async function readJson(req) {
 
 // In-memory job store: jobId → { status, result?, error?, url }
 const jobs = new Map();
+// In-memory Shortlist store for the saved-suggestions contract mirror.
+const savedSuggestions = new Map();
+let savedSeq = 1;
 
 function scheduleJobCompletion(jobId, url, delayMs) {
   setTimeout(() => {
@@ -230,6 +235,13 @@ function scheduleJobCompletion(jobId, url, delayMs) {
     if (/mock=no-transcript\b/.test(url) || /\/no-transcript/.test(url)) {
       job.status = "error";
       job.error = "no-transcript";
+    } else if (/mock=paywalled\b/.test(url)) {
+      // Mirrors the backend: a specific fetch failure carries a user-facing
+      // `message` the Worker should surface verbatim.
+      job.status = "error";
+      job.error = "extraction-failed";
+      job.message =
+        "This looks like it's behind a paywall or login — only the teaser was visible, so there's no full article to analyse.";
     } else if (/mock=500\b/.test(url)) {
       job.status = "error";
       job.error = "internal-error";
@@ -266,7 +278,10 @@ const server = createServer(async (req, res) => {
     }
     // Must be UUID-shaped so it matches the Worker's /api/v1/job/:id route regex.
     const jobId = randomUUID();
-    const totalMs = /mock=slow\b/.test(url) ? 6000 : /mock=hang\b/.test(url) ? 120_000 : 1500;
+    const totalMs = /mock=slow\b/.test(url) ? 6000
+      : /mock=hang\b/.test(url) ? 120_000
+      : /mock=verylong\b/.test(url) ? 300_000  // > client poll ceiling → "still working" state
+      : 1500;
     jobs.set(jobId, { status: "pending", step: "fetching", url });
     // Advance step markers so the UI gets real-time feedback during slow jobs.
     if (totalMs > 1500) {
@@ -284,7 +299,7 @@ const server = createServer(async (req, res) => {
     const job = jobs.get(jobId);
     if (!job) return send(res, 404, { error: "not-found" });
     if (job.status === "pending") return send(res, 200, { status: "pending", step: job.step || "fetching" });
-    if (job.status === "error") return send(res, 200, { status: "error", error: job.error });
+    if (job.status === "error") return send(res, 200, { status: "error", error: job.error, message: job.message });
     return send(res, 200, { status: "done", result: job.result });
   }
 
@@ -299,6 +314,50 @@ const server = createServer(async (req, res) => {
     if (/mock=slow\b/.test(url)) await new Promise((r) => setTimeout(r, 3000));
     if (/mock=hang\b/.test(url)) await new Promise((r) => setTimeout(r, 30000));
     return send(res, 200, buildSuccess(url, classify(url)));
+  }
+
+  // --- Shortlist (saved suggestions) -------------------------------------
+  // In-memory contract mirror of the backend's /api/saved-suggestions. Note:
+  // the full /me flow also needs /api/library + /api/users, which this mock
+  // doesn't implement — run the real backend for end-to-end /me testing.
+  if (req.url.startsWith("/api/saved-suggestions")) {
+    const u = new URL(req.url, `http://localhost:${PORT}`);
+    const idMatch = u.pathname.match(/^\/api\/saved-suggestions\/(\d+)$/);
+    if (req.method === "POST" && u.pathname === "/api/saved-suggestions") {
+      let body; try { body = await readJson(req); } catch { return send(res, 400, { error: "invalid-json" }); }
+      const key = `${body.user_id}:${body.item_id}:${body.suggestion_index}`;
+      let row = [...savedSuggestions.values()].find((r) => r._key === key);
+      if (row) { Object.assign(row, body, { updated_at: new Date().toISOString() }); }
+      else {
+        const id = savedSeq++;
+        row = { id, _key: key, status: "saved", created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(), source: "https://example.com/x",
+                item_title: "Mock source", ...body };
+        savedSuggestions.set(id, row);
+      }
+      return send(res, 201, { id: row.id, status: "saved" });
+    }
+    if (req.method === "GET" && u.pathname === "/api/saved-suggestions") {
+      const uid = Number(u.searchParams.get("user_id"));
+      const rows = [...savedSuggestions.values()].filter((r) => r.user_id === uid)
+        .map(({ _key, ...r }) => r).reverse();
+      return send(res, 200, rows);
+    }
+    if (req.method === "PATCH" && idMatch) {
+      let body; try { body = await readJson(req); } catch { return send(res, 400, { error: "invalid-json" }); }
+      const row = savedSuggestions.get(Number(idMatch[1]));
+      if (!row || row.user_id !== body.user_id) return send(res, 404, { error: "not-found" });
+      if (!["saved", "tried", "done"].includes(body.status)) return send(res, 400, { error: "invalid-status" });
+      row.status = body.status; row.updated_at = new Date().toISOString();
+      return send(res, 200, { id: row.id, status: row.status });
+    }
+    if (req.method === "DELETE" && idMatch) {
+      const uid = Number(u.searchParams.get("user_id"));
+      const row = savedSuggestions.get(Number(idMatch[1]));
+      if (!row || row.user_id !== uid) return send(res, 404, { error: "not-found" });
+      savedSuggestions.delete(row.id);
+      return send(res, 200, { ok: true });
+    }
   }
 
   return send(res, 404, { error: "not-found" });

@@ -99,6 +99,8 @@
     .step-marker { font-size: 9px; line-height: 1; }
     .job-step.step-active .step-marker { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
     .job-step-sep { color: var(--ink-3); opacity: 0.35; font-size: 12px; }
+    .job-estimate { margin-top: 10px; font-size: 11px; color: var(--ink-3);
+                    font-variant-numeric: tabular-nums; min-height: 14px; }
 
     /* result card */
     .result { display: none; background: var(--bg-2); border: 1px solid var(--ink);
@@ -140,13 +142,16 @@
                      background: var(--bg); border-radius: 2px; }
     .action-text { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); margin-bottom: 10px; }
     .action-buttons { display: flex; gap: 8px; }
-    .action-open, .action-dismiss-btn { font: inherit; font-size: 11px; font-weight: 700;
+    .action-open, .action-later-btn, .action-dismiss-btn { font: inherit; font-size: 11px; font-weight: 700;
                      letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px;
                      border: 1px solid var(--ink); cursor: pointer; }
     .action-open { background: var(--ink); color: var(--bg); }
-    .action-dismiss-btn { background: transparent; color: var(--ink-3); border-color: var(--ink-3); }
+    .action-later-btn { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+    /* "never ✕" — red outline reads as a clear decision (not a disabled/greyed control). */
+    .action-dismiss-btn { background: transparent; color: var(--red); border-color: var(--red); }
     .action-open:hover { opacity: 0.88; }
-    .action-dismiss-btn:hover { color: var(--ink); border-color: var(--ink); }
+    .action-later-btn:hover { background: var(--green); color: var(--bg-2); }
+    .action-dismiss-btn:hover { background: var(--red); color: var(--bg); border-color: var(--red); }
     .action-panel { margin-top: 11px; }
     /* the detailed instruction, readable by everyone */
     .action-brief { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
@@ -217,10 +222,12 @@
     .notice.visible { display: block; }
     .notice.warn  { background: var(--amber-soft); border-color: var(--amber); }
     .notice.error { background: var(--red-soft);   border-color: var(--red); }
+    .notice.info  { background: var(--green-soft); border-color: var(--green); }
     .notice-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
                     color: var(--ink-2); margin-bottom: 6px; }
     .notice.warn .notice-title  { color: var(--amber); }
     .notice.error .notice-title { color: var(--red); }
+    .notice.info .notice-title  { color: var(--green); }
     .notice p { color: var(--ink); }
     .notice a { color: var(--ink); }
 
@@ -277,6 +284,7 @@
           <span class="job-step-sep">→</span>
           <span class="job-step step-pending" id="step-analyzing"><span class="step-marker">○</span>next steps</span>
         </div>
+        <div class="job-estimate" id="job-estimate" aria-live="polite"></div>
       </div>
 
       <article class="result" id="result" aria-live="polite">
@@ -317,6 +325,10 @@
       <div class="notice error" id="notice-error" role="alert">
         <div class="notice-title">something went wrong</div>
         <p id="notice-error-msg">Couldn't process that URL. Try a different one or come back in a moment.</p>
+      </div>
+      <div class="notice info" id="notice-pending" role="status">
+        <div class="notice-title">still working</div>
+        <p id="notice-pending-msg"></p>
       </div>
     </section>
 
@@ -393,6 +405,7 @@
       const noticeUnsupported = document.getElementById('notice-unsupported');
       const noticeRatelimit = document.getElementById('notice-ratelimit');
       const noticeError = document.getElementById('notice-error');
+      const noticePending = document.getElementById('notice-pending');
       const nudgeWaitlist = document.getElementById('nudge-waitlist');
       const nudgeClose = document.getElementById('nudge-close');
       const NUDGE_DISMISSED_KEY = 'fyi_nudge_dismissed';
@@ -401,7 +414,7 @@
       const VERDICT_LABELS = { watch: 'worth the time', skim: 'worth a skim', skip: 'skip-able' };
 
       function hideAll() {
-        for (const el of [loading, result, noticeUnsupported, noticeRatelimit, noticeError, nudgeWaitlist]) {
+        for (const el of [loading, result, noticeUnsupported, noticeRatelimit, noticeError, noticePending, nudgeWaitlist]) {
           el.classList.remove('visible');
         }
         urlInput.classList.remove('err');
@@ -656,24 +669,46 @@
         const openBtn = document.createElement('button');
         openBtn.type = 'button';
         openBtn.className = 'action-open';
-        openBtn.textContent = 'open ▸';
+        openBtn.textContent = 'now ▾';
         let opened = false;
         openBtn.addEventListener('click', function() {
           const show = panel.hidden;
           panel.hidden = !show;
-          openBtn.textContent = show ? 'close ▾' : 'open ▸';
+          openBtn.textContent = show ? 'now ▴' : 'now ▾';
           if (show && !opened) { opened = true; sendSignal(summary, action, 'open'); }
         });
+        // "later ▸" — saving to a Shortlist needs an account. Login isn't
+        // publicly open yet, so this logs the interest and nudges to the
+        // waitlist rather than offering a save that can't land anywhere.
+        const laterBtn = document.createElement('button');
+        laterBtn.type = 'button';
+        laterBtn.className = 'action-later-btn';
+        laterBtn.textContent = 'later ▸';
+        laterBtn.addEventListener('click', function() { renderLaterNudge(btnRow, summary, action); });
         const dismissBtn = document.createElement('button');
         dismissBtn.type = 'button';
         dismissBtn.className = 'action-dismiss-btn';
-        dismissBtn.textContent = 'dismiss';
+        dismissBtn.textContent = 'never ✕';
         dismissBtn.addEventListener('click', function() { renderDismissed(card, summary, action); });
         btnRow.appendChild(openBtn);
+        btnRow.appendChild(laterBtn);
         btnRow.appendChild(dismissBtn);
         card.appendChild(btnRow);
         card.appendChild(panel);
         return card;
+      }
+
+      // "later ▸" on the landing page: record the save-interest signal, then
+      // replace the button row with a waitlist nudge (or a library pointer if
+      // somehow signed in). Keeps the action visible so it can still be opened.
+      function renderLaterNudge(btnRow, summary, action) {
+        sendSignal(summary, action, 'save');
+        const note = document.createElement('div');
+        note.className = 'action-locknote';
+        note.innerHTML = window.__fyiSignedIn
+          ? 'Saving to your <a href="/me#shortlist">Shortlist</a> happens from your library — open this read there to keep it.'
+          : 'Saving for later is coming with accounts — <a href="/about">join the waitlist</a> to get it.';
+        btnRow.replaceWith(note);
       }
 
       // Replace a box with a "dismissed" state: optional reason + undo. The
@@ -783,9 +818,58 @@
       let _settled = false;      // ensures a terminal state is handled exactly once
       let _triesUsed = null;
       let _triesLimit = null;
+      let _signedIn = false;     // from job-start: drives the "still working" copy
 
       function stopPolling() {
         if (_pollTimer !== null) { clearInterval(_pollTimer); _pollTimer = null; }
+      }
+
+      // A live elapsed counter under the step boxes. We can't predict the exact
+      // duration (it scales with document/transcript length), so we show honest
+      // elapsed time plus a reassurance that shifts as it runs — no fake bar.
+      // The tick self-stops once the loading panel is hidden by any path.
+      let _estTimer = null;
+      let _estStartMs = 0;
+      function startEstimate() {
+        stopEstimate();
+        _estStartMs = Date.now();
+        const el = document.getElementById('job-estimate');
+        function tick() {
+          if (!loading.classList.contains('visible')) { stopEstimate(); return; }
+          const s = Math.floor((Date.now() - _estStartMs) / 1000);
+          const mm = Math.floor(s / 60), ss = String(s % 60).padStart(2, '0');
+          let hint;
+          if (s < 45) hint = 'usually under a minute';
+          else if (s < 90) hint = 'almost there';
+          else hint = 'long reads take a little longer — hang tight';
+          el.textContent = mm + ':' + ss + ' · ' + hint;
+        }
+        tick();
+        _estTimer = setInterval(tick, 1000);
+      }
+      function stopEstimate() {
+        if (_estTimer !== null) { clearInterval(_estTimer); _estTimer = null; }
+        const el = document.getElementById('job-estimate');
+        if (el) el.textContent = '';
+      }
+
+      // Polling exceeded its ceiling but the job is still running server-side.
+      // Don't error — the work finishes in the background. For signed-in users
+      // it lands in their library; anon results are cached, so a resubmit is
+      // instant. (We don't surface sign-in here — /login is intentionally
+      // unlinked from the landing page.)
+      function showStillFinishing() {
+        stopPolling();
+        stopEstimate();
+        loading.classList.remove('visible');
+        submitBtn.disabled = false;
+        const el = document.getElementById('notice-pending-msg');
+        if (_signedIn) {
+          el.innerHTML = 'This is a long one, so we’re finishing it in the background — it’ll appear in <a href="/me">your library</a> in a moment. No need to resubmit.';
+        } else {
+          el.textContent = 'This is a long one, so we’re finishing it in the background. Give it a moment, then submit the same link again — it’ll load instantly.';
+        }
+        show(noticePending);
       }
 
       const _STEPS = ['fetching', 'summarizing', 'analyzing'];
@@ -813,6 +897,7 @@
 
       function showError(msg) {
         stopPolling();
+        stopEstimate();
         loading.classList.remove('visible');
         submitBtn.disabled = false;
         document.getElementById('notice-error-msg').textContent = msg || 'Couldn\'t process that URL. Try a different one or come back in a moment.';
@@ -821,7 +906,7 @@
 
       async function pollJob(jobId) {
         let attempts = 0;
-        const MAX_ATTEMPTS = 60; // ~2 min at 2s interval
+        const MAX_ATTEMPTS = 90; // ~3 min at 2s interval — long PDFs/transcripts
         stopPolling();
         _settled = false;
         _pollInFlight = false;
@@ -830,7 +915,7 @@
           attempts++;
           if (attempts > MAX_ATTEMPTS) {
             _settled = true;
-            showError('This one is taking too long. Try again in a moment.');
+            showStillFinishing(); // job keeps running server-side; don't error
             return;
           }
           _pollInFlight = true;
@@ -855,6 +940,7 @@
           }
           _settled = true;
           stopPolling();
+          stopEstimate();
           loading.classList.remove('visible');
           submitBtn.disabled = false;
           if (payload.status === 'error') {
@@ -876,9 +962,11 @@
       async function submitUrl(url) {
         hideAll();
         stopPolling();
+        stopEstimate();
         setJobStep('fetching');
         submitBtn.disabled = true;
         show(loading);
+        startEstimate();
         let res, payload;
         try {
           res = await fetch('/api/v1/try', {
@@ -930,6 +1018,7 @@
         if (payload.pending && payload.job_id) {
           _triesUsed = payload.tries_used;
           _triesLimit = payload.tries_limit;
+          _signedIn = !!payload.signed_in;
           pollJob(payload.job_id);
           return;
         }
