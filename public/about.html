@@ -135,6 +135,8 @@
                 padding: 1px 8px; border: 1px solid var(--ink); margin-left: 8px;
                 vertical-align: 1px; text-transform: uppercase; }
     .step-tag.free { background: var(--green); color: var(--bg-2); border-color: var(--green); }
+    /* honest-roadmap marker: feature is planned, not shipped */
+    .step-tag.soon { border-style: dashed; border-color: var(--ink-3); color: var(--ink-2); }
     .steps-more { font-size: 13px; color: var(--ink-2); margin-top: 18px; padding-top: 16px;
                   border-top: 1px dotted var(--ink); }
     .steps-more a { color: var(--green); text-decoration: none; border-bottom: 1px solid var(--green-soft); }
@@ -169,6 +171,9 @@
     .price-feat::before { content: '+'; color: var(--green); font-weight: 700; flex-shrink: 0; }
     .price-feat.off { color: var(--ink-3); }
     .price-feat.off::before { content: '·'; color: var(--ink-3); }
+    .feat-soon { font-size: 9.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--ink-2); border: 1px dashed var(--ink-3); padding: 0 5px;
+                 align-self: center; flex-shrink: 0; }
 
     /* final cta */
     .final-cta { padding: 48px 0 20px; text-align: center; }
@@ -209,7 +214,7 @@
     <section class="hero">
       <div class="eyebrow">For everyone trying to keep up with AI</div>
       <h1>Relevant,<br>not <span class="hl">noise.</span></h1>
-      <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;and quietly monitors the sources you trust, so nothing important slips through.</p>
+      <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;each with a ready-to-paste brief for ChatGPT, Claude or your coding agent.</p>
       <p class="lede">It's live now — <a href="/">try it on any link</a>, or <a href="/login">sign in</a> for more reads and a saved library. Prefer to just follow along? Leave your email below.</p>
 
       <div class="form-card">
@@ -293,15 +298,15 @@
         <div class="step">
           <div class="step-n">02</div>
           <div>
-            <div class="step-t">Friday digest. Weekend clarity. Monday confidence.<span class="step-tag free">free</span></div>
-            <div class="step-d">A weekly digest ranks everything by relevance, clusters related topics, and flags what actually lasted vs. what was a 3-day hype cycle. Read it over coffee. Show up prepared.</div>
+            <div class="step-t">Friday digest. Weekend clarity. Monday confidence.<span class="step-tag free">free</span><span class="step-tag soon">soon</span></div>
+            <div class="step-d">Coming soon: a weekly digest that ranks everything by relevance, clusters related topics, and flags what actually lasted vs. what was a 3-day hype cycle. Read it over coffee. Show up prepared.</div>
           </div>
         </div>
         <div class="step">
           <div class="step-n">03</div>
           <div>
-            <div class="step-t">Your trusted channels, on autopilot, 24/7<span class="step-tag">pro</span></div>
-            <div class="step-d">Add the YouTube channels, Substacks, and blogs you already follow. <b>filter.fyi</b> monitors them and surfaces new drops ranked by relevance — no app-switching, no forgotten feeds.</div>
+            <div class="step-t">Your trusted channels, on autopilot, 24/7<span class="step-tag">pro</span><span class="step-tag soon">soon</span></div>
+            <div class="step-d">In the works: add the YouTube channels, Substacks, and blogs you already follow, and <b>filter.fyi</b> will monitor them and surface new drops ranked by relevance — no app-switching, no forgotten feeds.</div>
           </div>
         </div>
       </div>
@@ -341,11 +346,11 @@
           <div class="price-feat">Paste any URL, get an instant read</div>
           <div class="price-feat">Main idea, relevance, next steps, time needed</div>
           <div class="price-feat">Read every "try this" suggestion in full</div>
-          <div class="price-feat">Weekly digest email</div>
+          <div class="price-feat">Weekly digest email <span class="feat-soon">soon</span></div>
           <div class="price-feat off">One-click "try this" hand-off to your AI tools</div>
-          <div class="price-feat off">Channel monitoring</div>
-          <div class="price-feat off">Topic evolution tracking</div>
-          <div class="price-feat off">Push alerts for new drops</div>
+          <div class="price-feat off">Channel monitoring <span class="feat-soon">soon</span></div>
+          <div class="price-feat off">Topic evolution tracking <span class="feat-soon">soon</span></div>
+          <div class="price-feat off">Push alerts for new drops <span class="feat-soon">soon</span></div>
         </div>
         <div class="price">
           <div class="price-tier">PRO · EARLY ACCESS</div>
@@ -354,9 +359,9 @@
           <div class="price-deadline">→ free for early adopters until end of summer 2026</div>
           <div class="price-feat">Everything in free</div>
           <div class="price-feat">One-click "try this" hand-off to ChatGPT, Claude, Cursor…</div>
-          <div class="price-feat">Auto-monitor your trusted channels</div>
-          <div class="price-feat">Push alerts for relevant new drops</div>
-          <div class="price-feat">Topic evolution — hype vs. lasting signal</div>
+          <div class="price-feat">Auto-monitor your trusted channels <span class="feat-soon">soon</span></div>
+          <div class="price-feat">Push alerts for relevant new drops <span class="feat-soon">soon</span></div>
+          <div class="price-feat">Topic evolution — hype vs. lasting signal <span class="feat-soon">soon</span></div>
           <div class="price-feat">Dashboard for your saved content</div>
           <div class="price-feat">Lock in early price forever</div>
         </div>
