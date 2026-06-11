@@ -160,7 +160,7 @@ export default {
 
     if (url.pathname === "/api/v1/suggestion-feedback") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
-      return handleSuggestionFeedback(req, env);
+      return handleSuggestionFeedback(req, env, ctx);
     }
 
     const jobMatch = url.pathname.match(/^\/api\/v1\/job\/([0-9a-f-]{36})$/i);
@@ -1625,7 +1625,11 @@ const SUGGESTION_EVENTS = new Set([
   "save", "tried", "done",
 ]);
 
-async function handleSuggestionFeedback(req: Request, env: Env): Promise<Response> {
+async function handleSuggestionFeedback(
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
   const cookies = parseCookies(req.headers.get("cookie"));
   const session = await loadSession(cookies[SESSION_COOKIE], env);
   const anonRaw = cookies[ANON_COOKIE];
@@ -1670,6 +1674,31 @@ async function handleSuggestionFeedback(req: Request, env: Env): Promise<Respons
   } catch (err) {
     console.error("suggestion_feedback insert failed", err);
     return json({ error: "storage-error" }, 500);
+  }
+
+  // Signed-in events also flow to the backend so the analyzer's behaviour-
+  // signal digest can learn from them (research-companion#69). D1 stays the
+  // canonical stream (incl. anonymous traffic); "shown" render events are
+  // denominator-only noise, so they stay D1-only. Fire-and-forget — the
+  // user-facing ack never waits on the backend.
+  if (session && event !== "shown" && env.BOT_API_URL && env.BOT_API_KEY) {
+    ctx.waitUntil(
+      fetch(`${backendBase(env.BOT_API_URL)}/api/suggestion-signals`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-filter-fyi-secret": env.BOT_API_KEY,
+        },
+        body: JSON.stringify({
+          user_id: session.userId,
+          event,
+          url,
+          suggestion_index: index,
+          suggestion_text: text,
+          reason,
+        }),
+      }).catch((err) => console.error("suggestion signal forward failed", err))
+    );
   }
   return json({ ok: true });
 }
