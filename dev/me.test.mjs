@@ -19,21 +19,21 @@ const mdSrc = fs.readFileSync(path.join(dir, "../public/md.js"), "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Boot me.html in jsdom with a stubbed backend; returns { window, doc, calls }.
-async function boot() {
+async function boot(opts = {}) {
   const calls = [];
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
     url: "http://localhost/me",
     pretendToBeVisual: true,
     beforeParse(window) {
-      window.fetch = async (url, opts = {}) => {
-        const method = opts.method || "GET";
+      window.fetch = async (url, init = {}) => {
+        const method = init.method || "GET";
         calls.push(`${method} ${url}`);
         const ok = (body) => ({ status: 200, ok: true, json: async () => body });
         if (url === "/api/v1/me")
           return ok({
             ok: true,
-            user: { email: "x@y.z", telegram_linked: false, profile: "" },
+            user: { email: "x@y.z", telegram_linked: false, profile: opts.profile ?? "" },
             summaries: [{ id: 7, url: "https://example.com/a", source_type: "article", title: "First", verdict: "watch", created_at: "2026-06-01T10:00:00" }],
           });
         if (/\/api\/v1\/library\/\d+/.test(url))
@@ -135,4 +135,47 @@ test("remove drops the entry and shows the empty state", async () => {
   assert.ok(calls.some((c) => c.startsWith("DELETE /api/v1/saved-suggestions/99")));
   assert.equal(doc.querySelector("#shortlist-list .sl-entry"), null);
   assert.equal(doc.getElementById("shortlist-empty").hidden, false);
+});
+
+// --- Lens onboarding (first sign-in) ---
+
+test("first boot with no lens routes to the Lens pane and shows the composer", async () => {
+  const { window, doc } = await boot();
+  assert.equal(window.location.hash, "#lens");
+  assert.equal(doc.querySelector('[data-pane="lens"]').hidden, false);
+  assert.equal(doc.getElementById("lens-onboard").hidden, false);
+});
+
+test("a user with a lens is neither routed nor shown the composer", async () => {
+  const { window, doc } = await boot({ profile: "Backend engineer." });
+  assert.equal(window.location.hash, "");
+  assert.equal(doc.getElementById("lens-onboard").hidden, true);
+});
+
+test("draft my lens composes the answers into the editor", async () => {
+  const { doc } = await boot();
+  doc.getElementById("lens-q-role").value = "backend engineer";
+  doc.getElementById("lens-q-goal").value = "production LLM features";
+  doc.getElementById("lens-q-time").value = "two evenings a week";
+  doc.getElementById("lens-compose").click();
+  const v = doc.getElementById("profile-input").value;
+  assert.match(v, /backend engineer/);
+  assert.match(v, /production LLM features/);
+  assert.match(v, /two evenings a week/);
+});
+
+test("skip for now remembers the offer and returns to the library", async () => {
+  const { window, doc } = await boot();
+  doc.getElementById("lens-skip").click();
+  await sleep(20);
+  assert.equal(window.location.hash, "#library");
+  assert.equal(window.localStorage.getItem("fyi_lens_offered"), "1");
+});
+
+test("saving a lens retires the composer", async () => {
+  const { doc } = await boot();
+  doc.getElementById("profile-input").value = "ML engineer in fintech.";
+  doc.getElementById("profile-save").click();
+  await sleep(50);
+  assert.equal(doc.getElementById("lens-onboard").hidden, true);
 });
