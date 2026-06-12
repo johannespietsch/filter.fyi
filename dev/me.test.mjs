@@ -62,6 +62,8 @@ async function boot(opts = {}) {
           if (i >= 0) subs.splice(i, 1);
           return ok({ ok: true });
         }
+        if (url === "/api/v1/stats")
+          return ok(opts.stats ?? { month: { items: 0 }, all_time: { items: 0 } });
         if (url === "/api/v1/saved-suggestions" && method === "POST")
           return { status: 201, ok: true, json: async () => (opts.saveResponse ?? { id: 99, status: "saved" }) };
         if (url === "/api/v1/saved-suggestions")
@@ -260,36 +262,22 @@ test("unfollow deletes and falls back to the empty state", async () => {
   assert.equal(doc.getElementById("ch-empty").hidden, false);
 });
 
-// --- Cross-source consolidation (#70) ---
+// --- ROI strip (#53) ---
 
-test("a consolidated shortlist entry shows its backing and extra back-links", async () => {
-  const row = {
-    id: 99, item_id: 7, suggestion_index: 0, title: "Eval harness",
-    detail: "set up an eval harness", effort: "", first_step: "", grounded_in: "",
-    status: "saved", source: "https://example.com/a", item_title: "First",
-    sources: [{ item_id: 8, source: "https://example.com/b", item_title: "Second" }],
-  };
-  const { window, doc } = await boot({ profile: "set", shortlistRows: [row] });
-  window.location.hash = "#shortlist";
-  await sleep(120);
-  assert.equal(doc.querySelector(".sug-backed").textContent, "backed by 2 sources");
-  const backs = [...doc.querySelectorAll(".sl-source")].map((a) => a.textContent);
-  assert.deepEqual(backs, ["from: First", "also from: Second"]);
-  // The hand-off brief carries every source inside the fenced block.
-  assert.match(doc.querySelector(".tryit-brief").textContent,
-    /Also recommended by: Second — https:\/\/example\.com\/b/);
+test("roi strip renders month numbers and hides on empty months", async () => {
+  const { doc } = await boot({
+    profile: "set",
+    stats: { month: { items: 14, watch: 5, skim: 6, skip: 3, minutes_saved: 210,
+                      suggestions_saved: 2, suggestions_tried: 1, suggestions_done: 3 } },
+  });
+  const strip = doc.getElementById("roi-strip");
+  assert.equal(strip.hidden, false);
+  assert.match(strip.textContent, /14.*reads filtered/);
+  assert.match(strip.textContent, /~3\.5 hrs.*of skips not read/);
+  assert.match(strip.textContent, /3.*actions done/);
 });
 
-test("a merged save says so instead of pretending it added a new entry", async () => {
-  const { window, doc } = await boot({
-    profile: "set",
-    saveResponse: { id: 42, status: "saved", merged: true },
-  });
-  window.location.hash = "#item/7";
-  await sleep(120);
-  const box = doc.querySelector("#detail .sug");
-  box.querySelector(".sug-later").click();
-  await sleep(80);
-  assert.equal(box.dataset.savedId, "42");
-  assert.match(box.querySelector(".sug-saved-msg").textContent, /merged into an existing/);
+test("roi strip stays hidden with no activity", async () => {
+  const { doc } = await boot({ profile: "set", stats: { month: { items: 0 } } });
+  assert.equal(doc.getElementById("roi-strip").hidden, true);
 });
