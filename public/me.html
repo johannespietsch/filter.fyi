@@ -247,6 +247,30 @@
        it normally gets from .body context. */
     .sl-entry .sug { background: var(--bg-2); }
 
+    /* ---- Channels pane -------------------------------------------------- */
+    .ch-form { display: flex; border: 1px solid var(--ink); margin-bottom: 8px; }
+    .ch-input { flex: 1; height: 40px; min-width: 0; padding: 0 12px; border: none;
+                background: var(--bg); font: inherit; font-size: 13px; color: var(--ink); outline: none; }
+    .ch-input:focus { background: var(--bg-2); }
+    .ch-add { height: 40px; padding: 0 16px; background: var(--ink); color: var(--bg-2);
+              border: none; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .ch-add:hover:not(:disabled) { background: var(--green); }
+    .ch-add:disabled { opacity: 0.5; cursor: default; }
+    .ch-error { font-size: 12px; color: var(--red); margin-bottom: 12px; }
+    .ch-list { display: flex; flex-direction: column; margin-top: 10px; }
+    .ch-row { display: flex; align-items: baseline; gap: 10px; padding: 10px 2px;
+              border-top: 1px dotted var(--ink); }
+    .ch-row:last-child { border-bottom: 1px dotted var(--ink); }
+    .ch-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .ch-kind { font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+               padding: 1px 6px; border: 1px solid var(--ink-3); color: var(--ink-2); }
+    .ch-host { font-size: 11px; color: var(--ink-3); flex: 1; overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
+    .ch-remove { background: none; border: 1px solid var(--red); color: var(--red);
+                 font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+                 text-transform: uppercase; padding: 3px 8px; cursor: pointer; flex-shrink: 0; }
+    .ch-remove:hover { background: var(--red); color: var(--bg); }
+
     /* ---- Rendered markdown (brief + suggestion detail) ----------------- */
     .md > :first-child { margin-top: 0; }
     .md > :last-child { margin-bottom: 0; }
@@ -359,6 +383,7 @@
       <nav class="side-nav" id="side-nav">
         <a href="#library" data-section="library">Library</a>
         <a href="#shortlist" data-section="shortlist">Shortlist</a>
+        <a href="#channels" data-section="channels">Channels</a>
         <a href="#lens" data-section="lens">Lens</a>
         <a href="#telegram" data-section="telegram">Telegram</a>
         <a href="#account" data-section="account">Data &amp; account</a>
@@ -401,6 +426,24 @@
             <p>In a read's analysis, hit <b>later&nbsp;▸</b> on a suggestion to keep it here.</p>
           </div>
           <div class="sl-list" id="shortlist-list" hidden></div>
+        </section>
+
+        <!-- ===== Channels pane ===== -->
+        <section class="pane" data-pane="channels" hidden>
+          <div class="pane-title">Channels</div>
+          <p class="pane-intro">The sources filter.fyi watches for you. Paste an RSS/Atom feed, a YouTube channel, or any site that publishes a feed — new drops are filtered through your lens and land in your library automatically.</p>
+          <form class="ch-form" id="ch-form">
+            <input class="ch-input" id="ch-input" type="text" spellcheck="false" autocapitalize="off"
+                   placeholder="https://youtube.com/@channel · https://blog.example/feed.xml" />
+            <button class="ch-add" id="ch-add" type="submit">follow</button>
+          </form>
+          <div class="ch-error" id="ch-error" hidden></div>
+          <div class="loading" id="ch-loading" hidden><span class="loading-dot"></span>Loading your channels…</div>
+          <div class="empty" id="ch-empty" hidden>
+            <h2>Nothing followed yet.</h2>
+            <p>Add the channels you already trust — filter.fyi reads their new drops so you don't have to.</p>
+          </div>
+          <div class="ch-list" id="ch-list" hidden></div>
         </section>
 
         <!-- ===== Lens pane ===== -->
@@ -494,7 +537,7 @@
       const shortlistLoading = document.getElementById('shortlist-loading');
       // Spell out the call so the colour isn't carrying the meaning alone.
       const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
-      const SECTIONS = ['library', 'shortlist', 'lens', 'telegram', 'account'];
+      const SECTIONS = ['library', 'shortlist', 'channels', 'lens', 'telegram', 'account'];
 
       // Lean library rows from /api/v1/me, keyed by id — the detail header
       // renders instantly from these while the full analysis lazy-loads.
@@ -738,8 +781,112 @@
         showSection(section);
         if (section === 'library') showLibraryList();
         if (section === 'shortlist') loadShortlist();
+        if (section === 'channels') loadChannels();
         closeDrawer();
       }
+
+      // --- Channels pane ---------------------------------------------------
+      // The feeds this user follows (research-companion#68). Re-fetched on
+      // each visit, like the Shortlist — low-frequency nav, staleness-proof.
+      const chList = document.getElementById('ch-list');
+      const chEmpty = document.getElementById('ch-empty');
+      const chLoading = document.getElementById('ch-loading');
+      const chError = document.getElementById('ch-error');
+      const chInput = document.getElementById('ch-input');
+      const chAdd = document.getElementById('ch-add');
+
+      function showChError(msg) {
+        chError.textContent = msg;
+        chError.hidden = false;
+      }
+
+      function renderChannelRow(s) {
+        const kind = s.source_kind === 'youtube' ? 'youtube' : 'rss';
+        return `<div class="ch-row" data-id="${escapeHtml(String(s.id))}">`
+          + `<span class="ch-title">${escapeHtml(s.title || hostOf(s.feed_url) || 'feed')}</span>`
+          + `<span class="ch-kind">${kind}</span>`
+          + `<span class="ch-host">${escapeHtml(s.feed_url)}</span>`
+          + `<button type="button" class="ch-remove">unfollow ✕</button>`
+          + `</div>`;
+      }
+
+      async function loadChannels() {
+        chError.hidden = true;
+        chLoading.hidden = false;
+        chEmpty.hidden = true;
+        chList.hidden = true;
+        let rows = [];
+        try {
+          const res = await fetch('/api/v1/subscriptions', { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('load-failed');
+          rows = await res.json();
+        } catch {
+          chLoading.hidden = true;
+          showChError("Couldn't load your channels — refresh to retry.");
+          return;
+        }
+        chLoading.hidden = true;
+        if (!Array.isArray(rows) || !rows.length) {
+          chEmpty.hidden = false;
+          return;
+        }
+        chList.innerHTML = rows.map(renderChannelRow).join('');
+        chList.hidden = false;
+      }
+
+      document.getElementById('ch-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = chInput.value.trim();
+        if (!url) return;
+        chError.hidden = true;
+        chAdd.disabled = true;
+        chAdd.textContent = 'checking…';
+        try {
+          const res = await fetch('/api/v1/subscriptions', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ url }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            // 422/409 carry a human message from the resolver; surface it.
+            showChError(data.message || (data.error === 'already-subscribed'
+              ? "You're already following this one."
+              : "Couldn't add that channel — check the URL and try again."));
+            return;
+          }
+          chInput.value = '';
+          loadChannels();
+        } catch {
+          showChError('Network problem — try again.');
+        } finally {
+          chAdd.disabled = false;
+          chAdd.textContent = 'follow';
+        }
+      });
+
+      chList.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.ch-remove');
+        if (!btn) return;
+        const row = btn.closest('.ch-row');
+        const id = row && row.dataset.id;
+        if (!id) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/v1/subscriptions/' + encodeURIComponent(id), {
+            method: 'DELETE', credentials: 'same-origin',
+          });
+          if (!res.ok) throw new Error('delete-failed');
+          row.remove();
+          if (!chList.querySelector('.ch-row')) {
+            chList.hidden = true;
+            chEmpty.hidden = false;
+          }
+        } catch {
+          btn.disabled = false;
+          showChError("Couldn't remove that channel — try again.");
+        }
+      });
 
       // --- Shortlist pane -------------------------------------------------
       // One entry = a source back-link (to #item/:id) + the saved suggestion

@@ -21,6 +21,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Boot me.html in jsdom with a stubbed backend; returns { window, doc, calls }.
 async function boot(opts = {}) {
   const calls = [];
+  // Mutable per-boot subscription store for the Channels pane tests.
+  const subs = opts.subs ?? [
+    { id: 5, feed_url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCx", title: "Some Creator", source_kind: "youtube", last_polled_at: "", created_at: "2026-06-10T10:00:00" },
+  ];
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
     url: "http://localhost/me",
@@ -42,6 +46,22 @@ async function boot(opts = {}) {
             content: "## H\n- b",
             analysis: JSON.stringify({ verdict: "watch", main_idea: "M", suggestions: [{ title: "Do X", detail: "Detail", effort: "a weekend", first_step: "step" }] }),
           });
+        if (url === "/api/v1/subscriptions" && method === "POST") {
+          if (opts.subscribeError) {
+            return { status: 422, ok: false, json: async () => opts.subscribeError };
+          }
+          const created = { id: 6, feed_url: "https://blog.example/feed.xml", title: "Example Blog", source_kind: "rss", last_polled_at: "", created_at: "2026-06-11T10:00:00" };
+          subs.push(created);
+          return { status: 201, ok: true, json: async () => created };
+        }
+        if (url === "/api/v1/subscriptions")
+          return ok(subs.slice());
+        if (/\/api\/v1\/subscriptions\/\d+/.test(url) && method === "DELETE") {
+          const id = Number(url.split("/").pop());
+          const i = subs.findIndex((s) => s.id === id);
+          if (i >= 0) subs.splice(i, 1);
+          return ok({ ok: true });
+        }
         if (url === "/api/v1/saved-suggestions" && method === "POST")
           return { status: 201, ok: true, json: async () => ({ id: 99, status: "saved" }) };
         if (url === "/api/v1/saved-suggestions")
@@ -60,10 +80,10 @@ async function boot(opts = {}) {
   return { window, doc: window.document, calls };
 }
 
-test("nav lists Shortlist between Library and Lens", async () => {
+test("nav lists Shortlist and Channels between Library and Lens", async () => {
   const { doc } = await boot();
   const order = [...doc.querySelectorAll("#side-nav a")].map((a) => a.dataset.section);
-  assert.deepEqual(order, ["library", "shortlist", "lens", "telegram", "account"]);
+  assert.deepEqual(order, ["library", "shortlist", "channels", "lens", "telegram", "account"]);
 });
 
 test("opening an item shows a suggestion box in the decide state", async () => {
@@ -178,4 +198,64 @@ test("saving a lens retires the composer", async () => {
   doc.getElementById("profile-save").click();
   await sleep(50);
   assert.equal(doc.getElementById("lens-onboard").hidden, true);
+});
+
+// --- Channels pane (channel monitoring) ---
+
+test("channels pane lists followed feeds", async () => {
+  const { window, doc, calls } = await boot({ profile: "set" });
+  window.location.hash = "#channels";
+  await sleep(120);
+  assert.ok(calls.includes("GET /api/v1/subscriptions"));
+  const row = doc.querySelector("#ch-list .ch-row");
+  assert.ok(row, "channel row rendered");
+  assert.equal(row.querySelector(".ch-title").textContent, "Some Creator");
+  assert.equal(row.querySelector(".ch-kind").textContent, "youtube");
+});
+
+test("empty channel list shows the empty state", async () => {
+  const { window, doc } = await boot({ profile: "set", subs: [] });
+  window.location.hash = "#channels";
+  await sleep(120);
+  assert.equal(doc.getElementById("ch-empty").hidden, false);
+  assert.equal(doc.getElementById("ch-list").hidden, true);
+});
+
+test("follow posts the URL and refreshes the list", async () => {
+  const { window, doc, calls } = await boot({ profile: "set" });
+  window.location.hash = "#channels";
+  await sleep(120);
+  doc.getElementById("ch-input").value = "https://blog.example";
+  doc.getElementById("ch-form").dispatchEvent(new window.Event("submit", { cancelable: true }));
+  await sleep(80);
+  assert.ok(calls.includes("POST /api/v1/subscriptions"));
+  const titles = [...doc.querySelectorAll("#ch-list .ch-title")].map((el) => el.textContent);
+  assert.deepEqual(titles, ["Some Creator", "Example Blog"]);
+  assert.equal(doc.getElementById("ch-input").value, "");
+});
+
+test("a resolver error surfaces its message", async () => {
+  const { window, doc } = await boot({
+    profile: "set",
+    subscribeError: { error: "invalid-feed", message: "No feed found at that URL." },
+  });
+  window.location.hash = "#channels";
+  await sleep(120);
+  doc.getElementById("ch-input").value = "https://nofeed.example";
+  doc.getElementById("ch-form").dispatchEvent(new window.Event("submit", { cancelable: true }));
+  await sleep(80);
+  const err = doc.getElementById("ch-error");
+  assert.equal(err.hidden, false);
+  assert.match(err.textContent, /No feed found/);
+});
+
+test("unfollow deletes and falls back to the empty state", async () => {
+  const { window, doc, calls } = await boot({ profile: "set" });
+  window.location.hash = "#channels";
+  await sleep(120);
+  doc.querySelector("#ch-list .ch-remove").click();
+  await sleep(80);
+  assert.ok(calls.some((c) => c.startsWith("DELETE /api/v1/subscriptions/5")));
+  assert.equal(doc.querySelector("#ch-list .ch-row"), null);
+  assert.equal(doc.getElementById("ch-empty").hidden, false);
 });
