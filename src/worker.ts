@@ -163,6 +163,19 @@ export default {
       return handleSuggestionFeedback(req, env, ctx);
     }
 
+    if (url.pathname === "/api/v1/subscriptions") {
+      if (req.method !== "GET" && req.method !== "POST") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
+      return handleSubscriptions(req, env);
+    }
+
+    const subscriptionMatch = url.pathname.match(/^\/api\/v1\/subscriptions\/(\d+)$/);
+    if (subscriptionMatch) {
+      if (req.method !== "DELETE") return json({ error: "method-not-allowed" }, 405);
+      return handleSubscriptionDelete(req, env, Number(subscriptionMatch[1]));
+    }
+
     const jobMatch = url.pathname.match(/^\/api\/v1\/job\/([0-9a-f-]{36})$/i);
     if (jobMatch) {
       if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
@@ -1548,6 +1561,105 @@ async function handleSavedSuggestions(req: Request, env: Env): Promise<Response>
     return json(await res.json(), 201);
   } catch (err) {
     console.error("saved-suggestions create failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+// Channels (subscriptions) — the feeds a signed-in user follows
+// (research-companion#68). GET lists them, POST subscribes; the backend
+// resolves any supported URL (RSS/Atom, YouTube channel, page with an
+// advertised feed) at subscribe time, so its 422/409 messages are worth
+// passing through verbatim.
+async function handleSubscriptions(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+
+  if (req.method === "GET") {
+    try {
+      const res = await fetch(`${base}/api/subscriptions?user_id=${session.userId}`, {
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!res.ok) {
+        console.error("subscriptions list upstream non-ok", res.status);
+        return json({ error: "upstream-error" }, 502);
+      }
+      return json(await res.json());
+    } catch (err) {
+      console.error("subscriptions list failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+  }
+
+  // POST — subscribe. Feed resolution fetches the target (and possibly its
+  // advertised feed) server-side, so allow more than the usual 5s.
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const subUrl = typeof body.url === "string" ? body.url.trim().slice(0, 2048) : "";
+  if (!subUrl) return json({ error: "invalid-input" }, 400);
+  try {
+    const res = await fetch(`${base}/api/subscriptions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY },
+      body: JSON.stringify({ user_id: session.userId, url: subUrl }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (res.status === 422 || res.status === 409) {
+      // Resolution / duplicate / cap errors carry user-facing messages.
+      const detail = ((await res.json().catch(() => ({}))) as { detail?: Record<string, unknown> }).detail || {};
+      return json(
+        { error: detail.error || "invalid-feed", message: detail.message || "" },
+        res.status
+      );
+    }
+    if (!res.ok) {
+      console.error("subscription create upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json(), 201);
+  } catch (err) {
+    console.error("subscription create failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+async function handleSubscriptionDelete(
+  req: Request,
+  env: Env,
+  subId: number
+): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+  try {
+    const res = await fetch(`${base}/api/subscriptions/${subId}?user_id=${session.userId}`, {
+      method: "DELETE",
+      headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (res.status === 404) return json({ error: "not-found" }, 404);
+    if (!res.ok) {
+      console.error("subscription delete upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json({ ok: true });
+  } catch (err) {
+    console.error("subscription delete failed", err);
     return json({ error: "upstream-unreachable" }, 502);
   }
 }
