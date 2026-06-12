@@ -161,7 +161,6 @@
     /* paid tier: one-click handoff row (gated) */
     .action-handoff { margin-top: 9px; }
     .action-handoff-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .action-handoff.locked .action-handoff-row { opacity: 0.45; pointer-events: none; filter: grayscale(1); }
     .action-btn { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
                   text-transform: uppercase; padding: 7px 12px; border: 1px solid var(--ink);
                   background: var(--ink); color: var(--bg); cursor: pointer; }
@@ -169,11 +168,6 @@
     .action-link { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
                    color: var(--ink-2); }
     .action-hint { font-size: 11px; color: var(--ink-3); }
-    .premium-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px;
-                     font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-                     padding: 3px 7px; border: 1px solid var(--ink-2); color: var(--ink-2);
-                     background: var(--bg); border-radius: 2px; text-decoration: none; }
-    a.premium-badge:hover { border-color: var(--green); color: var(--green); }
     .action-locknote { margin-top: 7px; font-size: 11px; color: var(--ink-3); }
     .action-locknote a { color: var(--ink-2); }
     /* dismiss → optional reason capture */
@@ -543,14 +537,15 @@
         } catch (e) {}
       }
 
-      // The one-click handoff row (copy + open-in links). Free users read the
-      // instructions; this convenience layer is gated to signed-in users, shown
-      // grayed with a premium badge otherwise. Each use is logged as a signal.
+      // The one-click handoff row (copy + open-in links). Free for everyone
+      // (#54): this is the growth surface — every handoff pastes a
+      // filter.fyi-shaped brief into someone's assistant. Pro gates the
+      // compounding features (channel monitoring etc.), not conveniences with
+      // a select-all workaround. Each use is logged as a signal (anon too —
+      // funnel data improves as a bonus).
       function buildHandoff(summary, action, briefFull, briefLink) {
         const wrap = document.createElement('div');
         wrap.className = 'action-handoff';
-        const signedIn = !!window.__fyiSignedIn;
-        if (!signedIn) wrap.classList.add('locked');
 
         const row = document.createElement('div');
         row.className = 'action-handoff-row';
@@ -559,20 +554,16 @@
         copyBtn.type = 'button';
         copyBtn.className = 'action-btn';
         copyBtn.textContent = '📋 copy';
-        if (signedIn) {
-          copyBtn.addEventListener('click', function() {
-            sendSignal(summary, action, 'copy');
-            const done = function() {
-              copyBtn.textContent = '✓ copied';
-              setTimeout(function() { copyBtn.textContent = '📋 copy'; }, 1600);
-            };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(briefFull).then(done).catch(function() {});
-            }
-          });
-        } else {
-          copyBtn.tabIndex = -1;
-        }
+        copyBtn.addEventListener('click', function() {
+          sendSignal(summary, action, 'copy');
+          const done = function() {
+            copyBtn.textContent = '✓ copied';
+            setTimeout(function() { copyBtn.textContent = '📋 copy'; }, 1600);
+          };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(briefFull).then(done).catch(function() {});
+          }
+        });
         row.appendChild(copyBtn);
 
         deepLinks(briefLink).forEach(function(link) {
@@ -582,36 +573,17 @@
           link_el.target = '_blank';
           link_el.rel = 'noopener';
           link_el.textContent = 'open in ' + link.name + ' ↗';
-          if (signedIn) {
-            link_el.addEventListener('click', function() {
-              sendSignal(summary, action, link.name === 'ChatGPT' ? 'open_chatgpt' : 'open_claude');
-            });
-          } else {
-            link_el.tabIndex = -1;
-          }
+          link_el.addEventListener('click', function() {
+            sendSignal(summary, action, link.name === 'ChatGPT' ? 'open_chatgpt' : 'open_claude');
+          });
           row.appendChild(link_el);
         });
 
-        if (signedIn) {
-          const hint = document.createElement('span');
-          hint.className = 'action-hint';
-          hint.textContent = 'paste into ChatGPT, Claude, Cursor, Codex…';
-          row.appendChild(hint);
-        } else {
-          const badge = document.createElement('a');
-          badge.className = 'premium-badge';
-          badge.href = '/about#pricing';
-          badge.textContent = '🔒 pro';
-          row.appendChild(badge);
-        }
+        const hint = document.createElement('span');
+        hint.className = 'action-hint';
+        hint.textContent = 'paste into ChatGPT, Claude, Cursor, Codex…';
+        row.appendChild(hint);
         wrap.appendChild(row);
-
-        if (!signedIn) {
-          const note = document.createElement('div');
-          note.className = 'action-locknote';
-          note.innerHTML = 'One-click copy &amp; hand-off is a Pro feature — <a href="/about#pricing">free for early adopters</a>. Sign in to use it.';
-          wrap.appendChild(note);
-        }
         return wrap;
       }
 
