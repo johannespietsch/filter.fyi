@@ -186,6 +186,11 @@
                    font: inherit; font-size: 11px; text-decoration: underline; padding: 0; margin-top: 6px; }
     .action-undo:hover { color: var(--ink); }
 
+    /* signed-in-without-a-lens nudge under the actions */
+    .lens-nudge { font-size: 12px; color: var(--ink-2); padding: 10px 12px;
+                  border: 1px dashed var(--green); background: var(--bg-2); }
+    .lens-nudge a { color: var(--green); }
+
     /* "what we read" transparency disclosure */
     .result-brief { margin-top: 18px; border-top: 1px dotted var(--ink); padding-top: 12px; }
     .result-brief summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em;
@@ -264,7 +269,7 @@
     <section class="hero">
       <div class="eyebrow">For everyone trying to keep up with AI</div>
       <h1>So many <span class="rot" id="rot-word" aria-live="polite">open tabs</span><br><span class="quiet">So little time</span><br>Let's <span class="hl">filter.</span></h1>
-      <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;and quietly monitors the sources you trust, so nothing important slips through.</p>
+      <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;each with a ready-to-paste brief for ChatGPT, Claude or your coding agent.</p>
 
       <form class="form-card" id="try-form" autocomplete="off">
         <div class="form-lbl">paste a url — article, tweet, YouTube, PDF</div>
@@ -367,12 +372,15 @@
     // true once /api/v1/me confirms a session. Resolves on page load, long
     // before any result renders, so renderActions can read it safely.
     window.__fyiSignedIn = false;
+    window.__fyiHasLens = false;
     (() => {
       fetch('/api/v1/me', { credentials: 'same-origin' })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (!data?.user?.email) return;
           window.__fyiSignedIn = true;
+          // Lens presence drives the "set your lens" nudge under results.
+          window.__fyiHasLens = !!(data.user.profile || '').trim();
           // Swap the anon "sign in" link for the signed-in library link;
           // leave persistent nav links (about) in place.
           const navLibrary = document.getElementById('nav-library');
@@ -617,12 +625,20 @@
           empty.className = 'actions-empty';
           empty.textContent = "No next steps for this one — it's a read to stay informed, not something to act on. We only suggest actions when they're genuinely worth your time.";
           container.appendChild(empty);
-          return;
+        } else {
+          actions.forEach(function(action) {
+            container.appendChild(buildActionBox(summary, action));
+            sendSignal(summary, action, 'shown'); // funnel denominator
+          });
         }
-        actions.forEach(function(action) {
-          container.appendChild(buildActionBox(summary, action));
-          sendSignal(summary, action, 'shown'); // funnel denominator
-        });
+        // Signed in but no lens set: this result was judged for a generic
+        // reader — point at the lens editor so the next one is theirs.
+        if (window.__fyiSignedIn && !window.__fyiHasLens) {
+          const nudge = document.createElement('p');
+          nudge.className = 'lens-nudge';
+          nudge.innerHTML = 'These were judged for a generic reader — <a href="/me#lens">set your lens</a> to make them yours.';
+          container.appendChild(nudge);
+        }
       }
 
       // One suggestion box: title + effort + one-line detail, with open/dismiss.

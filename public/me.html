@@ -273,6 +273,20 @@
     .lens-save:hover:not(:disabled) { background: var(--green); color: var(--bg-2); }
     .lens-save:disabled { opacity: 0.5; cursor: default; }
     .lens-status { font-size: 12px; color: var(--ink-3); }
+    /* First-run guided composer: shown only while the lens is empty. */
+    .lens-onboard { border: 1px dashed var(--green); background: var(--green-soft);
+                    padding: 16px; margin-bottom: 16px; }
+    .lens-onboard-title { font-size: 13.5px; font-weight: 700; margin-bottom: 12px; }
+    .lens-q { display: block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+              color: var(--ink-2); margin-bottom: 12px; }
+    .lens-q-input { display: block; width: 100%; margin-top: 5px; font: inherit; font-size: 13px;
+                    padding: 8px 10px; border: 1px solid var(--ink); background: var(--bg);
+                    color: var(--ink); text-transform: none; letter-spacing: normal; }
+    .lens-q-input:focus { outline: none; background: var(--bg-2); }
+    .lens-q-input::placeholder { color: var(--ink-3); }
+    .lens-skip { background: none; border: none; font: inherit; font-size: 11px;
+                 color: var(--ink-3); text-decoration: underline; cursor: pointer; padding: 5px 0; }
+    .lens-skip:hover { color: var(--ink); }
 
     /* ---- Telegram-link section ----------------------------------------- */
     .link-tg p { font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
@@ -393,6 +407,28 @@
         <section class="pane" data-pane="lens" hidden>
           <div class="pane-title">Your lens</div>
           <p class="pane-intro">This is the perspective filter.fyi judges your content against — the sharper and more specific it is, the more your verdicts and suggested next steps fit <i>you</i> rather than a generic reader. Edit it anytime.</p>
+          <!-- Guided composer for users with no lens yet. Three answers are
+               drafted into the textarea below — the free-text editor stays
+               the source of truth and the escape hatch. -->
+          <div class="lens-onboard" id="lens-onboard" hidden>
+            <div class="lens-onboard-title">No lens yet — answer what you like, we'll draft one from it.</div>
+            <label class="lens-q">Your role &amp; situation
+              <input type="text" id="lens-q-role" class="lens-q-input" maxlength="200"
+                     placeholder="e.g. senior backend engineer at a fintech, moving into ML infra" />
+            </label>
+            <label class="lens-q">What are you trying to get better at right now?
+              <input type="text" id="lens-q-goal" class="lens-q-input" maxlength="200"
+                     placeholder="e.g. shipping production LLM features, not just demos" />
+            </label>
+            <label class="lens-q">Time you can realistically invest
+              <input type="text" id="lens-q-time" class="lens-q-input" maxlength="120"
+                     placeholder="e.g. a couple of evenings a week" />
+            </label>
+            <div class="lens-actions">
+              <button class="lens-save" id="lens-compose" type="button">draft my lens ↓</button>
+              <button class="lens-skip" id="lens-skip" type="button">skip for now</button>
+            </div>
+          </div>
           <textarea id="profile-input" class="lens-input" rows="6" placeholder="e.g. Senior backend engineer moving into ML infra. I want production-grade patterns over hype, short and honest time estimates, and I'm short on evenings."></textarea>
           <div class="lens-actions">
             <button class="lens-save" id="profile-save" type="button">save lens</button>
@@ -902,6 +938,17 @@
           if (tgNav) tgNav.hidden = true;
         }
         profileInput.value = payload.user?.profile || '';
+        syncLensOnboard();
+        // First sign-in with no lens: offer the lens setup once per browser.
+        // Only when landing on the default view — never hijack a deep link.
+        if (!profileInput.value.trim() && !location.hash.replace(/^#/, '')) {
+          let offered = false;
+          try { offered = localStorage.getItem(LENS_OFFERED_KEY) === '1'; } catch {}
+          if (!offered) {
+            try { localStorage.setItem(LENS_OFFERED_KEY, '1'); } catch {}
+            location.hash = 'lens'; // booted is still false, so route() below handles it
+          }
+        }
         wireDeleteAccount();
 
         const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
@@ -1190,6 +1237,36 @@
       const profileInput = document.getElementById('profile-input');
       const profileSave = document.getElementById('profile-save');
       const profileStatus = document.getElementById('profile-status');
+
+      // --- Lens onboarding: guided composer + one-time first-run offer ---
+      // The composer shows whenever the lens is empty; the auto-routing to
+      // #lens happens at most once per browser (offered, never forced).
+      const lensOnboard = document.getElementById('lens-onboard');
+      const LENS_OFFERED_KEY = 'fyi_lens_offered';
+      function syncLensOnboard() {
+        lensOnboard.hidden = !!profileInput.value.trim();
+      }
+      document.getElementById('lens-compose').addEventListener('click', () => {
+        const role = document.getElementById('lens-q-role').value.trim();
+        const goal = document.getElementById('lens-q-goal').value.trim();
+        const time = document.getElementById('lens-q-time').value.trim();
+        if (!role && !goal && !time) {
+          document.getElementById('lens-q-role').focus();
+          return;
+        }
+        const parts = [];
+        if (role) parts.push('Who I am: ' + role + '.');
+        if (goal) parts.push("Right now I'm trying to get better at: " + goal + '.');
+        if (time) parts.push('Time I can realistically invest: ' + time + '.');
+        parts.push('Judge content against this and keep suggested next steps specific to my situation — honest time estimates, no hype.');
+        profileInput.value = parts.join(' ');
+        profileInput.focus();
+      });
+      document.getElementById('lens-skip').addEventListener('click', () => {
+        try { localStorage.setItem(LENS_OFFERED_KEY, '1'); } catch {}
+        location.hash = 'library';
+      });
+
       profileSave.addEventListener('click', async () => {
         profileSave.disabled = true;
         profileStatus.hidden = true;
@@ -1204,6 +1281,7 @@
           if (typeof data.profile === 'string') profileInput.value = data.profile;
           profileStatus.textContent = 'saved ✓';
           profileStatus.hidden = false;
+          syncLensOnboard(); // a saved lens retires the guided composer
         } catch {
           profileStatus.textContent = "couldn't save — try again";
           profileStatus.hidden = false;
