@@ -138,6 +138,11 @@ export default {
       return handleProfileUpdate(req, env);
     }
 
+    if (url.pathname === "/api/v1/stats") {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleStats(req, env);
+    }
+
     if (url.pathname === "/api/v1/feedback") {
       if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       return handleFeedback(req, env);
@@ -1410,6 +1415,35 @@ async function handleAccountDelete(req: Request, env: Env): Promise<Response> {
   }
 
   return json({ ok: true }, 200, { "set-cookie": clearSessionCookieHeader() });
+}
+
+// Value stats for the /me ROI strip (#53) — proxied per-session so a client
+// can only ever read its own numbers.
+async function handleStats(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  try {
+    const res = await fetch(
+      `${backendBase(env.BOT_API_URL)}/api/users/${session.userId}/stats`,
+      {
+        headers: { "x-filter-fyi-secret": env.BOT_API_KEY },
+        signal: AbortSignal.timeout(5_000),
+      }
+    );
+    if (!res.ok) {
+      console.error("stats upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("stats failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
 }
 
 // Update the signed-in user's personalization profile (the analysis lens).

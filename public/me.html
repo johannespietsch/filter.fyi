@@ -84,6 +84,10 @@
          font-weight: 700; margin-bottom: 6px; text-wrap: balance; }
     .who { font-size: 13px; color: var(--ink-2); }
     .who b { color: var(--ink); font-weight: 500; }
+    .roi-strip { margin-top: 10px; padding: 8px 12px; font-size: 12.5px; color: var(--ink-2);
+                 border: 1px dashed var(--green); background: var(--green-soft);
+                 font-variant-numeric: tabular-nums; }
+    .roi-strip b { color: var(--ink); font-weight: 700; }
     .tg-linked { color: var(--green); font-weight: 500; }
 
     .pane-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
@@ -408,6 +412,11 @@
             <div class="eyebrow">Your library</div>
             <h1>Saved.</h1>
             <p class="who">Signed in as <b id="user-email">…</b><span id="tg-linked" class="tg-linked" hidden> · Telegram linked ✓</span></p>
+            <!-- ROI strip (#53): what filter.fyi did for you this month.
+                 Hidden until stats arrive and only shown with activity —
+                 no zero-state bragging. -->
+            <p class="roi-strip" id="roi-strip" hidden
+               title="Time figures are estimates based on the analyzer's own reading-time guesses for skipped and skimmed reads."></p>
           </div>
 
           <div class="empty" id="empty" hidden>
@@ -1129,6 +1138,31 @@
         boot.hidden = true;
         booted = true;
         route(); // reveal the active pane now that data is in place
+        loadRoiStrip(); // fire-and-forget; the strip appears when stats land
+      }
+
+      // --- ROI strip (#53): "this month filter.fyi did X for you". ---------
+      // Best-effort — a failed stats call just leaves the strip hidden.
+      async function loadRoiStrip() {
+        let m;
+        try {
+          const res = await fetch('/api/v1/stats', { credentials: 'same-origin' });
+          if (!res.ok) return;
+          m = ((await res.json()) || {}).month || {};
+        } catch { return; }
+        if (!m.items) return; // no zero-state bragging
+        const bits = [`<b>${m.items}</b> read${m.items === 1 ? '' : 's'} filtered`];
+        if (m.minutes_saved > 0) {
+          const t = m.minutes_saved >= 60
+            ? `~${Math.round(m.minutes_saved / 6) / 10} hrs`
+            : `~${m.minutes_saved} min`;
+          bits.push(`<b>${t}</b> of skips not read`);
+        }
+        const done = m.suggestions_done || 0;
+        if (done) bits.push(`<b>${done}</b> action${done === 1 ? '' : 's'} done`);
+        const strip = document.getElementById('roi-strip');
+        strip.innerHTML = 'This month: ' + bits.join(' &nbsp;·&nbsp; ');
+        strip.hidden = false;
       }
 
       // Fire-and-forget feedback event for an item (never blocks the UI).
