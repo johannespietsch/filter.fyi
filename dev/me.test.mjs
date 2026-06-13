@@ -63,9 +63,9 @@ async function boot(opts = {}) {
           return ok({ ok: true });
         }
         if (url === "/api/v1/saved-suggestions" && method === "POST")
-          return { status: 201, ok: true, json: async () => ({ id: 99, status: "saved" }) };
+          return { status: 201, ok: true, json: async () => (opts.saveResponse ?? { id: 99, status: "saved" }) };
         if (url === "/api/v1/saved-suggestions")
-          return ok([{ id: 99, item_id: 7, suggestion_index: 0, title: "Do X", detail: "Detail", effort: "a weekend", first_step: "step", grounded_in: "", status: "saved", source: "https://example.com/a", item_title: "First" }]);
+          return ok(opts.shortlistRows ?? [{ id: 99, item_id: 7, suggestion_index: 0, title: "Do X", detail: "Detail", effort: "a weekend", first_step: "step", grounded_in: "", status: "saved", source: "https://example.com/a", item_title: "First", sources: [] }]);
         return ok({ ok: true });
       };
       window.navigator.clipboard = { writeText: async () => {} };
@@ -258,4 +258,38 @@ test("unfollow deletes and falls back to the empty state", async () => {
   assert.ok(calls.some((c) => c.startsWith("DELETE /api/v1/subscriptions/5")));
   assert.equal(doc.querySelector("#ch-list .ch-row"), null);
   assert.equal(doc.getElementById("ch-empty").hidden, false);
+});
+
+// --- Cross-source consolidation (#70) ---
+
+test("a consolidated shortlist entry shows its backing and extra back-links", async () => {
+  const row = {
+    id: 99, item_id: 7, suggestion_index: 0, title: "Eval harness",
+    detail: "set up an eval harness", effort: "", first_step: "", grounded_in: "",
+    status: "saved", source: "https://example.com/a", item_title: "First",
+    sources: [{ item_id: 8, source: "https://example.com/b", item_title: "Second" }],
+  };
+  const { window, doc } = await boot({ profile: "set", shortlistRows: [row] });
+  window.location.hash = "#shortlist";
+  await sleep(120);
+  assert.equal(doc.querySelector(".sug-backed").textContent, "backed by 2 sources");
+  const backs = [...doc.querySelectorAll(".sl-source")].map((a) => a.textContent);
+  assert.deepEqual(backs, ["from: First", "also from: Second"]);
+  // The hand-off brief carries every source inside the fenced block.
+  assert.match(doc.querySelector(".tryit-brief").textContent,
+    /Also recommended by: Second — https:\/\/example\.com\/b/);
+});
+
+test("a merged save says so instead of pretending it added a new entry", async () => {
+  const { window, doc } = await boot({
+    profile: "set",
+    saveResponse: { id: 42, status: "saved", merged: true },
+  });
+  window.location.hash = "#item/7";
+  await sleep(120);
+  const box = doc.querySelector("#detail .sug");
+  box.querySelector(".sug-later").click();
+  await sleep(80);
+  assert.equal(box.dataset.savedId, "42");
+  assert.match(box.querySelector(".sug-saved-msg").textContent, /merged into an existing/);
 });
