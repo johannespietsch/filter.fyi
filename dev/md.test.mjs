@@ -87,3 +87,52 @@ test("null/empty input is safe", () => {
   assert.equal(renderMarkdown(null), "");
   assert.equal(renderMarkdown(""), "");
 });
+
+test("GFM pipe table renders thead/tbody with cells", () => {
+  const md = "| Model | Score |\n| --- | --- |\n| GPT | 9 |\n| Claude | 10 |";
+  assert.equal(
+    renderMarkdown(md),
+    "<table><thead><tr><th>Model</th><th>Score</th></tr></thead>" +
+      "<tbody><tr><td>GPT</td><td>9</td></tr><tr><td>Claude</td><td>10</td></tr></tbody></table>"
+  );
+});
+
+test("table column alignment comes from the delimiter row", () => {
+  const md = "| L | C | R |\n| :-- | :-: | --: |\n| a | b | c |";
+  const html = renderMarkdown(md);
+  assert.match(html, /<th style="text-align:left">L<\/th>/);
+  assert.match(html, /<th style="text-align:center">C<\/th>/);
+  assert.match(html, /<th style="text-align:right">R<\/th>/);
+  assert.match(html, /<td style="text-align:center">b<\/td>/);
+});
+
+test("table cells are inline-formatted and escaped", () => {
+  const md = "| A | B |\n| --- | --- |\n| **bold** | <img> |";
+  const html = renderMarkdown(md);
+  assert.match(html, /<td><strong>bold<\/strong><\/td>/);
+  assert.match(html, /<td>&lt;img&gt;<\/td>/);
+  assert.ok(!html.includes("<img>"), "raw HTML never emitted");
+});
+
+test("ragged body rows are padded/truncated to the header width", () => {
+  const md = "| A | B |\n| --- | --- |\n| only-one |\n| x | y | z |";
+  const html = renderMarkdown(md);
+  assert.match(html, /<tr><td>only-one<\/td><td><\/td><\/tr>/); // padded
+  assert.match(html, /<tr><td>x<\/td><td>y<\/td><\/tr>/);       // truncated
+});
+
+test("a paragraph immediately before a table is not swallowed", () => {
+  const md = "intro line\n| A | B |\n| --- | --- |\n| 1 | 2 |";
+  const html = renderMarkdown(md);
+  assert.match(html, /^<p>intro line<\/p>/);
+  assert.match(html, /<table>/);
+});
+
+test("escaped pipes stay literal inside a cell", () => {
+  const md = "| A | B |\n| --- | --- |\n| a \\| b | c |";
+  assert.match(renderMarkdown(md), /<td>a \| b<\/td>/);
+});
+
+test("a pipe line without a delimiter row is just a paragraph", () => {
+  assert.equal(renderMarkdown("a | b | c"), "<p>a | b | c</p>");
+});
