@@ -14,7 +14,8 @@ const html = fs.readFileSync(path.join(dir, "../public/index.html"), "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Boot index.html with a stubbed /api/v1/try; `tryResponse` controls the reply.
-async function boot(tryResponse = { status: 200, body: { pending: true, job_id: "j1" } }) {
+// `signedIn` makes /api/v1/me return a user (drops the anon-only persona picker).
+async function boot(tryResponse = { status: 200, body: { pending: true, job_id: "j1" } }, signedIn = false) {
   const calls = [];
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
@@ -22,7 +23,11 @@ async function boot(tryResponse = { status: 200, body: { pending: true, job_id: 
     pretendToBeVisual: true,
     beforeParse(window) {
       window.fetch = async (url, opts = {}) => {
-        if (url === "/api/v1/me") return { ok: false, status: 401, json: async () => ({}) };
+        if (url === "/api/v1/me") {
+          return signedIn
+            ? { ok: true, status: 200, json: async () => ({ user: { email: "x@y.z", profile: "" } }) }
+            : { ok: false, status: 401, json: async () => ({}) };
+        }
         calls.push({ url, body: opts.body ? JSON.parse(opts.body) : null });
         return { status: tryResponse.status, ok: tryResponse.status < 400,
                  json: async () => tryResponse.body };
@@ -72,7 +77,7 @@ test("URL mode submits { url }", async () => {
   submit(doc, window);
   await sleep(20);
   const tryCall = calls.find((c) => c.url === "/api/v1/try");
-  assert.deepEqual(tryCall.body, { url: "https://example.com/post" });
+  assert.deepEqual(tryCall.body, { url: "https://example.com/post", persona: "" });
 });
 
 test("paste mode submits { text }", async () => {
@@ -82,7 +87,7 @@ test("paste mode submits { text }", async () => {
   submit(doc, window);
   await sleep(20);
   const tryCall = calls.find((c) => c.url === "/api/v1/try");
-  assert.deepEqual(tryCall.body, { text: "A pasted post about text-to-SQL benchmarks." });
+  assert.deepEqual(tryCall.body, { text: "A pasted post about text-to-SQL benchmarks.", persona: "" });
 });
 
 test("empty submit does not call the API", async () => {
@@ -98,4 +103,52 @@ test("a fetch failure nudges toward paste mode", async () => {
   submit(doc, window);
   await sleep(20);
   assert.match(doc.getElementById("mode-toggle").textContent, /paste the text instead/);
+});
+
+// --- anon persona picker (#72) ---
+
+test("three persona cards are shown for anon", async () => {
+  const { doc } = await boot();
+  const keys = [...doc.querySelectorAll(".persona-card")].map((c) => c.dataset.persona);
+  assert.deepEqual(keys, ["leader", "explorer", "builder"]);
+});
+
+test("selecting a persona highlights it and persists", async () => {
+  const { doc, window } = await boot();
+  doc.querySelector('.persona-card[data-persona="explorer"]').click();
+  assert.ok(doc.querySelector('.persona-card[data-persona="explorer"]').classList.contains("selected"));
+  assert.equal(window.localStorage.getItem("fyi_persona"), "explorer");
+});
+
+test("the selected persona is sent with the try request", async () => {
+  const { doc, window, calls } = await boot();
+  doc.querySelector('.persona-card[data-persona="leader"]').click();
+  doc.getElementById("url").value = "https://example.com/x";
+  submit(doc, window);
+  await sleep(20);
+  const tryCall = calls.find((c) => c.url === "/api/v1/try");
+  assert.equal(tryCall.body.persona, "leader");
+  assert.equal(tryCall.body.url, "https://example.com/x");
+});
+
+test("no selection sends an empty persona", async () => {
+  const { doc, window, calls } = await boot();
+  doc.getElementById("url").value = "https://example.com/x";
+  submit(doc, window);
+  await sleep(20);
+  assert.equal(calls.find((c) => c.url === "/api/v1/try").body.persona, "");
+});
+
+test("clicking the selected persona again clears it", async () => {
+  const { doc, window } = await boot();
+  const card = doc.querySelector('.persona-card[data-persona="builder"]');
+  card.click();
+  card.click();
+  assert.ok(!card.classList.contains("selected"));
+  assert.equal(window.localStorage.getItem("fyi_persona"), null);
+});
+
+test("signed-in users don't see the persona picker", async () => {
+  const { doc } = await boot(undefined, true);
+  assert.equal(doc.getElementById("persona-pick"), null);
 });

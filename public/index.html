@@ -71,6 +71,22 @@
     .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px;
               -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
+    /* persona picker */
+    .persona-pick { margin-bottom: 16px; }
+    .persona-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                   color: var(--ink-2); margin-bottom: 8px; }
+    .persona-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .persona-card { display: flex; flex-direction: column; gap: 3px; text-align: left;
+                    padding: 10px 12px; border: 1px solid var(--ink); background: var(--bg-2);
+                    cursor: pointer; font: inherit; transition: 0.12s; }
+    .persona-card:hover { background: var(--green-soft); border-color: var(--green); }
+    .persona-card.selected { background: var(--green-soft); border-color: var(--green);
+                             box-shadow: inset 0 0 0 1px var(--green); }
+    .persona-name { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .persona-card.selected .persona-name { color: var(--green); }
+    .persona-desc { font-size: 10.5px; line-height: 1.35; color: var(--ink-3); }
+    @media (max-width: 540px) { .persona-cards { grid-template-columns: 1fr; } }
+
     /* url form */
     .form-card { background: var(--bg-2); border: 1px solid var(--ink); padding: 22px; margin-bottom: 18px; }
     .form-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
@@ -282,6 +298,26 @@
       <h1>So many <span class="rot" id="rot-word" aria-live="polite">open tabs</span><br><span class="quiet">So little time</span><br>Let's <span class="hl">filter.</span></h1>
       <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;each with a ready-to-paste brief for ChatGPT, Claude or your coding agent.</p>
 
+      <!-- Anon persona picker (#72): tailors the very first result. Signed-in
+           users have their own lens, so this is hidden for them via JS. -->
+      <div class="persona-pick" id="persona-pick">
+        <div class="persona-lbl">Tune it to you — pick your lens</div>
+        <div class="persona-cards">
+          <button type="button" class="persona-card" data-persona="leader">
+            <span class="persona-name">Steer AI adoption</span>
+            <span class="persona-desc">Decisions &amp; frameworks — no code</span>
+          </button>
+          <button type="button" class="persona-card" data-persona="explorer">
+            <span class="persona-name">Keep up calmly</span>
+            <span class="persona-desc">Small, low-pressure steps to start</span>
+          </button>
+          <button type="button" class="persona-card" data-persona="builder">
+            <span class="persona-name">Build hands-on</span>
+            <span class="persona-desc">Code-level next steps &amp; experiments</span>
+          </button>
+        </div>
+      </div>
+
       <form class="form-card" id="try-form" autocomplete="off">
         <div class="form-lbl" id="form-lbl">paste a url — article, tweet, YouTube, PDF</div>
         <div class="input-row" id="url-row">
@@ -410,6 +446,10 @@
           }
           const finePrint = document.getElementById('form-fine-print');
           if (finePrint) finePrint.hidden = true;
+          // Signed-in users have their own lens — the anon persona picker is
+          // irrelevant, so drop it.
+          const personaPick = document.getElementById('persona-pick');
+          if (personaPick) personaPick.remove();
           const nudge = document.getElementById('nudge-waitlist');
           if (nudge) nudge.remove();
           const noticeRl = document.getElementById('notice-ratelimit');
@@ -998,7 +1038,7 @@
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify(input),
+            body: JSON.stringify({ ...input, persona: selectedPersona }),
           });
           payload = await res.json().catch(() => ({}));
         } catch (err) {
@@ -1060,6 +1100,32 @@
           maybeShowNudge(payload.tries_used, payload.tries_limit);
         }
       }
+
+      // --- Anon persona picker (#72) -------------------------------------
+      // The chosen lens is sent with every try and remembered across visits.
+      // Clicking the selected card again clears it (back to the default lens).
+      const PERSONA_KEY = 'fyi_persona';
+      const PERSONA_KEYS = ['leader', 'explorer', 'builder'];
+      let selectedPersona = '';
+      try {
+        const saved = localStorage.getItem(PERSONA_KEY);
+        if (PERSONA_KEYS.includes(saved)) selectedPersona = saved;
+      } catch {}
+      function paintPersona() {
+        document.querySelectorAll('.persona-card').forEach((c) =>
+          c.classList.toggle('selected', c.dataset.persona === selectedPersona));
+      }
+      paintPersona();
+      document.querySelectorAll('.persona-card').forEach((card) => {
+        card.addEventListener('click', () => {
+          selectedPersona = selectedPersona === card.dataset.persona ? '' : card.dataset.persona;
+          try {
+            if (selectedPersona) localStorage.setItem(PERSONA_KEY, selectedPersona);
+            else localStorage.removeItem(PERSONA_KEY);
+          } catch {}
+          paintPersona();
+        });
+      });
 
       // --- URL ⇆ paste-text mode -----------------------------------------
       let pasteMode = false;
