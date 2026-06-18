@@ -45,6 +45,10 @@ const IP_DAILY_LIMIT = 10; // higher than anon so a shared NAT doesn't lock ever
 const BOT_TIMEOUT_MS_DEFAULT = 25_000;
 const RATE_LIMIT_CLEANUP_PROBABILITY = 0.01; // ~1% of /api/try calls sweep old rows
 const SLOW_SOURCE_TYPES = new Set(["video"]); // Phase 1 bounces these before calling the bot
+// Bounds on the "paste text instead" fallback: enough to be worth analysing,
+// capped to keep one request's LLM cost bounded (the backend re-caps too).
+const MIN_PASTE_CHARS = 40;
+const MAX_PASTE_CHARS = 50_000;
 
 // Derive the backend root from BOT_API_URL (which still points at /api/try).
 // All other backend endpoints — /api/users/upsert, /api/library/*, /api/claim,
@@ -506,17 +510,29 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
     return respond({ error: "invalid-json" }, 400);
   }
 
+  // Two input modes: a URL to fetch, or pasted text to analyse directly (the
+  // "paste it in" fallback for sources we can't fetch — Reddit, paywalls,
+  // JS-only). Text takes precedence when both are present.
+  const text = typeof body.text === "string" ? body.text.trim().slice(0, MAX_PASTE_CHARS) : "";
   const url = typeof body.url === "string" ? body.url.trim() : "";
-  if (!isValidHttpUrl(url)) {
-    return respond({ error: "invalid-url", message: "Please paste a full http(s) URL." }, 400);
+  if (!text && !isValidHttpUrl(url)) {
+    return respond(
+      { error: "invalid-url", message: "Paste a full http(s) URL, or switch to pasting text." },
+      400
+    );
+  }
+  if (text && text.length < MIN_PASTE_CHARS) {
+    return respond(
+      { error: "text-too-short", message: "Paste a bit more text and I'll analyse it." },
+      400
+    );
   }
 
-  const ourSourceType = classifyUrl(url);
   // Long-form video (Vimeo/Loom/Wistia/StreamYard) is slow to transcribe, so
   // anonymous visitors get bounced before we call the bot. Signed-in users have
-  // the full product unlocked — let it through to the backend, which handles
-  // transcription (and degrades to a description-only summary when needed).
-  if (!session && SLOW_SOURCE_TYPES.has(ourSourceType)) {
+  // the full product unlocked. (Only applies to the URL path — pasted text is
+  // already the content, nothing to transcribe.)
+  if (!text && !session && SLOW_SOURCE_TYPES.has(classifyUrl(url))) {
     return respond(
       {
         error: "unsupported-source",
@@ -626,9 +642,11 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   // For anon traffic we forward the anon cookie as `anon_id` purely so the
   // backend can attribute LLM spend per visitor in `llm_calls` (no PII —
   // it's the same UUID the Worker already stores against anon_summaries).
+  // Forward text or url; identity field (user_id / anon_id) stays the same.
+  const input = text ? { text } : { url };
   const jobBody = session
-    ? JSON.stringify({ url, user_id: session.userId })
-    : JSON.stringify({ url, anon_id: anonId });
+    ? JSON.stringify({ ...input, user_id: session.userId })
+    : JSON.stringify({ ...input, anon_id: anonId });
   let jobRes: Response;
   try {
     jobRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/job`, {

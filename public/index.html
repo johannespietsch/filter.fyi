@@ -85,6 +85,19 @@
     .cta-btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .form-fine-print { font-size: 11px; color: var(--ink-3); margin-top: 12px; }
 
+    /* paste-text mode */
+    .paste-row { display: flex; flex-direction: column; gap: 0; }
+    .paste-input { width: 100%; min-height: 120px; padding: 12px 14px; border: 1px solid var(--ink);
+                   background: var(--bg); font: inherit; font-size: 13px; color: var(--ink);
+                   outline: none; resize: vertical; transition: background 0.15s; }
+    .paste-input:focus { background: var(--bg-2); }
+    .paste-input::placeholder { color: var(--ink-3); }
+    .paste-row .cta-btn { border: 1px solid var(--ink); border-top: none; }
+    .mode-toggle { margin-top: 12px; background: none; border: none; padding: 0; cursor: pointer;
+                   font: inherit; font-size: 11px; letter-spacing: 0.04em; color: var(--green);
+                   text-decoration: underline; text-underline-offset: 2px; }
+    .mode-toggle:hover { color: var(--ink); }
+
     .loading { display: none; padding: 20px 22px; background: var(--bg-2); border: 1px solid var(--ink);
                margin-bottom: 18px; }
     .loading.visible { display: block; }
@@ -266,12 +279,18 @@
       <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;each with a ready-to-paste brief for ChatGPT, Claude or your coding agent.</p>
 
       <form class="form-card" id="try-form" autocomplete="off">
-        <div class="form-lbl">paste a url — article, tweet, YouTube, PDF</div>
-        <div class="input-row">
+        <div class="form-lbl" id="form-lbl">paste a url — article, tweet, YouTube, PDF</div>
+        <div class="input-row" id="url-row">
           <input class="url-input" id="url" name="url" type="url" inputmode="url"
-                 placeholder="https://..." required spellcheck="false" autocapitalize="off" />
+                 placeholder="https://..." spellcheck="false" autocapitalize="off" />
           <button class="cta-btn" id="submit-btn" type="submit">Try it</button>
         </div>
+        <div class="paste-row" id="paste-row" hidden>
+          <textarea class="paste-input" id="paste" rows="6"
+                    placeholder="Paste the text of an article or post — handy for anything we can't fetch (Reddit, paywalls, login-walled pages)."></textarea>
+          <button class="cta-btn" id="submit-btn-paste" type="submit">Analyze text</button>
+        </div>
+        <button type="button" class="mode-toggle" id="mode-toggle">or paste text instead ↧</button>
         <p class="form-fine-print" id="form-fine-print">No login required — 3 free reads a day. <a href="/login">Sign in</a> for more, plus a saved library of your results.</p>
       </form>
 
@@ -401,7 +420,19 @@
     (() => {
       const form = document.getElementById('try-form');
       const urlInput = document.getElementById('url');
-      const submitBtn = document.getElementById('submit-btn');
+      // Both rows have a submit button; only one is visible at a time. Proxy
+      // `.disabled` to both so the existing call sites disable whichever is up.
+      const submitBtn = {
+        set disabled(v) {
+          document.getElementById('submit-btn').disabled = v;
+          document.getElementById('submit-btn-paste').disabled = v;
+        },
+      };
+      const pasteInput = document.getElementById('paste');
+      const urlRow = document.getElementById('url-row');
+      const pasteRow = document.getElementById('paste-row');
+      const modeToggle = document.getElementById('mode-toggle');
+      const formLbl = document.getElementById('form-lbl');
       const loading = document.getElementById('loading');
       const result = document.getElementById('result');
       const noticeUnsupported = document.getElementById('notice-unsupported');
@@ -947,11 +978,13 @@
         }, 2000);
       }
 
-      async function submitUrl(url) {
+      // input is { url } or { text }. Both drive the same async job + polling.
+      async function submitInput(input) {
         hideAll();
         stopPolling();
         stopEstimate();
-        setJobStep('fetching');
+        // Pasted text skips the fetch step — start at summarizing.
+        setJobStep(input.text ? 'summarizing' : 'fetching');
         submitBtn.disabled = true;
         show(loading);
         startEstimate();
@@ -961,7 +994,7 @@
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             credentials: 'same-origin',
-            body: JSON.stringify({ url }),
+            body: JSON.stringify(input),
           });
           payload = await res.json().catch(() => ({}));
         } catch (err) {
@@ -985,12 +1018,13 @@
           show(noticeRatelimit);
           return;
         }
-        if (res.status === 400 && payload.error === 'invalid-url') {
+        if (res.status === 400 && (payload.error === 'invalid-url' || payload.error === 'text-too-short')) {
           loading.classList.remove('visible');
           submitBtn.disabled = false;
-          urlInput.classList.add('err');
-          urlInput.focus();
-          document.getElementById('notice-error-msg').textContent = payload.message || 'That doesn\'t look like a URL.';
+          const badEl = input.text ? pasteInput : urlInput;
+          badEl.classList.add('err');
+          badEl.focus();
+          document.getElementById('notice-error-msg').textContent = payload.message || 'That doesn\'t look right.';
           show(noticeError);
           return;
         }
@@ -999,6 +1033,9 @@
           submitBtn.disabled = false;
           document.getElementById('notice-error-msg').textContent = payload.message || 'Couldn\'t process that URL. Try a different one or come back in a moment.';
           show(noticeError);
+          // A fetch that found nothing (e.g. Reddit/paywall) is exactly what
+          // paste-mode is for — nudge there, unless we're already in it.
+          if (!input.text && (res.status === 422 || res.status === 502)) showPasteNudge();
           return;
         }
 
@@ -1020,11 +1057,39 @@
         }
       }
 
+      // --- URL ⇆ paste-text mode -----------------------------------------
+      let pasteMode = false;
+      function setPasteMode(on) {
+        pasteMode = on;
+        urlRow.hidden = on;
+        pasteRow.hidden = !on;
+        formLbl.textContent = on
+          ? 'paste text — an article or post we can\'t fetch'
+          : 'paste a url — article, tweet, YouTube, PDF';
+        modeToggle.textContent = on ? '↥ back to a URL' : 'or paste text instead ↧';
+        urlInput.classList.remove('err');
+        pasteInput.classList.remove('err');
+        (on ? pasteInput : urlInput).focus();
+      }
+      modeToggle.addEventListener('click', () => setPasteMode(!pasteMode));
+
+      // Surface paste-mode as the recovery after a fetch fails.
+      function showPasteNudge() {
+        if (pasteMode) return;
+        modeToggle.textContent = '↧ couldn\'t read it — paste the text instead';
+      }
+
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const url = urlInput.value.trim();
-        if (!url) return;
-        submitUrl(url);
+        if (pasteMode) {
+          const text = pasteInput.value.trim();
+          if (!text) { pasteInput.focus(); return; }
+          submitInput({ text });
+        } else {
+          const url = urlInput.value.trim();
+          if (!url) { urlInput.focus(); return; }
+          submitInput({ url });
+        }
       });
     })();
   </script>
