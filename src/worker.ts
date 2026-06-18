@@ -49,6 +49,8 @@ const SLOW_SOURCE_TYPES = new Set(["video"]); // Phase 1 bounces these before ca
 // capped to keep one request's LLM cost bounded (the backend re-caps too).
 const MIN_PASTE_CHARS = 40;
 const MAX_PASTE_CHARS = 50_000;
+// Anon persona keys (#72) — the only values forwarded to the backend.
+const ANON_PERSONAS = new Set(["leader", "explorer", "builder"]);
 
 // Derive the backend root from BOT_API_URL (which still points at /api/try).
 // All other backend endpoints — /api/users/upsert, /api/library/*, /api/claim,
@@ -644,9 +646,13 @@ async function handleTry(req: Request, env: Env, ctx: ExecutionContext): Promise
   // it's the same UUID the Worker already stores against anon_summaries).
   // Forward text or url; identity field (user_id / anon_id) stays the same.
   const input = text ? { text } : { url };
+  // Anon persona (#72): the picked lens. Allowlisted so only the known keys
+  // reach the backend; ignored for signed-in users (their saved lens wins).
+  const persona = typeof body.persona === "string" && ANON_PERSONAS.has(body.persona)
+    ? body.persona : "";
   const jobBody = session
     ? JSON.stringify({ ...input, user_id: session.userId })
-    : JSON.stringify({ ...input, anon_id: anonId });
+    : JSON.stringify({ ...input, anon_id: anonId, persona });
   let jobRes: Response;
   try {
     jobRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/job`, {
