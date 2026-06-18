@@ -43,6 +43,18 @@ test("defaults to URL mode", async () => {
   assert.equal(doc.getElementById("paste-row").hidden, true);
 });
 
+test("the [hidden] paste row is actually display:none, not just attr-hidden", async () => {
+  // The rows set display:flex via a class, which overrides the UA [hidden]
+  // rule — so the attribute alone leaves both rows visible. Pin that the
+  // global `[hidden]{display:none!important}` guard is in effect.
+  const { doc, window } = await boot();
+  const pasteRow = doc.getElementById("paste-row");
+  assert.equal(window.getComputedStyle(pasteRow).display, "none");
+  doc.getElementById("mode-toggle").click();
+  assert.equal(window.getComputedStyle(pasteRow).display, "flex");
+  assert.equal(window.getComputedStyle(doc.getElementById("url-row")).display, "none");
+});
+
 test("toggle switches to paste mode and back", async () => {
   const { doc } = await boot();
   const toggle = doc.getElementById("mode-toggle");

@@ -16,6 +16,10 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* The [hidden] attribute must win over class display rules (e.g. the
+       URL/paste rows set display:flex, which otherwise keeps them visible
+       when hidden). !important beats the UA stylesheet's [hidden] rule. */
+    [hidden] { display: none !important; }
     :root {
       --bg:#efece4; --bg-2:#f7f4ec;
       --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
