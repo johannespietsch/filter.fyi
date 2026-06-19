@@ -166,3 +166,23 @@ test("landing page wires the Markdown renderer for the brief", async () => {
   assert.ok(!/getElementById\('brief-body'\)\.textContent = brief/.test(html),
     "brief must not be rendered as plain text");
 });
+
+// --- lens colours (#75) ---
+
+test("each persona card carries its own lens hue at rest", async () => {
+  // The per-card gel vars drive the border-top + selected fill; pin they're wired.
+  assert.match(html, /persona-card\[data-persona="leader"\][^}]*--lens-leader/);
+  assert.match(html, /persona-card\[data-persona="explorer"\][^}]*--lens-explorer/);
+  assert.match(html, /persona-card\[data-persona="builder"\][^}]*--lens-builder/);
+});
+
+test("selecting a persona shifts the active --lens, deselecting reverts", async () => {
+  const { doc } = await boot();
+  const root = doc.documentElement.style;
+  assert.equal(root.getPropertyValue("--lens"), ""); // default comes from :root (green)
+  doc.querySelector('.persona-card[data-persona="explorer"]').click();
+  assert.equal(root.getPropertyValue("--lens"), "var(--lens-explorer)");
+  assert.equal(root.getPropertyValue("--lens-soft"), "var(--lens-explorer-soft)");
+  doc.querySelector('.persona-card[data-persona="explorer"]').click(); // deselect
+  assert.equal(root.getPropertyValue("--lens"), "");
+});
