@@ -152,3 +152,17 @@ test("signed-in users don't see the persona picker", async () => {
   const { doc } = await boot(undefined, true);
   assert.equal(doc.getElementById("persona-pick"), null);
 });
+
+// --- "what we read" brief renders Markdown (#74) ---
+// The renderer itself is covered in md.test.mjs; here we pin the wiring that
+// regressed: md.js loaded, the brief container is .md, and it's rendered
+// through md() rather than textContent. (Driving the full job-poll flow is
+// flaky on the 2s interval, and jsdom doesn't load the md.js module.)
+
+test("landing page wires the Markdown renderer for the brief", async () => {
+  assert.match(html, /<script type="module" src="\/md\.js">/);
+  assert.match(html, /<div class="brief-body md" id="brief-body">/);
+  assert.match(html, /getElementById\('brief-body'\)\.innerHTML = md\(brief\)/);
+  assert.ok(!/getElementById\('brief-body'\)\.textContent = brief/.test(html),
+    "brief must not be rendered as plain text");
+});
