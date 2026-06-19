@@ -14,6 +14,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Safe-subset Markdown renderer (module — attaches window.renderMarkdown).
+       Renders the stored "what we read" brief, which is Markdown. -->
+  <script type="module" src="/md.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     /* The [hidden] attribute must win over class display rules (e.g. the
@@ -231,7 +234,27 @@
     .result-brief .brief-body { max-height: 360px; overflow: auto; padding: 12px 14px;
                                 background: var(--bg); border: 1px solid var(--ink);
                                 font-size: 13px; line-height: 1.55; color: var(--ink);
-                                white-space: pre-wrap; word-wrap: break-word; }
+                                overflow-wrap: anywhere; }
+    /* ---- Rendered markdown (the "what we read" brief) ------------------ */
+    .md > :first-child { margin-top: 0; }
+    .md > :last-child { margin-bottom: 0; }
+    .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
+      font-size: 13.5px; letter-spacing: 0; margin: 14px 0 6px; color: var(--ink); font-weight: 700; }
+    .md h1 { font-size: 15px; } .md h2 { font-size: 14px; }
+    .md p { margin: 0 0 10px; }
+    .md ul, .md ol { margin: 0 0 10px; padding-left: 20px; }
+    .md li { margin-bottom: 3px; }
+    .md blockquote { margin: 0 0 10px; padding-left: 10px; border-left: 2px solid var(--ink-3); color: var(--ink-2); }
+    .md code { background: var(--bg-2); border: 1px solid var(--ink-3); padding: 0 4px; font-size: 12px; }
+    .md pre { background: var(--bg-2); border: 1px solid var(--ink-3); padding: 10px 12px; overflow: auto; margin: 0 0 10px; }
+    .md pre code { border: 0; padding: 0; background: none; }
+    .md a { color: var(--green); }
+    .md hr { border: 0; border-top: 1px dashed var(--ink-3); margin: 12px 0; }
+    .md table { border-collapse: collapse; width: 100%; margin: 0 0 10px; font-size: 12.5px;
+                display: block; overflow-x: auto; }
+    .md th, .md td { border: 1px solid var(--ink-3); padding: 5px 8px; text-align: left;
+                     vertical-align: top; }
+    .md th { background: var(--bg-2); font-weight: 700; }
     .result-save { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ink);
                    font-size: 12px; color: var(--ink-3); }
 
@@ -361,7 +384,7 @@
         <details class="result-brief" id="result-brief" hidden>
           <summary id="brief-toggle">show what we read</summary>
           <div class="brief-meta" id="brief-meta"></div>
-          <div class="brief-body" id="brief-body"></div>
+          <div class="brief-body md" id="brief-body"></div>
         </details>
         <p class="result-disclaimer">Actions and verdicts are AI-generated and can be wrong — review before you run anything. <a href="/terms">terms</a></p>
         <p class="result-save" id="result-save">Want to keep these? <a href="/login">Sign in</a> to save them to your library.</p>
@@ -508,6 +531,20 @@
         if (used !== limit - 1) return;
         try { if (sessionStorage.getItem(NUDGE_DISMISSED_KEY) === '1') return; } catch {}
         show(nudgeWaitlist);
+      }
+
+      function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g,
+          (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+
+      // Markdown → HTML for the "what we read" brief (same renderer as /me).
+      // Falls back to escaped text if the md.js module hasn't loaded yet.
+      function md(text) {
+        const t = (text == null ? '' : String(text)).trim();
+        if (!t) return '';
+        if (typeof window.renderMarkdown === 'function') return window.renderMarkdown(t);
+        return '<p>' + escapeHtml(t).replace(/\n/g, '<br>') + '</p>';
       }
 
       // Build the handoff brief for a suggestion. Prefers the backend-built
@@ -867,7 +904,7 @@
           if (host) metaParts.push(host);
           document.getElementById('brief-meta').textContent =
             metaParts.length ? metaParts.join(' · ') : '';
-          document.getElementById('brief-body').textContent = brief;
+          document.getElementById('brief-body').innerHTML = md(brief);
           briefEl.hidden = false;
           briefEl.open = false;
         } else {
