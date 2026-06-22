@@ -186,3 +186,65 @@ test("selecting a persona shifts the active --lens, deselecting reverts", async 
   doc.querySelector('.persona-card[data-persona="explorer"]').click(); // deselect
   assert.equal(root.getPropertyValue("--lens"), "");
 });
+
+// --- focus-driven hero (#75) ---
+
+function focusin(doc, window, el) {
+  el.focus();
+  el.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }));
+}
+function focusout(doc, window, el) {
+  el.blur();
+  doc.body.focus();
+  el.dispatchEvent(new window.FocusEvent("focusout", { bubbles: true, relatedTarget: doc.body }));
+}
+
+test("hero starts un-focused (pitch shown, picker collapsed)", async () => {
+  const { doc } = await boot();
+  assert.ok(!doc.getElementById("hero").classList.contains("focused"));
+});
+
+test("focusing the URL bar expands the hero", async () => {
+  const { doc, window } = await boot();
+  focusin(doc, window, doc.getElementById("url"));
+  assert.ok(doc.getElementById("hero").classList.contains("focused"));
+});
+
+test("leaving an empty, idle form collapses back to the pitch", async () => {
+  const { doc, window } = await boot();
+  const url = doc.getElementById("url");
+  focusin(doc, window, url);
+  focusout(doc, window, url);
+  await sleep(10);
+  assert.ok(!doc.getElementById("hero").classList.contains("focused"));
+});
+
+test("a typed URL keeps the hero expanded on blur", async () => {
+  const { doc, window } = await boot();
+  const url = doc.getElementById("url");
+  focusin(doc, window, url);
+  url.value = "https://example.com/x";
+  focusout(doc, window, url);
+  await sleep(10);
+  assert.ok(doc.getElementById("hero").classList.contains("focused"));
+});
+
+test("an on-screen result keeps the hero expanded on blur", async () => {
+  const { doc, window } = await boot();
+  const url = doc.getElementById("url");
+  focusin(doc, window, url);
+  doc.getElementById("loading").classList.add("visible"); // simulate in-flight
+  focusout(doc, window, url);
+  await sleep(10);
+  assert.ok(doc.getElementById("hero").classList.contains("focused"));
+});
+
+test("focus actually collapses the pitch and reveals the picker (computed style)", async () => {
+  const { doc, window } = await boot();
+  const gtr = (id) => window.getComputedStyle(doc.getElementById(id)).gridTemplateRows;
+  assert.equal(gtr("hero-copy"), "1fr");      // pitch shown at rest
+  assert.equal(gtr("persona-pick"), "0fr");   // picker hidden at rest
+  doc.getElementById("hero").classList.add("focused");
+  assert.equal(gtr("hero-copy"), "0fr");      // pitch collapsed
+  assert.equal(gtr("persona-pick"), "1fr");   // picker revealed
+});

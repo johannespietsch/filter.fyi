@@ -81,8 +81,22 @@
     .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px;
               -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
+    /* Focus-driven hero (#75): the pitch shows at rest and collapses up when
+       the URL bar gains focus, handing its space to the lens picker. The
+       grid-template-rows 1fr<->0fr trick gives a smooth height transition;
+       the inner wrapper clips its content during the collapse. */
+    .hero-copy, .persona-pick { display: grid;
+      transition: grid-template-rows .38s ease, opacity .3s ease, margin .3s ease; }
+    .hero-copy-inner, .persona-pick-inner { overflow: hidden; min-height: 0; }
+    .hero-copy { grid-template-rows: 1fr; }                       /* pitch: shown at rest */
+    .persona-pick { grid-template-rows: 0fr; opacity: 0; margin-bottom: 0; } /* picker: hidden at rest */
+    .hero.focused .hero-copy { grid-template-rows: 0fr; opacity: 0; }
+    .hero.focused .persona-pick { grid-template-rows: 1fr; opacity: 1; margin-bottom: 16px; }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-copy, .persona-pick { transition: none; }
+    }
+
     /* persona picker */
-    .persona-pick { margin-bottom: 16px; }
     .persona-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
                    color: var(--ink-2); margin-bottom: 8px; }
     .persona-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -330,14 +344,21 @@
       </div>
     </nav>
 
-    <section class="hero">
-      <div class="eyebrow">For everyone trying to keep up with AI</div>
-      <h1>So many <span class="rot" id="rot-word" aria-live="polite">open tabs</span><br><span class="quiet">So little time</span><br>Let's <span class="hl">filter.</span></h1>
-      <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;each with a ready-to-paste brief for ChatGPT, Claude or your coding agent.</p>
+    <section class="hero" id="hero">
+      <!-- The pitch shows at rest and smoothly collapses up when the URL bar
+           is focused (#75), handing the space to the lens picker + progress. -->
+      <div class="hero-copy" id="hero-copy">
+        <div class="hero-copy-inner">
+          <div class="eyebrow">For everyone trying to keep up with AI</div>
+          <h1>So many <span class="rot" id="rot-word" aria-live="polite">open tabs</span><br><span class="quiet">So little time</span><br>Let's <span class="hl">filter.</span></h1>
+          <p class="lede"><span class="brand">filter.fyi</span> turns anything you read, watch or listen to into <b>clear next steps you can act on</b> —&nbsp;each with a ready-to-paste brief for ChatGPT, Claude or your coding agent.</p>
+        </div>
+      </div>
 
-      <!-- Anon persona picker (#72): tailors the very first result. Signed-in
-           users have their own lens, so this is hidden for them via JS. -->
+      <!-- Anon persona picker (#72): collapsed at rest, revealed on focus.
+           Signed-in users have their own lens, so this is removed via JS. -->
       <div class="persona-pick" id="persona-pick">
+       <div class="persona-pick-inner">
         <div class="persona-lbl">Tune it to you — pick your lens</div>
         <div class="persona-cards">
           <button type="button" class="persona-card" data-persona="leader">
@@ -353,6 +374,7 @@
             <span class="persona-desc">Code-level next steps &amp; experiments</span>
           </button>
         </div>
+       </div>
       </div>
 
       <form class="form-card" id="try-form" autocomplete="off">
@@ -1186,6 +1208,29 @@
           } catch {}
           paintPersona();
         });
+      });
+
+      // --- Focus-driven hero (#75) ---------------------------------------
+      // Focusing anywhere in the hero collapses the pitch and reveals the lens
+      // picker; leaving an empty, idle form restores the rest state. Anything
+      // on screen (loading / a result / a notice) keeps it expanded.
+      const hero = document.getElementById('hero');
+      function heroBusy() {
+        return [loading, result, noticeError, noticePending, noticeRatelimit, noticeUnsupported]
+          .some((el) => el && el.classList.contains('visible'));
+      }
+      function inputsEmpty() {
+        return !(urlInput.value.trim() || (pasteInput && pasteInput.value.trim()));
+      }
+      hero.addEventListener('focusin', () => hero.classList.add('focused'));
+      hero.addEventListener('focusout', () => {
+        // Let focus settle (e.g. moving to a persona card), then collapse only
+        // if the user truly left an empty, idle form.
+        setTimeout(() => {
+          if (hero.contains(document.activeElement) && document.activeElement !== document.body) return;
+          if (!inputsEmpty() || heroBusy()) return;
+          hero.classList.remove('focused');
+        }, 0);
       });
 
       // --- URL ⇆ paste-text mode -----------------------------------------
