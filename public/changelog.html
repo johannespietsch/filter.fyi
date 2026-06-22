@@ -225,8 +225,7 @@
       { bucket: "now",   text: "Sharper suggestions — an LLM-as-judge loop that tunes which next steps truly fit", note: "in progress" },
       // NEXT
       { bucket: "next",  text: "Chat with your content — deep, personalized retrieval across your whole library" },
-      { bucket: "next",  text: "Multiple lenses — see how the same content matters to each of your roles" },
-      { bucket: "next",  text: "Paste text directly, not just links — including paywalled pieces you can already read" },
+      { bucket: "next",  text: "Multiple lenses — save your own, beyond the ready-made personas" },
       { bucket: "next",  text: "Read anything in any language, auto-translated" },
       // LATER
       { bucket: "later", text: "Community — public profile pages, share a lens, follow people you trust" },
@@ -234,6 +233,52 @@
     ];
 
     const CHANGELOG = [
+      {
+        date: "2026-06-18", tag: "new",
+        title: "Paste text directly, not just links",
+        body: "No URL to share? Paste the text straight in — a transcript, an email, a doc you copied — and get the same read and next steps.",
+        try: { href: "/", label: "Try it with any text" },
+      },
+      {
+        date: "2026-06-18", tag: "new",
+        title: "Try it through a persona",
+        body: "Not sure which lens fits? Pick a ready-made persona on the landing page and watch the whole result retune to that point of view — verdict, relevance and suggestions — with the page tinted to match.",
+      },
+      {
+        date: "2026-06-13", tag: "new",
+        title: "See what filter.fyi did for you",
+        body: "Your library now opens with a monthly snapshot — how much you got through, time saved, and actions you took.",
+      },
+      {
+        date: "2026-06-13", tag: "improved",
+        title: "Hand-off briefs that remember your history",
+        body: "The \"try this\" briefs now fold in what's already in your library, so each next step builds on what you've read before instead of starting cold.",
+      },
+      {
+        date: "2026-06-12", tag: "new",
+        title: "Follow your channels — we'll watch them for you",
+        body: "Add the YouTube channels, Substacks and blogs you already follow. filter.fyi checks them for you and surfaces new drops ranked by relevance — no app-switching, no forgotten feeds.",
+      },
+      {
+        date: "2026-06-12", tag: "new",
+        title: "One action from many sources",
+        body: "When several things you've read point to the same next step, filter.fyi now merges them into a single suggestion — backed by every source it came from.",
+      },
+      {
+        date: "2026-06-11", tag: "new",
+        title: "Sign in, right from the homepage",
+        body: "Accounts are open to everyone — sign in from the landing page to save everything and pick up seamlessly across the web and Telegram.",
+      },
+      {
+        date: "2026-06-11", tag: "new",
+        title: "A weekly digest in your inbox",
+        body: "Once a week, get an email that ranks everything by relevance and leads with what to actually do. Clarity over coffee — no app required.",
+      },
+      {
+        date: "2026-06-11", tag: "improved",
+        title: "It learns from what you act on",
+        body: "Your now/later/never calls and tried/done outcomes now feed back into the analysis, so the suggestions you get keep getting more relevant to you.",
+      },
       {
         date: "2026-06-10", tag: "new",
         title: "Triage your next steps — now, later, or never",
