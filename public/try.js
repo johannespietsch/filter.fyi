@@ -730,6 +730,15 @@
         const saved = localStorage.getItem(PERSONA_KEY);
         if (PERSONA_KEYS.includes(saved)) selectedPersona = saved;
       } catch {}
+      // Per-page default: a spoke can pre-select the lens its audience skews to
+      // (e.g. /for/ai → builder) via data-default-persona on #persona-pick. Only
+      // when the visitor hasn't already chosen one, and NOT persisted — so the
+      // spoke's default never leaks onto the neutral hub.
+      if (!selectedPersona) {
+        const pick = document.getElementById('persona-pick');
+        const def = pick && pick.dataset.defaultPersona;
+        if (PERSONA_KEYS.includes(def)) selectedPersona = def;
+      }
       function paintPersona() {
         document.querySelectorAll('.persona-card').forEach((c) =>
           c.classList.toggle('selected', c.dataset.persona === selectedPersona));

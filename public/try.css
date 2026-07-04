@@ -1,0 +1,257 @@
+/* filter.fyi try-it widget styles — the shared companion to /try.js.
+ *
+ * Everything the paste box / persona picker / #75 focus transition / result
+ * card need, beyond the brand shell in /brand.css. Linked by /for/* spokes
+ * (index.html still carries an inline copy for now — a follow-up will point it
+ * here too). Uses brand vars (--ink, --green…) from /brand.css and adds the
+ * lens (persona) vars below. Footer + .wrap live in /brand.css, not here. */
+
+:root {
+      --lens-leader:#b8780a;   --lens-leader-soft:#f3e7c8;
+      --lens-explorer:#2f6f8f; --lens-explorer-soft:#d7e4ea;
+      --lens-builder:#1f7a3a;  --lens-builder-soft:#dfe8d6;
+      /* Active lens — JS sets these to a persona's gel on selection; default
+         is the brand green, so the page is unchanged until a lens is picked. */
+      --lens:var(--green); --lens-soft:var(--green-soft);
+}
+
+    /* Focus-driven hero (#75): the pitch shows at rest and collapses up when
+       the URL bar gains focus, handing its space to the lens picker. The
+       grid-template-rows 1fr<->0fr trick gives a smooth height transition;
+       the inner wrapper clips its content during the collapse. */
+    .hero-copy, .persona-pick { display: grid;
+      transition: grid-template-rows .38s ease, opacity .3s ease, margin .3s ease; }
+    .hero-copy-inner, .persona-pick-inner { overflow: hidden; min-height: 0; }
+    .hero-copy { grid-template-rows: 1fr; }                       /* pitch: shown at rest */
+    .persona-pick { grid-template-rows: 0fr; opacity: 0; margin-bottom: 0; } /* picker: hidden at rest */
+    .hero.focused .hero-copy { grid-template-rows: 0fr; opacity: 0; }
+    .hero.focused .persona-pick { grid-template-rows: 1fr; opacity: 1; margin-bottom: 16px; }
+    @media (prefers-reduced-motion: reduce) {
+      .hero-copy, .persona-pick { transition: none; }
+    }
+
+    /* persona picker */
+    .persona-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                   color: var(--ink-2); margin-bottom: 8px; }
+    .persona-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    /* Each card carries its own lens gel (--c / --cs) so the three read as
+       distinct filters at rest; selecting one fills it with that gel. */
+    .persona-card { display: flex; flex-direction: column; gap: 3px; text-align: left;
+                    padding: 10px 12px; border: 1px solid var(--ink); background: var(--bg-2);
+                    border-top: 3px solid var(--c); cursor: pointer; font: inherit; transition: 0.12s; }
+    .persona-card[data-persona="leader"]   { --c: var(--lens-leader);   --cs: var(--lens-leader-soft); }
+    .persona-card[data-persona="explorer"] { --c: var(--lens-explorer); --cs: var(--lens-explorer-soft); }
+    .persona-card[data-persona="builder"]  { --c: var(--lens-builder);  --cs: var(--lens-builder-soft); }
+    .persona-card:hover { background: var(--cs); border-color: var(--c); }
+    .persona-card.selected { background: var(--cs); border-color: var(--c);
+                             box-shadow: inset 0 0 0 1px var(--c); }
+    .persona-name { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+    .persona-card:hover .persona-name, .persona-card.selected .persona-name { color: var(--c); }
+    .persona-desc { font-size: 10.5px; line-height: 1.35; color: var(--ink-3); }
+    @media (max-width: 540px) { .persona-cards { grid-template-columns: 1fr; } }
+
+    /* url form */
+    .form-card { background: var(--bg-2); border: 1px solid var(--ink); padding: 22px; margin-bottom: 18px; }
+    .form-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                color: var(--ink-2); margin-bottom: 12px; }
+    .input-row { display: flex; border: 1px solid var(--ink); transition: border-color 0.2s; }
+    /* The input box takes on the active lens colour while you're typing. */
+    .input-row:focus-within { border-color: var(--lens); }
+    .url-input { flex: 1; height: 44px; min-width: 0; padding: 0 14px; border: none; background: var(--bg);
+                 font: inherit; font-size: 14px; color: var(--ink); outline: none; transition: background 0.15s; }
+    .url-input::placeholder { color: var(--ink-3); }
+    .url-input:focus { background: var(--bg-2); }
+    .url-input.err { background: rgba(168, 58, 42, 0.08); }
+    .cta-btn { height: 44px; padding: 0 20px; background: var(--ink); color: var(--bg-2);
+               border: none; font: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+               cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+    .cta-btn:hover { background: var(--lens); }
+    .cta-btn:active { transform: translateY(1px); }
+    .cta-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-fine-print { font-size: 11px; color: var(--ink-3); margin-top: 12px; }
+
+    /* paste-text mode */
+    .paste-row { display: flex; flex-direction: column; gap: 0; }
+    .paste-input { width: 100%; min-height: 120px; padding: 12px 14px; border: 1px solid var(--ink);
+                   background: var(--bg); font: inherit; font-size: 13px; color: var(--ink);
+                   outline: none; resize: vertical; transition: background 0.15s; }
+    .paste-input:focus { background: var(--bg-2); }
+    .paste-input::placeholder { color: var(--ink-3); }
+    .paste-row .cta-btn { border: 1px solid var(--ink); border-top: none; }
+    .mode-toggle { margin-top: 12px; background: none; border: none; padding: 0; cursor: pointer;
+                   font: inherit; font-size: 11px; letter-spacing: 0.04em; color: var(--green);
+                   text-decoration: underline; text-underline-offset: 2px; }
+    .mode-toggle:hover { color: var(--ink); }
+
+    .loading { display: none; padding: 20px 22px; background: var(--bg-2); border: 1px solid var(--ink);
+               margin-bottom: 18px; }
+    .loading.visible { display: block; }
+    .job-steps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .job-step { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700;
+                letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 12px;
+                border: 1px solid transparent; color: var(--ink-3); transition: all 0.25s; }
+    .job-step.step-active { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+    .job-step.step-done  { background: var(--green-soft); border-color: var(--green); color: var(--green); opacity: 0.6; }
+    .job-step.step-done .step-marker { font-size: 11px; }
+    .job-step.step-pending { color: var(--ink-3); opacity: 0.3; }
+    .step-marker { font-size: 9px; line-height: 1; }
+    .job-step.step-active .step-marker { display: inline-block; animation: pulse 1.2s ease-in-out infinite; }
+    .job-step-sep { color: var(--ink-3); opacity: 0.35; font-size: 12px; }
+    .job-estimate { margin-top: 10px; font-size: 11px; color: var(--ink-3);
+                    font-variant-numeric: tabular-nums; min-height: 14px; }
+
+    /* result card */
+    .result { display: none; background: var(--bg-2); border: 1px solid var(--ink);
+              border-top: 3px solid var(--lens); padding: 22px; margin-bottom: 18px; }
+    .result.visible { display: block; }
+    .result-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+                   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                   color: var(--ink-2); margin-bottom: 10px; }
+    .badge { display: inline-block; padding: 3px 8px; font-size: 10.5px; font-weight: 700;
+             letter-spacing: 0.14em; text-transform: uppercase; border: 1px solid var(--ink); background: var(--bg); }
+    /* Verdict is now a quiet qualifier (outline, not a filled hero) — the
+       actions below are the headline. */
+    .badge.verdict-watch { background: var(--bg); border-color: var(--green); color: var(--green); }
+    .badge.verdict-skim  { background: var(--bg); border-color: var(--amber); color: var(--amber); }
+    .badge.verdict-skip  { background: var(--bg); border-color: var(--red);   color: var(--red); }
+    .result-title { font-size: 18px; line-height: 1.3; letter-spacing: -0.02em; font-weight: 700;
+                    margin-bottom: 14px; text-wrap: balance; overflow-wrap: anywhere; }
+    .result-thumb { width: 100%; max-height: 220px; object-fit: cover; border: 1px solid var(--ink);
+                    margin-bottom: 14px; display: block; }
+    .result-main-idea { font-size: 14.5px; color: var(--ink); margin-bottom: 12px; }
+    .result-main-idea b { font-weight: 700; background: var(--green-soft); padding: 1px 3px; }
+    .result-why { font-size: 13.5px; color: var(--ink-2); margin-bottom: 14px; }
+    .result-meta { font-size: 11px; letter-spacing: 0.06em; color: var(--ink-3);
+                   border-top: 1px dotted var(--ink); padding-top: 10px; margin-top: 14px; }
+    .result-meta b { color: var(--ink-2); font-weight: 500; }
+    /* "based on" grounding line — ties the actions back to the source */
+    .result-grounded { font-size: 12px; color: var(--ink-3); margin-bottom: 16px;
+                       border-left: 2px solid var(--ink-3); padding-left: 8px; }
+
+    /* Actions — the hero of the card: 0–5 suggestion boxes */
+    .result-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+    .actions-empty { padding: 14px; border: 1px dashed var(--ink-3); background: var(--bg-2);
+                     font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+    .action { padding: 13px 14px; border: 1px solid var(--lens); background: var(--lens-soft); }
+    .action-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .action-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .action-effort { font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+                     padding: 2px 6px; border: 1px solid var(--green); color: var(--green);
+                     background: var(--bg); border-radius: 2px; }
+    .action-text { font-size: 13.5px; line-height: 1.45; color: var(--ink-2); margin-bottom: 10px; }
+    .action-buttons { display: flex; gap: 8px; }
+    .action-open, .action-later-btn, .action-dismiss-btn { font: inherit; font-size: 11px; font-weight: 700;
+                     letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px;
+                     border: 1px solid var(--ink); cursor: pointer; }
+    .action-open { background: var(--ink); color: var(--bg); }
+    .action-later-btn { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+    /* "never ✕" — red outline reads as a clear decision (not a disabled/greyed control). */
+    .action-dismiss-btn { background: transparent; color: var(--red); border-color: var(--red); }
+    .action-open:hover { opacity: 0.88; }
+    .action-later-btn:hover { background: var(--green); color: var(--bg-2); }
+    .action-dismiss-btn:hover { background: var(--red); color: var(--bg); border-color: var(--red); }
+    .action-panel { margin-top: 11px; }
+    /* the detailed instruction, readable by everyone */
+    .action-brief { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+                    line-height: 1.5; padding: 10px; border: 1px solid var(--ink);
+                    background: var(--bg); color: var(--ink-2); white-space: pre-wrap;
+                    max-height: 220px; overflow: auto; }
+    /* paid tier: one-click handoff row (gated) */
+    .action-handoff { margin-top: 9px; }
+    .action-handoff-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .action-btn { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+                  text-transform: uppercase; padding: 7px 12px; border: 1px solid var(--ink);
+                  background: var(--ink); color: var(--bg); cursor: pointer; }
+    .action-btn:hover { opacity: 0.88; }
+    .action-link { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+                   color: var(--ink-2); }
+    .action-hint { font-size: 11px; color: var(--ink-3); }
+    .action-locknote { margin-top: 7px; font-size: 11px; color: var(--ink-3); }
+    .action-locknote a { color: var(--ink-2); }
+    /* dismiss → optional reason capture */
+    .action-dismissed { padding: 12px 14px; border: 1px dashed var(--ink-3);
+                        background: var(--bg); color: var(--ink-2); font-size: 12.5px; }
+    .action-reason-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .action-reason { flex: 1 1 200px; font: inherit; font-size: 12px; padding: 6px 8px;
+                     border: 1px solid var(--ink); background: var(--bg-2); color: var(--ink); }
+    .action-undo { background: none; border: none; color: var(--ink-3); cursor: pointer;
+                   font: inherit; font-size: 11px; text-decoration: underline; padding: 0; margin-top: 6px; }
+    .action-undo:hover { color: var(--ink); }
+
+    /* signed-in-without-a-lens nudge under the actions */
+    .lens-nudge { font-size: 12px; color: var(--ink-2); padding: 10px 12px;
+                  border: 1px dashed var(--green); background: var(--bg-2); }
+    .lens-nudge a { color: var(--green); }
+
+    /* "what we read" transparency disclosure */
+    .result-brief { margin-top: 18px; border-top: 1px dotted var(--ink); padding-top: 12px; }
+    .result-brief summary { cursor: pointer; font-size: 11px; letter-spacing: 0.14em;
+                            text-transform: uppercase; color: var(--ink-3); list-style: none;
+                            display: inline-flex; align-items: baseline; gap: 6px; }
+    .result-brief summary::-webkit-details-marker { display: none; }
+    .result-brief summary::before { content: '+ '; color: var(--green); font-weight: 700; }
+    .result-brief[open] summary::before { content: '− '; }
+    .result-brief summary:hover { color: var(--green); }
+    .result-brief .brief-meta { font-size: 11px; color: var(--ink-3); margin: 10px 0 8px; }
+    .result-brief .brief-body { max-height: 360px; overflow: auto; padding: 12px 14px;
+                                background: var(--bg); border: 1px solid var(--ink);
+                                font-size: 13px; line-height: 1.55; color: var(--ink);
+                                overflow-wrap: anywhere; }
+    /* ---- Rendered markdown (the "what we read" brief) ------------------ */
+    .md > :first-child { margin-top: 0; }
+    .md > :last-child { margin-bottom: 0; }
+    .md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
+      font-size: 13.5px; letter-spacing: 0; margin: 14px 0 6px; color: var(--ink); font-weight: 700; }
+    .md h1 { font-size: 15px; } .md h2 { font-size: 14px; }
+    .md p { margin: 0 0 10px; }
+    .md ul, .md ol { margin: 0 0 10px; padding-left: 20px; }
+    .md li { margin-bottom: 3px; }
+    .md blockquote { margin: 0 0 10px; padding-left: 10px; border-left: 2px solid var(--ink-3); color: var(--ink-2); }
+    .md code { background: var(--bg-2); border: 1px solid var(--ink-3); padding: 0 4px; font-size: 12px; }
+    .md pre { background: var(--bg-2); border: 1px solid var(--ink-3); padding: 10px 12px; overflow: auto; margin: 0 0 10px; }
+    .md pre code { border: 0; padding: 0; background: none; }
+    .md a { color: var(--green); }
+    .md hr { border: 0; border-top: 1px dashed var(--ink-3); margin: 12px 0; }
+    .md table { border-collapse: collapse; width: 100%; margin: 0 0 10px; font-size: 12.5px;
+                display: block; overflow-x: auto; }
+    .md th, .md td { border: 1px solid var(--ink-3); padding: 5px 8px; text-align: left;
+                     vertical-align: top; }
+    .md th { background: var(--bg-2); font-weight: 700; }
+    .result-save { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ink);
+                   font-size: 12px; color: var(--ink-3); }
+
+    /* soft nudge (dismissable) */
+    .nudge { display: none; align-items: flex-start; gap: 12px;
+             padding: 12px 14px; margin-bottom: 18px;
+             background: var(--green-soft); border-left: 2px solid var(--green);
+             font-size: 13px; color: var(--ink); }
+    .nudge.visible { display: flex; }
+    .nudge p { flex: 1; }
+    .nudge a { color: var(--ink); }
+    .nudge-close { background: none; border: none; font: inherit; font-size: 16px;
+                   color: var(--ink-3); cursor: pointer; padding: 0 4px; line-height: 1;
+                   flex-shrink: 0; }
+    .nudge-close:hover { color: var(--ink); }
+
+    /* notice cards */
+    .notice { display: none; padding: 18px 22px; border: 1px solid var(--ink);
+              background: var(--bg-2); margin-bottom: 18px; font-size: 13px; }
+    .notice.visible { display: block; }
+    .notice.warn  { background: var(--amber-soft); border-color: var(--amber); }
+    .notice.error { background: var(--red-soft);   border-color: var(--red); }
+    .notice.info  { background: var(--green-soft); border-color: var(--green); }
+    .notice-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                    color: var(--ink-2); margin-bottom: 6px; }
+    .notice.warn .notice-title  { color: var(--amber); }
+    .notice.error .notice-title { color: var(--red); }
+    .notice.info .notice-title  { color: var(--green); }
+    .notice p { color: var(--ink); }
+    .notice a { color: var(--ink); }
+
+    .result-disclaimer { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
+
+@media (max-width: 540px) {
+      .input-row { flex-direction: column; border: none; }
+      .input-row .url-input { border: 1px solid var(--ink); flex: none; }
+      .input-row .cta-btn { border: 1px solid var(--ink); border-top: none; }
+}
