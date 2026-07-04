@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>filter.fyi for AI builders — track releases, repos & papers</title>
+  <meta name="description" content="The AI stack moves daily. Paste a model release, repo, or paper into filter.fyi and get back what changed, whether it touches your stack, and a ready-to-paste brief for your agent.">
+  <meta property="og:title" content="filter.fyi for AI builders — ship faster than the changelog">
+  <meta property="og:description" content="Turn the AI firehose — model releases, repos, papers — into agent-ready next steps. What changed, whether it affects you, and a brief you paste straight into ChatGPT, Claude or Cursor.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://filter.fyi/for/ai">
+  <meta property="og:site_name" content="filter.fyi">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="filter.fyi for AI builders">
+  <meta name="twitter:description" content="Ship faster than the changelog — the AI firehose, turned into agent-ready next steps.">
+  <link rel="canonical" href="https://filter.fyi/for/ai">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/brand.css">
+  <style>
+    /* Page-specific layout — the shell (nav, hero type, buttons, footer) is /brand.css. */
+    .hero { padding: 52px 0 40px; border-bottom: 1px solid var(--ink); }
+    .hero .cta-btn { margin-bottom: 12px; }
+    .hero-note { font-size: 11px; color: var(--ink-3); }
+
+    section.bay { padding: 40px 0 34px; border-bottom: 1px solid var(--ink); }
+    .section-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                     color: var(--ink-3); margin-bottom: 18px; }
+    .section-label::before { content: '— '; color: var(--green); }
+    h2 { font-size: 22px; line-height: 1.2; letter-spacing: -0.02em; font-weight: 700;
+         margin-bottom: 12px; text-wrap: balance; }
+    p.body { font-size: 14px; color: var(--ink-2); margin-bottom: 12px; max-width: 560px; }
+    p.body b { color: var(--ink); font-weight: 600; }
+
+    /* how-it-works steps */
+    .steps { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+    .step { display: flex; gap: 12px; }
+    .step .n { font-weight: 700; color: var(--green); flex-shrink: 0; }
+    .step .t { font-size: 13.5px; color: var(--ink-2); }
+    .step .t b { color: var(--ink); font-weight: 600; }
+    .aside-note { font-size: 12px; color: var(--ink-3); margin-top: 16px; }
+
+    /* the ChatGPT objection callout */
+    .callout { border: 1px solid var(--ink); background: var(--bg-2); padding: 18px 20px; }
+    .callout .big { font-size: 15px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+    .callout p { font-size: 13.5px; color: var(--ink-2); }
+
+    /* plans */
+    .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+    .plan { border: 1px solid var(--ink); padding: 16px 18px; background: var(--bg-2); }
+    .plan .tier { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+                  color: var(--green); margin-bottom: 8px; }
+    .plan p { font-size: 13px; color: var(--ink-2); }
+    .plan.pro .tier { color: var(--amber); }
+    .plan .beta { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+                  color: var(--amber); border: 1px solid var(--amber); background: var(--amber-soft);
+                  padding: 1px 6px; margin-left: 6px; }
+    @media (max-width: 540px) { .plans { grid-template-columns: 1fr; } }
+
+    /* closing CTA + hub escape hatch */
+    .final { padding: 44px 0 8px; text-align: center; }
+    .final h2 { font-size: 24px; margin-bottom: 18px; }
+    .hub-link { display: block; margin-top: 22px; font-size: 12px; color: var(--ink-3); }
+    .hub-link a { color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/"><span class="status-dot" aria-hidden="true"></span>filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/?utm_source=for_ai&amp;utm_medium=nav&amp;utm_campaign=ai_builders">try it →</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">For people building with AI</div>
+      <h1>Ship faster than<br>the <span class="hl">changelog.</span></h1>
+      <p class="lede">A model ships at 2pm and your prompt cache breaks by 5. A dependency deprecates an API in a minor release. <span class="brand">filter.fyi</span> turns any of it — <b>releases, repos, papers</b> — into what changed, whether it touches your stack, and a brief you paste straight into your agent.</p>
+      <a class="cta-btn" href="/?utm_source=for_ai&amp;utm_medium=hero&amp;utm_campaign=ai_builders">Filter your first source →</a>
+      <div class="hero-note">no login required · 3 free reads a day</div>
+    </section>
+
+    <section class="bay">
+      <div class="section-label">The tax on keeping up</div>
+      <h2>Doom-scroll, or miss it. Both are expensive.</h2>
+      <p class="body">The repo everyone's about to copy is three days old and you haven't seen it. The paper that changes your retrieval approach is buried in ten newsletters you didn't open. Keeping up is a second job — and the cost of missing one thing is a wasted sprint.</p>
+    </section>
+
+    <section class="bay">
+      <div class="section-label">How it works</div>
+      <h2>Paste it, get the next step.</h2>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><span class="t"><b>Paste anything</b> — a release note, a repo, an arXiv link, a conference talk.</span></div>
+        <div class="step"><span class="n">2</span><span class="t"><b>It filters to your stack.</b> Not "here's everything" — what changed, and whether it actually touches what you ship.</span></div>
+        <div class="step"><span class="n">3</span><span class="t"><b>You get a brief + a next step</b> — ready to paste into ChatGPT, Claude, or Cursor and act on.</span></div>
+      </div>
+      <p class="aside-note">It's not another feed to check. Fewer tabs, not more.</p>
+    </section>
+
+    <section class="bay">
+      <div class="section-label">"I'll just paste it into ChatGPT"</div>
+      <div class="callout">
+        <div class="big">ChatGPT answers when you ask. filter.fyi shapes it to ship.</div>
+        <p>You could paste each release into a chat and re-explain your stack every time. filter.fyi judges it against your setup and hands back a brief already formatted for your agent to act on — no re-priming, no copy-paste gymnastics.</p>
+      </div>
+    </section>
+
+    <section class="bay">
+      <div class="section-label">Free to start</div>
+      <div class="plans">
+        <div class="plan">
+          <div class="tier">Free</div>
+          <p>Paste any link — verdict, brief, and a ready-to-paste next step. A few a day, no login.</p>
+        </div>
+        <div class="plan pro">
+          <div class="tier">Pro <span class="beta">beta</span></div>
+          <p>Point it at your sources — repos, changelogs, an arXiv tag — and it watches them for you, pushing only what touches your stack.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="final">
+      <h2>Stop refreshing. Start shipping.</h2>
+      <a class="cta-btn" href="/?utm_source=for_ai&amp;utm_medium=footer_cta&amp;utm_campaign=ai_builders">Filter your first source →</a>
+      <span class="hub-link">Not just AI? filter.fyi works for markets, learning, and whatever else you follow — <a href="/">see all →</a></span>
+    </section>
+
+    <footer>
+      <span>filter.fyi — relevant, not noise.</span>
+      <span class="footer-links">
+        <a href="/">home</a>
+        <a href="/about">about</a>
+        <a href="/privacy">privacy</a>
+      </span>
+    </footer>
+  </div>
+</body>
+</html>

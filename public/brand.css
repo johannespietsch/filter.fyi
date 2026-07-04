@@ -1,0 +1,78 @@
+/* filter.fyi — shared brand chrome.
+ *
+ * Single source of truth for the page shell (colour vars, base type, nav,
+ * hero typography, buttons, footer) so marketing/landing pages don't each
+ * carry their own copy. Linked by the per-use-case pages (/for/*) and, over
+ * time, the other static pages. Page-specific styles stay in the page.
+ *
+ * Served as a same-origin static asset — allowed by the CSP (style-src 'self').
+ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* The [hidden] attribute must win over class display rules (display:flex etc.). */
+[hidden] { display: none !important; }
+
+:root {
+  --bg:#efece4; --bg-2:#f7f4ec;
+  --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+  --green:#1f7a3a; --green-soft:#dfe8d6;
+  --amber:#b8780a; --amber-soft:#f3e7c8;
+  --red:#a83a2a;   --red-soft:#efd6d0;
+  --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+
+html, body { background: var(--bg); }
+body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
+       font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+.hl { color: var(--green); }
+::selection { background: var(--ink); color: var(--bg-2); }
+a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+a:hover { color: var(--green); }
+
+.wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
+
+/* nav */
+nav { display: flex; justify-content: space-between; align-items: center;
+      padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+.mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
+        color: var(--ink); display: inline-flex; align-items: center; }
+.mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
+                    display: inline-block; margin-right: 8px;
+                    animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+.mark .dot { color: var(--green); }
+.mark .fyi { color: var(--ink-3); }
+.nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
+.nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+              border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+.nav-meta a:hover { background: var(--green); color: var(--bg-2); border-color: var(--green); }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .mark .status-dot { animation: none; } }
+
+/* hero typography */
+.eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+           color: var(--ink-2); margin-bottom: 22px; }
+.eyebrow::before { content: '— '; color: var(--green); }
+h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.18; letter-spacing: -0.035em;
+     font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
+h1 .quiet { font-weight: 400; color: var(--ink-2); }
+.lede { font-size: 16px; color: var(--ink-2); margin-bottom: 30px; max-width: 560px;
+        line-height: 1.6; text-wrap: pretty; }
+.lede .brand { color: var(--ink); font-weight: 600; }
+.lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px;
+          -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+
+/* primary button */
+.cta-btn { display: inline-block; height: 44px; line-height: 44px; padding: 0 20px;
+           background: var(--ink); color: var(--bg-2); border: none; font: inherit;
+           font-size: 13px; font-weight: 700; letter-spacing: 0.02em; text-decoration: none;
+           cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+.cta-btn:hover { background: var(--green); color: var(--bg-2); }
+.cta-btn:active { transform: translateY(1px); }
+
+/* footer */
+footer { padding-top: 18px; border-top: 1px solid var(--ink); display: flex;
+         justify-content: space-between; font-size: 11px; color: var(--ink-2);
+         gap: 14px; flex-wrap: wrap; margin-top: 44px; }
+footer .footer-links { display: flex; gap: 14px; }
+footer .footer-links a { color: var(--ink-2); text-decoration: none; }
+footer .footer-links a:hover { color: var(--green); }
