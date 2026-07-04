@@ -75,27 +75,10 @@ export function actionsOf(payload) {
 }
 
 const PAGE_CSS = `
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:#efece4; --bg-2:#f7f4ec;
-      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
-      --green:#1f7a3a; --green-soft:#dfe8d6;
-      --amber:#b8780a; --amber-soft:#f3e7c8;
-      --red:#a83a2a;   --red-soft:#efd6d0;
-      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
-    }
-    html, body { background: var(--bg); }
-    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
-           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
-    ::selection { background: var(--ink); color: var(--bg-2); }
-    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
-    a:hover { color: var(--green); }
-    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
-    nav { display: flex; justify-content: space-between; align-items: center;
-          padding-bottom: 14px; border-bottom: 1px solid var(--ink); margin-bottom: 28px; }
-    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none; }
-    .mark .dot { color: var(--green); }
-    .mark .fyi { color: var(--ink-3); }
+    /* Base chrome — reset, :root vars, body, links, .wrap, nav, .mark — comes
+       from /brand.css (linked before this block). Only share-page specifics
+       and the few overrides below live here. */
+    nav { margin-bottom: 28px; }
     .nav-cta { font-size: 11px; color: var(--green); text-decoration: none; padding: 3px 8px;
                border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
     .nav-cta:hover { background: var(--green); color: var(--bg-2); }
@@ -259,6 +242,7 @@ export function renderSharePage(share) {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/brand.css">
   <style>${PAGE_CSS}</style>
 </head>
 <body>
@@ -313,6 +297,7 @@ export function renderShareNotFound() {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/brand.css">
   <style>${PAGE_CSS}</style>
 </head>
 <body>
