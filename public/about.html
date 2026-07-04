@@ -13,51 +13,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/brand.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:#efece4; --bg-2:#f7f4ec;
-      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
-      --green:#1f7a3a; --green-soft:#dfe8d6;
-      --error:#a83a2a;
-      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
-    }
-    html, body { background: var(--bg); }
-    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
-           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
-    .hl { color: var(--green); }
-    ::selection { background: var(--ink); color: var(--bg-2); }
+    /* Base chrome — reset, :root vars, body, links, .wrap, nav, and the
+       .eyebrow / h1 / .lede hero typography — all come from /brand.css.
+       Only about-page specifics live below. */
 
-    .wrap { max-width: 640px; margin: 0 auto; padding: 24px 28px 48px; }
-
-    /* nav */
-    nav { display: flex; justify-content: space-between; align-items: center;
-          padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
-    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none;
-            color: var(--ink); display: inline-flex; align-items: center; }
-    .mark .status-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%;
-                        display: inline-block; margin-right: 8px;
-                        animation: pulse 1.6s ease-in-out infinite; flex-shrink: 0; }
-    .mark .dot { color: var(--green); }
-    .mark .fyi { color: var(--ink-3); }
-    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
-    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
-                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
-    .nav-meta a:hover { background: var(--green); color: var(--bg-2); border-color: var(--green); }
-    @keyframes pulse { 50% { opacity: 0.3; } }
-
-    /* hero */
     .hero { padding: 52px 0 36px; border-bottom: 1px solid var(--ink); }
-    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-               color: var(--ink-2); margin-bottom: 22px; }
-    .eyebrow::before { content: '— '; color: var(--green); }
-    h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.18; letter-spacing: -0.035em;
-         font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
-    .lede { font-size: 16px; color: var(--ink-2); margin-bottom: 30px; max-width: 560px;
-            line-height: 1.6; text-wrap: pretty; }
-    .lede .brand { color: var(--ink); font-weight: 600; }
-    .lede b { color: var(--ink); font-weight: 500; background: var(--green-soft); padding: 1px 4px;
-              -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
     /* form */
     .form-card { background: var(--bg-2); border: 1px solid var(--ink); padding: 22px; margin-bottom: 16px; }
