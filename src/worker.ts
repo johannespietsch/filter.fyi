@@ -1,4 +1,5 @@
 import { handleAdminRequest } from "./admin";
+import { renderSharePage, renderShareNotFound } from "./share.mjs";
 
 interface Env {
   DB: D1Database;
@@ -58,6 +59,11 @@ const ANON_PERSONAS = new Set(["leader", "explorer", "builder"]);
 function backendBase(botApiUrl: string): string {
   return botApiUrl.replace(/\/api\/try\/?$/, "");
 }
+
+// Public share pages: per-identity daily creation cap. Low enough to keep a
+// spammer from minting hundreds of filter.fyi-hosted pages, high enough that a
+// heavy legitimate user never notices.
+const SHARE_DAILY_LIMIT = 20;
 
 const SESSION_COOKIE = "fyi_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
@@ -185,6 +191,23 @@ export default {
     if (subscriptionMatch) {
       if (req.method !== "DELETE") return json({ error: "method-not-allowed" }, 405);
       return handleSubscriptionDelete(req, env, Number(subscriptionMatch[1]));
+    }
+
+    // Public share pages (/s/:slug) and their create/delete API. Creation only
+    // snapshots server-verified data — see handleShareCreate.
+    if (url.pathname === "/api/v1/share") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleShareCreate(req, env);
+    }
+    const shareApiMatch = url.pathname.match(/^\/api\/v1\/share\/([0-9a-f]{12})$/);
+    if (shareApiMatch) {
+      if (req.method !== "DELETE") return json({ error: "method-not-allowed" }, 405);
+      return handleShareDelete(req, env, shareApiMatch[1]);
+    }
+    const sharePageMatch = url.pathname.match(/^\/s\/([0-9a-f]{12})$/);
+    if (sharePageMatch) {
+      if (req.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+      return handleSharePage(req, env, ctx, sharePageMatch[1]);
     }
 
     const jobMatch = url.pathname.match(/^\/api\/v1\/job\/([0-9a-f-]{36})$/i);
@@ -809,6 +832,242 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
   }
 
   return json({ status: "done", id: savedId, summary });
+}
+
+// --- Public share pages (/s/:slug) -------------------------------------------
+//
+// A share is an explicit, user-initiated snapshot of one analysed read. The
+// create endpoint takes only an id and re-reads the underlying data from a
+// server-side store (anon_summaries for anonymous visitors, the backend
+// library for signed-in users) — client-supplied content is never published,
+// so /s/ pages can't be abused to host arbitrary text under filter.fyi.
+
+function newShareSlug(): string {
+  // 12 hex chars = 48 bits of randomness — unguessable, short enough to share.
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Slim share payload assembled from a backend library row ({source, source_type,
+// analysis-as-JSON-string, …}). Mirrors the anon_summaries slim shape so the
+// share page renders both identically.
+function sharePayloadFromLibraryRow(row: Record<string, unknown>): Record<string, unknown> {
+  let analysis: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(typeof row.analysis === "string" ? row.analysis : "{}");
+    if (parsed && typeof parsed === "object") analysis = parsed as Record<string, unknown>;
+  } catch {}
+  const source = typeof row.source === "string" ? row.source : "";
+  return {
+    url: isValidHttpUrl(source) ? source : "",
+    title: typeof analysis.title === "string" && analysis.title ? analysis.title : source,
+    source_type: typeof row.source_type === "string" ? row.source_type : "",
+    verdict: typeof analysis.verdict === "string" ? analysis.verdict : "",
+    analysis: {
+      main_idea: analysis.main_idea ?? "",
+      why_it_matters: analysis.why_it_matters ?? "",
+      grounded_in: analysis.grounded_in ?? "",
+      category: analysis.category ?? "",
+      time_required: analysis.time_required ?? "",
+      suggestions: Array.isArray(analysis.suggestions) ? analysis.suggestions : [],
+    },
+  };
+}
+
+async function handleShareCreate(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  const anonId = cookies[ANON_COOKIE];
+
+  if (!session && !(anonId && isValidAnonId(anonId))) {
+    // No identity at all — there's nothing in any store this caller could own.
+    return json({ error: "nothing-to-share" }, 403);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+  const id = typeof body.id === "number" && Number.isInteger(body.id) && body.id > 0 ? body.id : 0;
+  if (!id) return json({ error: "invalid-id" }, 400);
+
+  // Daily cap per identity (spam guard for publicly hosted pages).
+  const today = new Date().toISOString().slice(0, 10);
+  const limitKey = session ? `share:user:${session.userId}` : `share:anon:${anonId}`;
+  try {
+    const row = await env.DB.prepare(
+      `INSERT INTO rate_limits (key, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (key, day) DO UPDATE SET count = count + 1
+       RETURNING count`
+    )
+      .bind(limitKey, today)
+      .first<{ count: number }>();
+    if ((row?.count ?? 0) > SHARE_DAILY_LIMIT) {
+      return json(
+        { error: "rate-limited", message: "You've created a lot of share links today — try again tomorrow." },
+        429
+      );
+    }
+  } catch (err) {
+    console.error("share rate_limits upsert failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+
+  // Re-read the underlying result from the store the caller owns.
+  let payload: Record<string, unknown> | null = null;
+  let sourceMeta: { url: string; source_type: string | null; title: string | null; verdict: string | null } | null = null;
+
+  if (session) {
+    if (!env.BOT_API_URL || !env.BOT_API_KEY) return json({ error: "service-unavailable" }, 503);
+    let upstream: Response;
+    try {
+      upstream = await fetch(
+        `${backendBase(env.BOT_API_URL)}/api/library/${id}?user_id=${session.userId}`,
+        { headers: { "x-filter-fyi-secret": env.BOT_API_KEY }, signal: AbortSignal.timeout(5_000) }
+      );
+    } catch (err) {
+      console.error("share library fetch failed", err);
+      return json({ error: "upstream-unreachable" }, 502);
+    }
+    if (upstream.status === 404) return json({ error: "not-found" }, 404);
+    if (!upstream.ok) return json({ error: "upstream-error" }, 502);
+    let itemRow: Record<string, unknown>;
+    try {
+      itemRow = (await upstream.json()) as Record<string, unknown>;
+    } catch {
+      return json({ error: "upstream-error" }, 502);
+    }
+    payload = sharePayloadFromLibraryRow(itemRow);
+  } else {
+    let row: { payload: string; url: string; source_type: string | null; title: string | null; verdict: string | null } | null;
+    try {
+      row = await env.DB.prepare(
+        "SELECT payload, url, source_type, title, verdict FROM anon_summaries WHERE id = ? AND anon_id = ?"
+      )
+        .bind(id, anonId)
+        .first();
+    } catch (err) {
+      console.error("share anon_summaries lookup failed", err);
+      return json({ error: "storage-error" }, 500);
+    }
+    if (!row) return json({ error: "not-found" }, 404);
+    try {
+      const parsed = JSON.parse(row.payload) as Record<string, unknown>;
+      // Drop the preview excerpt — the share page doesn't render it, and it
+      // keeps the public payload to what the visitor actually saw as a result.
+      delete parsed.content_preview;
+      payload = parsed;
+    } catch {
+      return json({ error: "storage-error" }, 500);
+    }
+    sourceMeta = { url: row.url, source_type: row.source_type, title: row.title, verdict: row.verdict };
+  }
+
+  if (!payload) return json({ error: "not-found" }, 404);
+
+  const slug = newShareSlug();
+  const nowIso = new Date().toISOString();
+  try {
+    await env.DB.prepare(
+      `INSERT INTO shares (slug, user_id, anon_id, url, source_type, title, verdict, payload, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        slug,
+        session ? session.userId : null,
+        session ? null : anonId,
+        sourceMeta?.url ?? (typeof payload.url === "string" ? payload.url : ""),
+        sourceMeta?.source_type ?? (typeof payload.source_type === "string" ? payload.source_type : null),
+        sourceMeta?.title ?? (typeof payload.title === "string" ? payload.title : null),
+        sourceMeta?.verdict ?? (typeof payload.verdict === "string" ? payload.verdict : null),
+        JSON.stringify(payload),
+        nowIso
+      )
+      .run();
+  } catch (err) {
+    console.error("shares insert failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+
+  const origin = new URL(req.url).origin;
+  return json({ ok: true, slug, url: `${origin}/s/${slug}` }, 201);
+}
+
+async function handleSharePage(
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  slug: string
+): Promise<Response> {
+  let row: { slug: string; payload: string; created_at: string } | null;
+  try {
+    row = await env.DB.prepare("SELECT slug, payload, created_at FROM shares WHERE slug = ?")
+      .bind(slug)
+      .first();
+  } catch (err) {
+    console.error("shares lookup failed", err);
+    row = null;
+  }
+
+  const htmlHeaders = { "content-type": "text/html; charset=utf-8" };
+  if (!row) {
+    return withSecurityHeaders(
+      new Response(renderShareNotFound(), { status: 404, headers: htmlHeaders })
+    );
+  }
+
+  ctx.waitUntil(
+    env.DB.prepare("UPDATE shares SET views = views + 1 WHERE slug = ?")
+      .bind(slug)
+      .run()
+      .catch((err) => console.error("shares views bump failed", err))
+  );
+
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = JSON.parse(row.payload) as Record<string, unknown>;
+  } catch {}
+  const html = renderSharePage({ slug: row.slug, payload, createdAt: row.created_at });
+  return withSecurityHeaders(
+    new Response(html, {
+      status: 200,
+      // Shares are immutable once created (only deletable), so a short public
+      // cache keeps hot links cheap without delaying deletion much.
+      headers: { ...htmlHeaders, "cache-control": "public, max-age=300" },
+    })
+  );
+}
+
+async function handleShareDelete(req: Request, env: Env, slug: string): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  const anonId = cookies[ANON_COOKIE];
+
+  // Ownership-scoped delete; a non-owner gets 404 (not 403) so slugs don't
+  // leak whose they are.
+  let result: D1Result;
+  try {
+    if (session) {
+      result = await env.DB.prepare("DELETE FROM shares WHERE slug = ? AND user_id = ?")
+        .bind(slug, session.userId)
+        .run();
+    } else if (anonId && isValidAnonId(anonId)) {
+      result = await env.DB.prepare("DELETE FROM shares WHERE slug = ? AND anon_id = ?")
+        .bind(slug, anonId)
+        .run();
+    } else {
+      return json({ error: "not-found" }, 404);
+    }
+  } catch (err) {
+    console.error("shares delete failed", err);
+    return json({ error: "storage-error" }, 500);
+  }
+
+  if (!result.meta.changes) return json({ error: "not-found" }, 404);
+  return json({ ok: true });
 }
 
 function parseCookies(header: string | null): Record<string, string> {
