@@ -11,6 +11,8 @@
   <meta property="og:url" content="https://filter.fyi">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:description" content="Turn anything you read, watch, or listen to into concrete next steps you can hand straight to your AI tools.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#efece4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,6 +20,8 @@
        Renders the stored "what we read" brief, which is Markdown. -->
   <script type="module" src="/md.js"></script>
   <style>
+    /* soft cross-page fade (progressive enhancement; no-op elsewhere) */
+    @view-transition { navigation: auto; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     /* The [hidden] attribute must win over class display rules (e.g. the
        URL/paste rows set display:flex, which otherwise keeps them visible
@@ -72,9 +76,7 @@
     h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.18; letter-spacing: -0.035em;
          font-weight: 700; margin-bottom: 22px; text-wrap: balance; }
     h1 .quiet { font-weight: 400; color: var(--ink-2); }
-    .rot { color: var(--green); transition: opacity 0.35s ease; display: inline-block; }
-    .rot.out { opacity: 0; }
-    @media (prefers-reduced-motion: reduce) { .rot { transition: none; } }
+    .rot { color: var(--green); display: inline-block; }
     .lede { font-size: 16px; color: var(--ink-2); margin-bottom: 30px; max-width: 560px;
             line-height: 1.6; text-wrap: pretty; }
     .lede .brand { color: var(--ink); font-weight: 600; }
@@ -322,6 +324,62 @@
     .footer-links { display: flex; gap: 14px; }
     .result-disclaimer { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
 
+    /* ---- visual polish (#88) --------------------------------------------
+       Depth, texture, and motion that stay inside the print/filter language:
+       paper grain, hard offset shadows (ink, low alpha), a lens-tinted focus
+       ring, and result choreography (stamped verdict, staggered actions).
+       All motion is gated on prefers-reduced-motion. */
+
+    /* paper grain — a barely-there print texture so the flat bg reads tactile */
+    body::after { content: ''; position: fixed; inset: 0; z-index: 999; pointer-events: none;
+      opacity: .05; mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+    /* hard offset shadows — printed-card depth, not glossy drop shadows */
+    :root { --card-shadow: 5px 5px 0 rgba(28, 28, 26, 0.10); }
+    .form-card, .result.visible, .loading.visible, .notice.visible { box-shadow: var(--card-shadow); }
+    .persona-card { transition: transform 0.12s ease, box-shadow 0.12s ease,
+                    background 0.12s, border-color 0.12s; }
+    .persona-card:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 rgba(28, 28, 26, 0.14); }
+    .persona-card.selected { box-shadow: inset 0 0 0 1px var(--c), 3px 3px 0 rgba(28, 28, 26, 0.14); }
+
+    /* lens-tinted focus ring — the page literally focuses through your filter */
+    .input-row:focus-within, .paste-input:focus {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--lens) 22%, transparent); }
+    :focus-visible { outline: 2px solid var(--lens); outline-offset: 2px; }
+
+    /* buttons: lift on hover, press on click */
+    .cta-btn, .action-open, .action-btn { transition: transform 0.1s ease, box-shadow 0.1s ease,
+                    background 0.15s, opacity 0.15s; }
+    .cta-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 2px 0 rgba(28, 28, 26, 0.3); }
+    .cta-btn:active { transform: translateY(1px); box-shadow: none; }
+
+    /* the verdict reads as stamped, not typeset */
+    .badge[class*="verdict-"] { transform: rotate(-1.5deg); }
+
+    @media (prefers-reduced-motion: no-preference) {
+      /* result choreography: card rises, verdict stamps down, actions stagger in */
+      .result.visible { animation: card-in 0.3s ease both; }
+      .result.visible .badge { animation: stamp 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) 0.1s both; }
+      .result.visible .action, .result.visible .actions-empty { animation: card-in 0.3s ease both; }
+      .result.visible .action:nth-child(1) { animation-delay: 0.08s; }
+      .result.visible .action:nth-child(2) { animation-delay: 0.16s; }
+      .result.visible .action:nth-child(3) { animation-delay: 0.24s; }
+      .result.visible .action:nth-child(4) { animation-delay: 0.32s; }
+      .result.visible .action:nth-child(5) { animation-delay: 0.40s; }
+      @keyframes card-in { from { opacity: 0; transform: translateY(8px); } }
+      @keyframes stamp {
+        from { opacity: 0; transform: scale(1.8) rotate(-7deg); }
+        to   { opacity: 1; transform: scale(1) rotate(-1.5deg); } }
+
+      /* active pipeline step gets a scanning sweep — work you can see */
+      .job-step.step-active {
+        background: linear-gradient(100deg, var(--green-soft) 35%, var(--bg-2) 50%, var(--green-soft) 65%)
+                    0 0 / 200% 100%;
+        animation: scan 1.4s linear infinite; }
+      @keyframes scan { to { background-position: -200% 0; } }
+    }
+
     @media (max-width: 540px) {
       .wrap { padding: 16px 18px 32px; }
       .input-row { flex-direction: column; border: none; }
@@ -466,14 +524,30 @@
       if (!el) return;
       const words = ['open tabs', 'podcasts', 'videos', 'posts', 'newsletters', 'blogs'];
       if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // Noise -> signal: the next word arrives scrambled and resolves left to
+      // right — the filter metaphor, acted out. Fixed-length frames (monospace)
+      // so nothing jumps.
+      const GLYPHS = '\u2588\u2593\u2592\u2591<>/#%*+=';
+      function scrambleTo(next) {
+        const frames = 9;
+        let f = 0;
+        (function tick() {
+          f++;
+          if (f >= frames) { el.textContent = next; return; }
+          let out = '';
+          for (let c = 0; c < next.length; c++) {
+            out += c < (f / frames) * next.length || next[c] === ' '
+              ? next[c]
+              : GLYPHS[(Math.random() * GLYPHS.length) | 0];
+          }
+          el.textContent = out;
+          setTimeout(tick, 36);
+        })();
+      }
       let i = 0;
       setInterval(() => {
-        el.classList.add('out');
-        setTimeout(() => {
-          i = (i + 1) % words.length;
-          el.textContent = words[i];
-          el.classList.remove('out');
-        }, 350);
+        i = (i + 1) % words.length;
+        scrambleTo(words[i]);
       }, 2400);
     })();
 

@@ -6,6 +6,8 @@
   <title>Your library — filter.fyi</title>
   <meta name="description" content="Your saved reads on filter.fyi — verdicts, suggestions, and ready-to-paste hand-off briefs.">
   <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#efece4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,6 +15,8 @@
        Used by the detail view to format the stored brief + suggestion text. -->
   <script type="module" src="/md.js"></script>
   <style>
+    /* soft cross-page fade (progressive enhancement; no-op elsewhere) */
+    @view-transition { navigation: auto; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     /* The [hidden] attribute must win over class display rules (.grid uses
        display:grid, .side-nav a uses display:block). Without this, toggling

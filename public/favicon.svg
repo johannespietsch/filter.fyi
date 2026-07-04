@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- filter.fyi mark: the funnel, and the one green dot that made it through -->
+  <rect width="32" height="32" rx="6" fill="#efece4"/>
+  <path d="M6 7.5h20L18.5 16v6l-5 3.5v-9.5L6 7.5z" fill="none" stroke="#1c1c1a" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="22.5" cy="25" r="3" fill="#1f7a3a"/>
+</svg>
