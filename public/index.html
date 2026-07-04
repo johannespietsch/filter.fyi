@@ -322,6 +322,23 @@
     .footer-links { display: flex; gap: 14px; }
     .result-disclaimer { margin-top: 10px; font-size: 11px; color: var(--ink-3); }
 
+    /* how it works — quiet 3-step strip for first-time visitors */
+    .how { margin-top: 30px; border-top: 1px solid var(--ink); padding-top: 18px; }
+    .how-lbl { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 12px; }
+    .how-lbl::before { content: '— '; color: var(--green); }
+    .how-steps { list-style: none; counter-reset: step; display: grid;
+                 grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+    .how-steps li { counter-increment: step; font-size: 12.5px; line-height: 1.5;
+                    color: var(--ink-2); padding: 12px; border: 1px solid var(--ink);
+                    background: var(--bg-2); }
+    .how-steps li::before { content: counter(step, decimal-leading-zero); display: block;
+                    font-size: 11px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+    .how-steps b { color: var(--ink); font-weight: 700; }
+    .how-more { font-size: 12px; color: var(--ink-3); }
+    .how-more a { color: var(--green); }
+    @media (max-width: 540px) { .how-steps { grid-template-columns: 1fr; } }
+
     @media (max-width: 540px) {
       .wrap { padding: 16px 18px 32px; }
       .input-row { flex-direction: column; border: none; }
@@ -340,6 +357,7 @@
              markup so they're never wiped when auth state changes. -->
         <a href="/me" id="nav-library" hidden>your library →</a>
         <a href="/login" id="nav-login">sign in →</a>
+        <a href="/pricing">pricing →</a>
         <a href="/about">about →</a>
       </div>
     </nav>
@@ -449,10 +467,21 @@
       </div>
     </section>
 
+    <section class="how">
+      <div class="how-lbl">how it works</div>
+      <ol class="how-steps">
+        <li><b>paste</b> any link — an article, tweet, YouTube video, PDF, or raw text.</li>
+        <li><b>get the verdict</b> — worth the time, a skim, or skip-able — judged through your lens, with what it's based on shown.</li>
+        <li><b>act on it</b> — up to 5 next steps, each with a ready-to-paste brief for ChatGPT, Claude, or Cursor.</li>
+      </ol>
+      <p class="how-more">Want it to run the other way — we watch what you follow and only interrupt when something clears your bar? <a href="/pricing">That's Pro →</a></p>
+    </section>
+
     <footer>
       <span>filter.fyi — relevant, not noise.</span>
       <span class="footer-links">
         <a href="/about">about</a>
+        <a href="/pricing">pricing</a>
         <a href="/changelog">changelog</a>
         <a href="/privacy">privacy</a>
         <a href="/terms">terms</a>
