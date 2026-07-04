@@ -107,3 +107,22 @@ CREATE TABLE IF NOT EXISTS suggestion_feedback (
 
 CREATE INDEX IF NOT EXISTS idx_suggestion_feedback_created ON suggestion_feedback (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_suggestion_feedback_event ON suggestion_feedback (event, created_at DESC);
+
+-- Public share pages (/s/:slug) — explicit, user-initiated snapshots of one
+-- analysed read. Created only from server-verified data (anon_summaries or the
+-- backend library), never from client-supplied content. `payload` is the slim
+-- summary JSON (full `content` brief stripped, same as anon_summaries).
+CREATE TABLE IF NOT EXISTS shares (
+  slug        TEXT PRIMARY KEY,
+  user_id     INTEGER,
+  anon_id     TEXT,
+  url         TEXT NOT NULL DEFAULT '',
+  source_type TEXT,
+  title       TEXT,
+  verdict     TEXT,
+  payload     TEXT NOT NULL,
+  views       INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_shares_created ON shares (created_at DESC);

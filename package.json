@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test dev/*.test.mjs",
+    "test": "node --test --test-force-exit dev/*.test.mjs",
     "dev": "wrangler dev",
     "mock-bot": "node dev/mock-bot.mjs",
     "deploy": "wrangler deploy",
@@ -17,6 +17,8 @@
     "db:migrate:suggestion-feedback:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./migrations/2026-06-07-suggestion-feedback.sql",
     "db:migrate:suggestion-events:local": "wrangler d1 execute filter-fyi-waitlist --local --file=./migrations/2026-06-08-suggestion-events.sql",
     "db:migrate:suggestion-events:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./migrations/2026-06-08-suggestion-events.sql",
+    "db:migrate:shares:local": "wrangler d1 execute filter-fyi-waitlist --local --file=./migrations/2026-07-04-shares.sql",
+    "db:migrate:shares:remote": "wrangler d1 execute filter-fyi-waitlist --remote --file=./migrations/2026-07-04-shares.sql",
     "db:list:local": "wrangler d1 execute filter-fyi-waitlist --local --command='SELECT id, email, challenges, source, created_at FROM waitlist ORDER BY created_at DESC LIMIT 20'",
     "db:list:remote": "wrangler d1 execute filter-fyi-waitlist --remote --command='SELECT id, email, challenges, source, created_at FROM waitlist ORDER BY created_at DESC LIMIT 20'",
     "db:users:local": "wrangler d1 execute filter-fyi-waitlist --local --command='SELECT id, email, created_at, last_login_at FROM users ORDER BY created_at DESC LIMIT 20'",

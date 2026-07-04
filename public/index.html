@@ -286,6 +286,18 @@
     .result-save { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--ink);
                    font-size: 12px; color: var(--ink-3); }
 
+    /* share row — turns a result into a public /s/:slug page */
+    .result-share { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--ink);
+                    display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .share-btn { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+                 text-transform: uppercase; padding: 7px 12px; border: 1px solid var(--ink);
+                 background: var(--bg); color: var(--ink); cursor: pointer; }
+    .share-btn:hover { background: var(--lens-soft); border-color: var(--lens); color: var(--lens); }
+    .share-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .share-url { flex: 1 1 220px; min-width: 0; font: inherit; font-size: 12px; padding: 7px 8px;
+                 border: 1px solid var(--lens); background: var(--bg-2); color: var(--ink-2); }
+    .share-hint { font-size: 11px; color: var(--ink-3); }
+
     /* soft nudge (dismissable) */
     .nudge { display: none; align-items: flex-start; gap: 12px;
              padding: 12px 14px; margin-bottom: 18px;
@@ -422,6 +434,10 @@
           <div class="brief-meta" id="brief-meta"></div>
           <div class="brief-body md" id="brief-body"></div>
         </details>
+        <div class="result-share" id="result-share" hidden>
+          <button type="button" class="share-btn" id="share-btn">🔗 share this result</button>
+          <span class="share-hint" id="share-hint">get a public link you can post anywhere</span>
+        </div>
         <p class="result-disclaimer">Actions and verdicts are AI-generated and can be wrong — review before you run anything. <a href="/terms">terms</a></p>
         <p class="result-save" id="result-save">Want to keep these? <a href="/login">Sign in</a> to save them to your library.</p>
       </article>
@@ -946,8 +962,64 @@
         } else {
           briefEl.hidden = true;
         }
+        resetShareRow();
         show(result);
       }
+
+      // --- Share this result (/s/:slug) ----------------------------------
+      // currentResultId is the server-side row backing the visible result
+      // (anon_summaries id for anon, library item id when signed in). The
+      // share endpoint re-reads from that store, so no id ⇒ nothing to share.
+      let currentResultId = null;
+      const shareRow = document.getElementById('result-share');
+      const shareBtn = document.getElementById('share-btn');
+      const shareHint = document.getElementById('share-hint');
+
+      function resetShareRow() {
+        const old = shareRow.querySelector('.share-url');
+        if (old) old.remove();
+        shareBtn.disabled = false;
+        shareBtn.textContent = '🔗 share this result';
+        shareHint.textContent = 'get a public link you can post anywhere';
+        shareRow.hidden = !currentResultId;
+      }
+
+      shareBtn.addEventListener('click', async () => {
+        if (!currentResultId) return;
+        shareBtn.disabled = true;
+        let res, payload;
+        try {
+          res = await fetch('/api/v1/share', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: currentResultId }),
+          });
+          payload = await res.json().catch(() => ({}));
+        } catch {
+          shareBtn.disabled = false;
+          shareHint.textContent = 'network problem — try again';
+          return;
+        }
+        if (!res.ok || !payload.url) {
+          shareBtn.disabled = false;
+          shareHint.textContent = (payload && payload.message) || "couldn't create a link — try again";
+          return;
+        }
+        // Success: show the URL, copy it, and keep the button disabled so a
+        // double-click doesn't mint a second public page.
+        const input = document.createElement('input');
+        input.className = 'share-url';
+        input.readOnly = true;
+        input.value = payload.url;
+        input.addEventListener('focus', () => input.select());
+        shareRow.insertBefore(input, shareHint);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(payload.url).catch(() => {});
+        }
+        shareBtn.textContent = '✓ link copied';
+        shareHint.textContent = 'public page — anyone with the link can view it';
+      });
 
       let _pollTimer = null;
       let _pollInFlight = false; // prevents overlapping requests if one runs >2s
@@ -1089,6 +1161,7 @@
             return;
           }
           if (payload.status === 'done' && payload.summary) {
+            currentResultId = typeof payload.id === 'number' ? payload.id : null;
             renderResult(payload.summary);
             maybeShowNudge(_triesUsed, _triesLimit);
           }
@@ -1169,6 +1242,7 @@
         loading.classList.remove('visible');
         submitBtn.disabled = false;
         if (payload.summary) {
+          currentResultId = null; // sync path carries no stored id — nothing to share
           renderResult(payload.summary);
           maybeShowNudge(payload.tries_used, payload.tries_limit);
         }
