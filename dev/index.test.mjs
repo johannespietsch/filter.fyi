@@ -10,7 +10,13 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
-const html = fs.readFileSync(path.join(dir, "../public/index.html"), "utf8");
+// index.html loads the widget logic as an external classic script (/try.js);
+// jsdom has no resource loader, so inline it here so the same code runs in
+// tests exactly as it does on the page.
+const trySrc = fs.readFileSync(path.join(dir, "../public/try.js"), "utf8");
+const html = fs
+  .readFileSync(path.join(dir, "../public/index.html"), "utf8")
+  .replace('<script src="/try.js"></script>', `<script>${trySrc}</script>`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Boot index.html with a stubbed /api/v1/try; `tryResponse` controls the reply.
