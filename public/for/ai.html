@@ -75,10 +75,12 @@
       </div>
     </nav>
 
-    <!-- Live try-it. The pitch (.hero-copy) collapses and the lens picker
-         (.persona-pick) slides in when the URL bar is focused (#75, in /try.js).
-         Same markup ids as the landing so /try.js drives it unchanged. -->
-    <section class="hero" id="hero">
+    <!-- Live try-it. Same markup ids as the landing so /try.js drives it
+         unchanged. Unlike the hub, spokes use .static-hero: the persona tiles
+         are the pitch here, so the copy + picker show at rest instead of the
+         #75 focus collapse. (Still removed for signed-in visitors, who have a
+         saved lens — preview the anon experience in a private window.) -->
+    <section class="hero static-hero" id="hero">
       <div class="hero-copy" id="hero-copy">
         <div class="hero-copy-inner">
           <div class="eyebrow">For people building with AI</div>

@@ -29,6 +29,14 @@
     @media (prefers-reduced-motion: reduce) {
       .hero-copy, .persona-pick { transition: none; }
     }
+    /* Spokes (/for/*) opt out of the focus collapse via .static-hero: the
+       persona tiles ARE the pitch there, so show both the copy and the picker
+       at rest and don't react to focus. The neutral hub keeps the collapse
+       (plain .hero). */
+    .hero.static-hero .hero-copy,
+    .hero.static-hero.focused .hero-copy { grid-template-rows: 1fr; opacity: 1; }
+    .hero.static-hero .persona-pick,
+    .hero.static-hero.focused .persona-pick { grid-template-rows: 1fr; opacity: 1; margin-bottom: 16px; }
 
     /* persona picker */
     .persona-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;

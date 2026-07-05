@@ -11,9 +11,13 @@ import path from "node:path";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const trySrc = fs.readFileSync(path.join(dir, "../public/try.js"), "utf8");
+const tryCss = fs.readFileSync(path.join(dir, "../public/try.css"), "utf8");
 const html = fs
   .readFileSync(path.join(dir, "../public/for/ai.html"), "utf8")
-  .replace('<script src="/try.js"></script>', `<script>${trySrc}</script>`);
+  // jsdom has no resource loader — inline the widget script + styles so the
+  // same code + cascade run in tests.
+  .replace('<script src="/try.js"></script>', `<script>${trySrc}</script>`)
+  .replace('<link rel="stylesheet" href="/try.css">', `<style>${tryCss}</style>`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function boot() {
@@ -46,6 +50,16 @@ test("shows the three lenses with AI-flavoured labels", async () => {
   assert.match(text, /Set the AI direction/);
   assert.match(text, /Get up to speed/);
   assert.match(text, /Build with it/);
+});
+
+test("spoke shows the tiles at rest (static-hero, no focus needed)", async () => {
+  const { doc, window } = await boot();
+  const hero = doc.getElementById("hero");
+  assert.ok(hero.classList.contains("static-hero"), "hero opts out of focus-collapse");
+  // At rest (no focus), the picker is visible — unlike the hub, where it's
+  // collapsed until focus.
+  const pick = doc.getElementById("persona-pick");
+  assert.equal(window.getComputedStyle(pick).opacity, "1");
 });
 
 test("pre-selects the builder lens (the /for/ai default)", async () => {
