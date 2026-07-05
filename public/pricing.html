@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pricing — filter.fyi</title>
+  <meta name="description" content="filter.fyi Free: 3 reads a day, no login. Pro ($20/mo): monitoring for what you follow, a personal lens, full library memory, MCP + API access. Founding members lock $10/mo for life.">
+  <meta property="og:title" content="filter.fyi pricing — pay for time back, not another inbox">
+  <meta property="og:description" content="Free: 3 reads a day, no login. Pro: we watch what you follow and only surface what clears your bar — with next steps your AI can run.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://filter.fyi/pricing">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --amber:#b8780a; --amber-soft:#f3e7c8;
+      --red:#a83a2a;   --red-soft:#efd6d0;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 14px; line-height: 1.6;
+           font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+    ::selection { background: var(--ink); color: var(--bg-2); }
+    a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 24px 28px 48px; }
+
+    nav { display: flex; justify-content: space-between; align-items: center;
+          padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
+    .mark { font-weight: 700; font-size: 15px; letter-spacing: -0.02em; text-decoration: none; }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .nav-meta { display: flex; gap: 18px; font-size: 11px; color: var(--ink-2); align-items: center; }
+    .nav-meta a { color: var(--green); text-decoration: none; padding: 3px 8px;
+                  border: 1px solid var(--green); background: var(--green-soft); transition: 0.15s; }
+    .nav-meta a:hover { background: var(--green); color: var(--bg-2); }
+
+    .hero { padding: 44px 0 10px; }
+    .eyebrow { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+               color: var(--ink-2); margin-bottom: 18px; }
+    .eyebrow::before { content: '— '; color: var(--green); }
+    h1 { font-size: clamp(26px, 4.5vw, 34px); line-height: 1.2; letter-spacing: -0.03em;
+         font-weight: 700; margin-bottom: 16px; text-wrap: balance; }
+    h1 .hl { color: var(--green); }
+    .lede { font-size: 15px; color: var(--ink-2); margin-bottom: 34px; max-width: 620px; text-wrap: pretty; }
+    .lede b { color: var(--ink); font-weight: 600; background: var(--green-soft); padding: 1px 4px; }
+
+    /* plans */
+    .plans { display: grid; grid-template-columns: 1fr 1.2fr; gap: 16px; margin-bottom: 26px; }
+    @media (max-width: 640px) { .plans { grid-template-columns: 1fr; } }
+    .plan { background: var(--bg-2); border: 1px solid var(--ink); padding: 22px; display: flex; flex-direction: column; }
+    .plan.pro { border-top: 3px solid var(--green); }
+    .plan-name { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 8px; }
+    .plan.pro .plan-name { color: var(--green); }
+    .plan-price { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 2px; }
+    .plan-price .per { font-size: 13px; font-weight: 400; color: var(--ink-3); letter-spacing: 0; }
+    .plan-sub { font-size: 12px; color: var(--ink-3); margin-bottom: 16px; }
+    .plan-sub b { color: var(--amber); font-weight: 700; }
+    .plan ul { list-style: none; display: flex; flex-direction: column; gap: 9px; font-size: 13px; color: var(--ink-2); margin-bottom: 18px; }
+    .plan li { padding-left: 20px; position: relative; }
+    .plan li::before { content: '·'; position: absolute; left: 6px; color: var(--ink-3); }
+    .plan.pro li::before { content: '+'; color: var(--green); font-weight: 700; left: 3px; }
+    .plan li b { color: var(--ink); font-weight: 600; }
+    .plan-cta { margin-top: auto; }
+    .plan-cta a, .plan-cta button { display: inline-block; width: 100%; text-align: center; padding: 11px 16px;
+                 font: inherit; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+    .plan.free .plan-cta a { border: 1px solid var(--ink); color: var(--ink); background: var(--bg); }
+    .plan.free .plan-cta a:hover { background: var(--ink); color: var(--bg-2); }
+
+    /* founding form */
+    .founding { border: 1px solid var(--green); background: var(--green-soft); padding: 14px; }
+    .founding-lbl { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--green);
+                    font-weight: 700; margin-bottom: 8px; }
+    .founding p { font-size: 12.5px; color: var(--ink-2); margin-bottom: 10px; }
+    .founding p b { color: var(--ink); }
+    .founding-row { display: flex; }
+    .founding-row input[type=email] { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--ink);
+                        border-right: none; background: var(--bg-2); font: inherit; font-size: 13px; outline: none; }
+    .founding-row input[type=email]:focus { background: #fff; }
+    .founding-row button { height: 40px; padding: 0 16px; background: var(--ink); color: var(--bg-2); border: 1px solid var(--ink);
+                    font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .founding-row button:hover { background: var(--green); border-color: var(--green); }
+    .founding-row button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .founding-note { font-size: 11px; color: var(--ink-3); margin-top: 8px; }
+    .founding-done { font-size: 13px; color: var(--green); font-weight: 600; padding: 8px 0; }
+    .founding-err { font-size: 12px; color: var(--red); margin-top: 8px; }
+    @media (max-width: 420px) {
+      .founding-row { flex-direction: column; }
+      .founding-row input[type=email] { border-right: 1px solid var(--ink); border-bottom: none; }
+    }
+
+    /* value math strip */
+    .math { border: 1px dashed var(--ink-3); background: var(--bg-2); padding: 16px 18px; margin-bottom: 34px;
+            font-size: 13px; color: var(--ink-2); }
+    .math b { color: var(--ink); font-weight: 600; }
+
+    /* FAQ */
+    h2 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 14px; }
+    .faq { display: flex; flex-direction: column; gap: 10px; margin-bottom: 36px; }
+    .faq details { border: 1px solid var(--ink); background: var(--bg-2); }
+    .faq summary { cursor: pointer; padding: 12px 16px; font-size: 13px; font-weight: 700; list-style: none; }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::before { content: '+ '; color: var(--green); font-weight: 700; }
+    .faq details[open] summary::before { content: '− '; }
+    .faq .a { padding: 0 16px 14px; font-size: 13px; color: var(--ink-2); }
+    .faq .a a { color: var(--green); }
+
+    footer { margin-top: 36px; padding-top: 14px; border-top: 1px solid var(--ink);
+             font-size: 11px; color: var(--ink-3); display: flex; justify-content: space-between;
+             gap: 14px; flex-wrap: wrap; }
+    footer a { color: var(--ink-3); text-decoration: none; }
+    footer a:hover { color: var(--green); }
+    .footer-links { display: flex; gap: 14px; }
+    @media (max-width: 540px) { .wrap { padding: 16px 18px 32px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="mark" href="/">filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+      <div class="nav-meta">
+        <a href="/">try it →</a>
+        <a href="/about">about →</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="eyebrow">pricing</div>
+      <h1>Pay for <span class="hl">time back</span> —<br>not another inbox to keep up with.</h1>
+      <p class="lede">Free answers "is <em>this one link</em> worth my time?". Pro flips the direction: <b>we watch what you follow and only interrupt you when something clears your bar</b> — with next steps your AI can run.</p>
+    </section>
+
+    <section class="plans">
+      <div class="plan free">
+        <div class="plan-name">free</div>
+        <div class="plan-price">$0</div>
+        <div class="plan-sub">no login needed</div>
+        <ul>
+          <li><b>3 reads a day</b> — paste any article, tweet, YouTube link, or PDF</li>
+          <li>a verdict: worth the time, worth a skim, or skip-able</li>
+          <li>0–5 concrete next steps, each with a <b>copy-paste brief for your AI</b></li>
+          <li>pick a preset lens so verdicts fit how you work</li>
+          <li>sign in for a bigger daily allowance, a saved library, and a shortlist</li>
+        </ul>
+        <div class="plan-cta"><a href="/">start filtering →</a></div>
+      </div>
+
+      <div class="plan pro">
+        <div class="plan-name">pro</div>
+        <div class="plan-price">$20<span class="per"> /month</span></div>
+        <div class="plan-sub">everything in free, plus · <b>founding members lock $10/mo for life</b></div>
+        <ul>
+          <li><b>channel monitoring</b> — follow newsletters, YouTube channels, and blogs; we read every new item and only surface what clears your bar</li>
+          <li><b>a lens that's actually yours</b> — verdicts and next steps judged against your role, stack, and goals, not a generic reader</li>
+          <li><b>a weekly digest</b> of the few things that mattered — email or Telegram</li>
+          <li><b>library memory</b> — suggestions that know what you've already read, saved, and tried</li>
+          <li><b>long-form video &amp; audio</b> — transcription up to 2 hours</li>
+          <li><b>agent-first access</b> — MCP server + API: filter.fyi inside Claude Code, Cursor, or your own scripts</li>
+          <li><b>Telegram bot</b> — forward anything, get the filtered result back</li>
+        </ul>
+        <div class="plan-cta">
+          <form class="founding" id="founding-form" autocomplete="off">
+            <div class="founding-lbl">become a founding member</div>
+            <p>Pro is rolling out in small batches. Leave your email to claim a founding spot — <b>$10/mo locked for as long as you stay subscribed</b>, and a direct line to shape what we build.</p>
+            <div class="founding-row">
+              <input type="email" id="founding-email" name="email" placeholder="you@example.com" required>
+              <button type="submit" id="founding-btn">claim my spot</button>
+            </div>
+            <!-- honeypot: bots fill this, humans never see it -->
+            <input type="text" name="website" id="founding-website" tabindex="-1" autocomplete="off" hidden>
+            <div class="founding-note">No card needed today. We email you when your batch opens — decide then.</div>
+            <div class="founding-err" id="founding-err" hidden></div>
+          </form>
+          <div class="founding-done" id="founding-done" hidden>✓ You're on the founding list — we'll email you when your batch opens.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="math">
+      The honest math: one Pro month costs about <b>one hour of a builder's time</b>. If skipping the wrong reads and catching the right ones saves you an hour a week, it pays for itself four times over. If it doesn't, cancel — <b>no lock-in, export everything anytime</b>.
+    </section>
+
+    <section>
+      <h2>Questions you'd probably ask</h2>
+      <div class="faq">
+        <details>
+          <summary>Why isn't it all free?</summary>
+          <div class="a">Every read costs us real model inference — there are no ads and your attention is not the product. Free stays genuinely useful (3 reads a day, full verdicts and briefs); Pro funds the compounding parts: monitoring, memory, and the digest.</div>
+        </details>
+        <details>
+          <summary>Why not "just use ChatGPT"?</summary>
+          <div class="a">You can paste a link into a chat — and get a summary you still have to read and judge. filter.fyi is opinionated where a chat is neutral: a verdict against <em>your</em> lens, a memory of everything you've filtered, monitoring that runs while you don't, and hand-off briefs designed to be pasted <em>into</em> ChatGPT, Claude, or Cursor. We're not your chat's competitor — we're its front door.</div>
+        </details>
+        <details>
+          <summary>What exactly is a "founding member"?</summary>
+          <div class="a">The first cohort of paying users. You get Pro at $10/mo for as long as you stay subscribed (half the sticker price, forever), early access to every new surface (MCP, digest, monitoring), and a direct line to the founder for feature requests. In exchange, you put up with the occasional rough edge and tell us about it.</div>
+        </details>
+        <details>
+          <summary>Can I get my data out?</summary>
+          <div class="a">Yes — one-click JSON export of everything (your library, lens, and shortlist) from <a href="/me">your account page</a>, and account deletion is just as easy. See <a href="/privacy">privacy</a>.</div>
+        </details>
+        <details>
+          <summary>Do verdicts ever get it wrong?</summary>
+          <div class="a">Yes, sometimes — they're AI-generated and we say so on every result. That's why each verdict shows what it's based on ("what we read") and why next steps are suggestions with briefs you review, not actions we take for you.</div>
+        </details>
+      </div>
+    </section>
+
+    <footer>
+      <span>filter.fyi — relevant, not noise.</span>
+      <span class="footer-links">
+        <a href="/about">about</a>
+        <a href="/changelog">changelog</a>
+        <a href="/privacy">privacy</a>
+        <a href="/terms">terms</a>
+      </span>
+    </footer>
+  </div>
+
+  <script>
+    (() => {
+      const form = document.getElementById('founding-form');
+      const email = document.getElementById('founding-email');
+      const btn = document.getElementById('founding-btn');
+      const err = document.getElementById('founding-err');
+      const done = document.getElementById('founding-done');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        err.hidden = true;
+        const value = email.value.trim();
+        if (!value) { email.focus(); return; }
+        btn.disabled = true;
+        let res;
+        try {
+          res = await fetch('/api/v1/waitlist', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              email: value,
+              challenges: [],
+              source: 'pricing',
+              website: document.getElementById('founding-website').value,
+            }),
+          });
+        } catch {
+          btn.disabled = false;
+          err.textContent = 'Network problem — try again.';
+          err.hidden = false;
+          return;
+        }
+        if (!res.ok) {
+          btn.disabled = false;
+          err.textContent = res.status === 400 ? 'That email doesn\'t look right.' : 'Something went wrong — try again.';
+          err.hidden = false;
+          return;
+        }
+        form.hidden = true;
+        done.hidden = false;
+      });
+    })();
+  </script>
+</body>
+</html>
