@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>filter.fyi — analysing…</title>
+  <meta name="robots" content="noindex">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#efece4; --bg-2:#f7f4ec;
+      --ink:#1c1c1a; --ink-2:#5e5e58; --ink-3:#9b9b91;
+      --green:#1f7a3a; --green-soft:#dfe8d6;
+      --amber:#b8780a; --amber-soft:#f3e7c8;
+      --red:#a83a2a; --red-soft:#efd6d0;
+      --mono:'JetBrains Mono','IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    }
+    html, body { height: 100%; background: var(--bg); }
+    body { font-family: var(--mono); color: var(--ink); font-size: 13px; line-height: 1.6;
+           -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; }
+    a { color: var(--ink); text-underline-offset: 3px; }
+    a:hover { color: var(--green); }
+
+    .top { display: flex; align-items: center; gap: 8px; padding: 14px 16px 12px;
+           border-bottom: 1px solid var(--ink); }
+    .mark { font-weight: 700; font-size: 14px; letter-spacing: -0.02em; text-decoration: none;
+            color: var(--ink); }
+    .mark .dot { color: var(--green); }
+    .mark .fyi { color: var(--ink-3); }
+    .domain { font-size: 11px; color: var(--ink-3); margin-left: auto; }
+
+    .body { flex: 1; padding: 18px 16px; }
+
+    .state { display: flex; flex-direction: column; gap: 10px; }
+    .state-icon { font-size: 22px; }
+    .state-msg { font-size: 13px; color: var(--ink-2); }
+    .state-sub { font-size: 11px; color: var(--ink-3); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 18px; height: 18px; border: 2px solid var(--green-soft);
+               border-top-color: var(--green); border-radius: 50%;
+               animation: spin 0.8s linear infinite; display: inline-block; }
+
+    .result { display: flex; flex-direction: column; gap: 12px; }
+    .badge { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+             text-transform: uppercase; padding: 3px 8px; border: 1px solid; }
+    .verdict-watch { color: var(--green); border-color: var(--green); background: var(--green-soft); }
+    .verdict-skim  { color: var(--amber); border-color: var(--amber); background: var(--amber-soft); }
+    .verdict-skip  { color: var(--red);   border-color: var(--red);   background: var(--red-soft); }
+    .result-title { font-weight: 600; font-size: 13px; line-height: 1.4; }
+    .result-idea { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+    .result-why { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+    .result-link { font-size: 11px; color: var(--green); text-decoration: none; border-bottom: 1px solid var(--green-soft); }
+    .result-link:hover { border-color: var(--green); }
+
+    .error-msg { font-size: 12px; color: var(--red); line-height: 1.5; }
+    .login-link { font-size: 12px; color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <a href="/" target="_blank" class="mark">filter<span class="dot">.</span><span class="fyi">fyi</span></a>
+    <span class="domain" id="domain"></span>
+  </div>
+
+  <div class="body">
+    <div class="state" id="state-waiting">
+      <span class="spinner"></span>
+      <span class="state-msg">Waiting for page content…</span>
+    </div>
+
+    <div class="state" id="state-working" hidden>
+      <span class="spinner"></span>
+      <span class="state-msg" id="step-label">Analysing…</span>
+      <span class="state-sub">This takes 15–30 seconds.</span>
+    </div>
+
+    <div class="result" id="result" hidden>
+      <div>
+        <span class="badge" id="verdict-badge"></span>
+      </div>
+      <div class="result-title" id="result-title"></div>
+      <div class="result-idea" id="result-idea"></div>
+      <div class="result-why" id="result-why"></div>
+      <a href="/me" target="_blank" class="result-link">View in library →</a>
+    </div>
+
+    <div class="state" id="state-error" hidden>
+      <span class="state-icon">✗</span>
+      <span class="error-msg" id="error-msg"></span>
+      <a href="/me" target="_blank" class="login-link" id="login-link" hidden>Sign in to filter.fyi →</a>
+    </div>
+  </div>
+
+  <script>
+    const stateWaiting = document.getElementById('state-waiting');
+    const stateWorking = document.getElementById('state-working');
+    const stateError   = document.getElementById('state-error');
+    const resultEl     = document.getElementById('result');
+    const stepLabel    = document.getElementById('step-label');
+    const domainEl     = document.getElementById('domain');
+    const errorMsg     = document.getElementById('error-msg');
+    const loginLink    = document.getElementById('login-link');
+    const verdictBadge = document.getElementById('verdict-badge');
+    const resultTitle  = document.getElementById('result-title');
+    const resultIdea   = document.getElementById('result-idea');
+    const resultWhy    = document.getElementById('result-why');
+
+    const STEP_LABELS = { fetching: 'Fetching…', summarizing: 'Summarising…', analyzing: 'Analysing…' };
+    const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
+
+    function showError(msg, showLogin) {
+      stateWaiting.hidden = true;
+      stateWorking.hidden = true;
+      resultEl.hidden = true;
+      errorMsg.textContent = msg;
+      loginLink.hidden = !showLogin;
+      stateError.hidden = false;
+    }
+
+    function showResult(data) {
+      stateWaiting.hidden = true;
+      stateWorking.hidden = true;
+      stateError.hidden = true;
+
+      const verdict = (data.verdict || 'skim').toLowerCase();
+      const label = VERDICT_LABELS[verdict] || verdict;
+      verdictBadge.textContent = label;
+      verdictBadge.className = 'badge verdict-' + verdict;
+
+      resultTitle.textContent = data.title || '';
+      const analysis = data.analysis || {};
+      resultIdea.textContent = analysis.main_idea || '';
+      resultWhy.textContent  = analysis.why_it_matters || '';
+      resultIdea.hidden = !analysis.main_idea;
+      resultWhy.hidden  = !analysis.why_it_matters;
+
+      resultEl.hidden = false;
+    }
+
+    async function pollJob(jobId, attempts) {
+      if (attempts <= 0) {
+        showError('Timed out. The analysis may still finish — check your library in a moment.');
+        return;
+      }
+      let res, payload;
+      try {
+        res = await fetch('/api/v1/job/' + jobId, { credentials: 'same-origin' });
+        payload = await res.json();
+      } catch {
+        showError('Lost connection. Check your library in a moment.');
+        return;
+      }
+      if (!res.ok || payload.status === 'error') {
+        showError('Analysis failed. Try pasting the text directly into filter.fyi.');
+        return;
+      }
+      if (payload.status === 'done') {
+        showResult(payload.result);
+        return;
+      }
+      // pending
+      const step = payload.step || 'analyzing';
+      stepLabel.textContent = STEP_LABELS[step] || 'Analysing…';
+      setTimeout(() => pollJob(jobId, attempts - 1), 2000);
+    }
+
+    async function submit(pageUrl, title, content) {
+      stateWaiting.hidden = true;
+      stateWorking.hidden = false;
+
+      let res, payload;
+      try {
+        res = await fetch('/api/v1/bookmarklet/submit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: pageUrl, title, content }),
+        });
+        payload = await res.json();
+      } catch {
+        showError('Could not reach filter.fyi. Check your connection and try again.');
+        return;
+      }
+
+      if (res.status === 401) {
+        showError('You need to be signed in to filter.fyi.', true);
+        return;
+      }
+      if (!res.ok || !payload.job_id) {
+        showError('Something went wrong starting the analysis. Try again.');
+        return;
+      }
+
+      pollJob(payload.job_id, 60);
+    }
+
+    // Signal readiness to the bookmarklet on the source page.
+    // Use '*' as targetOrigin — the bookmarklet can be on any domain.
+    if (window.opener) {
+      window.opener.postMessage({ type: 'filterfyi:ready' }, '*');
+    }
+
+    window.addEventListener('message', function (ev) {
+      if (ev.data && ev.data.type === 'filterfyi:submit') {
+        const { url, title, content } = ev.data;
+        if (!url || !content) {
+          showError('No content received from the page. Try again.');
+          return;
+        }
+        try {
+          domainEl.textContent = new URL(url).hostname.replace(/^www\./, '');
+        } catch {}
+        submit(url, title || '', content);
+      }
+    });
+  </script>
+</body>
+</html>

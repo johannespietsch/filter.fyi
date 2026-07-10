@@ -121,6 +121,11 @@ export default {
       return handleJobStatus(req, env, jobMatch[1]);
     }
 
+    if (url.pathname === "/api/v1/bookmarklet/submit") {
+      if (req.method !== "POST") return json({ error: "method-not-allowed" }, 405);
+      return handleBookmarkletSubmit(req, env);
+    }
+
     // /join was the old waitlist URL (still the advertised og:url out there);
     // the page now lives at /about. Permanent redirect so shared links survive.
     if (url.pathname === "/join" || url.pathname === "/join/") {
@@ -1424,6 +1429,59 @@ function sessionCookieHeader(sessionId: string): string {
 
 function clearSessionCookieHeader(): string {
   return `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax; Secure; HttpOnly`;
+}
+
+async function handleBookmarkletSubmit(req: Request, env: Env): Promise<Response> {
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+
+  if (!req.headers.get("content-type")?.includes("application/json")) {
+    return json({ error: "expected-json" }, 415);
+  }
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: "invalid-json" }, 400);
+  }
+
+  const pageUrl = typeof body.url === "string" ? body.url.trim() : "";
+  const content = typeof body.content === "string" ? body.content.trim() : "";
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+
+  if (!isValidHttpUrl(pageUrl)) return json({ error: "invalid-url" }, 400);
+  if (!content) return json({ error: "missing-content" }, 400);
+
+  let jobRes: Response;
+  try {
+    jobRes = await fetch(`${backendBase(env.BOT_API_URL)}/api/job`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-filter-fyi-secret": env.BOT_API_KEY,
+      },
+      body: JSON.stringify({ url: pageUrl, content, title, user_id: session.userId }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+
+  if (!jobRes.ok) return json({ error: "upstream-error" }, 502);
+
+  let payload: { job_id?: string };
+  try {
+    payload = (await jobRes.json()) as { job_id?: string };
+  } catch {
+    return json({ error: "upstream-error" }, 502);
+  }
+
+  if (!payload.job_id) return json({ error: "upstream-error" }, 502);
+  return json({ job_id: payload.job_id });
 }
 
 function magicLinkEmail(link: string): string {

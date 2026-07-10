@@ -179,6 +179,20 @@
     .account-btn.danger.armed { background: var(--red); color: var(--bg-2); }
     .account-error { font-size: 12px; color: var(--red); margin-top: 8px; }
 
+    /* bookmarklet install section */
+    .bookmarklet { margin-top: 24px; padding: 16px 18px; background: var(--bg-2); border: 1px solid var(--ink); }
+    .bookmarklet-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+                         color: var(--ink-2); margin-bottom: 6px; }
+    .bookmarklet-title::before { content: '— '; color: var(--green); }
+    .bookmarklet p { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+    .bookmarklet-drag-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .bookmarklet-drag { display: inline-block; padding: 5px 14px; border: 1px dashed var(--green);
+                        background: var(--green-soft); color: var(--green); font: inherit;
+                        font-size: 13px; font-weight: 600; text-decoration: none; cursor: grab;
+                        user-select: none; white-space: nowrap; }
+    .bookmarklet-drag:hover { background: var(--green); color: var(--bg-2); border-style: solid; }
+    .bookmarklet-hint { font-size: 11px; color: var(--ink-3); }
+
     @media (max-width: 540px) {
       .wrap { padding: 16px 18px 32px; }
     }
@@ -208,6 +222,15 @@
       <div class="lens-actions">
         <button class="lens-save" id="profile-save" type="button">save lens</button>
         <span class="lens-status" id="profile-status" hidden></span>
+      </div>
+    </section>
+
+    <section class="bookmarklet">
+      <div class="bookmarklet-title">Browser bookmarklet</div>
+      <p>Analyse pages you're already logged into — LinkedIn posts, paywalled articles, X threads. Drag the button to your browser's bookmarks bar, then click it on any page.</p>
+      <div class="bookmarklet-drag-wrap">
+        <a id="bookmarklet-link" class="bookmarklet-drag" href="#">▶ Analyse this page</a>
+        <span class="bookmarklet-hint">← drag to bookmarks bar</span>
       </div>
     </section>
 
@@ -595,6 +618,36 @@
       });
 
       load();
+
+      // Bookmarklet href — set via JS so HTML entity encoding can't corrupt the code.
+      // The snippet runs on third-party pages (LinkedIn, X, etc.) to capture visible
+      // content and relay it to the filter.fyi popup via postMessage.
+      (function() {
+        var snippet = '(function(){' +
+          'var u=location.href,t=document.title;' +
+          'var sel=[".update-components-text",".feed-shared-update-v2__description",' +
+          '"[data-testid=\'tweetText\']","article","[role=\'main\']","main"];' +
+          'var el=null;' +
+          'for(var i=0;i<sel.length;i++){' +
+            'var e=document.querySelector(sel[i]);' +
+            'if(e&&(e.innerText||"").trim().length>80){el=e;break;}' +
+          '}' +
+          'el=el||document.body;' +
+          'var c=(el.innerText||"").trim().slice(0,60000);' +
+          'if(!c){alert("filter.fyi: no readable content found on this page.");return;}' +
+          'var p=window.open("https://filter.fyi/bookmarklet.html","_filterfyi","width=440,height=460,resizable=yes");' +
+          'if(!p){alert("filter.fyi: please allow popups for this site.");return;}' +
+          'window.addEventListener("message",function h(ev){' +
+            'if(ev.source!==p)return;' +
+            'if(ev.data&&ev.data.type==="filterfyi:ready"){' +
+              'window.removeEventListener("message",h);' +
+              'p.postMessage({type:"filterfyi:submit",url:u,title:t,content:c},"https://filter.fyi");' +
+            '}' +
+          '});' +
+        '})();';
+        var link = document.getElementById('bookmarklet-link');
+        if (link) link.href = 'javascript:' + snippet;
+      })();
     })();
   </script>
 </body>
