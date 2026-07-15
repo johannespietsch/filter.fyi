@@ -6,7 +6,7 @@
 // need a real browser); these assert the JS behaviour via the `hidden`
 // property and the fetch calls made.
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import fs from "node:fs";
@@ -17,6 +17,12 @@ const dir = path.dirname(fileURLToPath(import.meta.url));
 const html = fs.readFileSync(path.join(dir, "../public/me.html"), "utf8");
 const mdSrc = fs.readFileSync(path.join(dir, "../public/md.js"), "utf8");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// `pretendToBeVisual` registers rAF/timer machinery on `window` that keeps
+// the event loop alive until the window is explicitly closed — without this,
+// `node --test` hangs forever after the last assertion (never exits).
+const openWindows = [];
+after(() => { for (const w of openWindows) w.close(); });
 
 // Boot me.html in jsdom with a stubbed backend; returns { window, doc, calls }.
 async function boot(opts = {}) {
@@ -74,6 +80,7 @@ async function boot(opts = {}) {
     },
   });
   const { window } = dom;
+  openWindows.push(window);
   // The md module is a separate <script type=module src> jsdom won't fetch.
   window.renderMarkdown = new window.Function(
     mdSrc.replace(/export function renderMarkdown/, "function renderMarkdown").replace(/if \(typeof window[\s\S]*$/, "") + "\nreturn renderMarkdown;"

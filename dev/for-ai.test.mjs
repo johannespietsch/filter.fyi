@@ -2,7 +2,7 @@
 // persona labels over the same leader/explorer/builder keys, and pre-selects
 // `builder` (the audience default). These assert that wiring.
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import fs from "node:fs";
@@ -15,6 +15,12 @@ const html = fs
   .readFileSync(path.join(dir, "../public/for/ai.html"), "utf8")
   .replace('<script src="/try.js"></script>', `<script>${trySrc}</script>`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// `pretendToBeVisual` registers rAF/timer machinery on `window` that keeps
+// the event loop alive until the window is explicitly closed — without this,
+// `node --test` hangs forever after the last assertion (never exits).
+const openWindows = [];
+after(() => { for (const w of openWindows) w.close(); });
 
 async function boot() {
   const calls = [];
@@ -30,6 +36,7 @@ async function boot() {
       };
     },
   });
+  openWindows.push(dom.window);
   await sleep(60);
   return { doc: dom.window.document, window: dom.window, calls };
 }
