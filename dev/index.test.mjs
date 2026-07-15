@@ -2,7 +2,7 @@
 // jsdom can't see layout, so we assert the JS wiring: which row is shown, what
 // body the submit sends, and the post-failure paste nudge.
 
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import fs from "node:fs";
@@ -18,6 +18,12 @@ const html = fs
   .readFileSync(path.join(dir, "../public/index.html"), "utf8")
   .replace('<script src="/try.js"></script>', `<script>${trySrc}</script>`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// `pretendToBeVisual` registers rAF/timer machinery on `window` that keeps
+// the event loop alive until the window is explicitly closed — without this,
+// `node --test` hangs forever after the last assertion (never exits).
+const openWindows = [];
+after(() => { for (const w of openWindows) w.close(); });
 
 // Boot index.html with a stubbed /api/v1/try; `tryResponse` controls the reply.
 // `signedIn` makes /api/v1/me return a user (drops the anon-only persona picker).
@@ -40,6 +46,7 @@ async function boot(tryResponse = { status: 200, body: { pending: true, job_id: 
       };
     },
   });
+  openWindows.push(dom.window);
   await sleep(60);
   return { doc: dom.window.document, window: dom.window, calls };
 }

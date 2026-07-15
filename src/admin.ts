@@ -137,6 +137,10 @@ export async function handleAdminRequest(
     return adminHeaders(await renderUsageOverview(req, env, identity));
   }
 
+  if (pathname === "/usage/retrigger" && req.method === "POST") {
+    return adminHeaders(await handleRetrigger(req, env, identity));
+  }
+
   return adminHeaders(new Response("Not Found", { status: 404 }));
 }
 
@@ -597,6 +601,105 @@ async function fetchUsageOverview(
   }
 }
 
+interface RetriggerResult {
+  status: "ok" | "error";
+  url: string;
+  title?: string;
+  source_type?: string;
+  verdict?: string;
+  error_code?: string;
+  message?: string;
+}
+
+/**
+ * POST a URL to the backend's retrigger endpoint, which re-runs the fetch +
+ * analyse pipeline for it past url_cache/llm_cache. Used to confirm a
+ * fetcher fix actually took effect on a URL whose cached result predates it
+ * (see #103) — resubmitting the same URL normally would just replay the
+ * stale cache entry until its TTL expires.
+ */
+async function postRetrigger(env: AdminEnv, targetUrl: string): Promise<RetriggerResult | Response> {
+  if (!env.BOT_API_URL || !env.BOT_ADMIN_KEY) {
+    console.error("admin: BOT_API_URL or BOT_ADMIN_KEY not configured");
+    return new Response("admin backend not configured", { status: 503 });
+  }
+  const url = `${backendBase(env.BOT_API_URL)}/api/admin/retrigger`;
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-filter-fyi-admin-secret": env.BOT_ADMIN_KEY,
+      },
+      body: JSON.stringify({ url: targetUrl }),
+      // Retrigger runs the full fetch+summarize+analyse chain synchronously
+      // (Whisper transcription in particular can be slow) — give it much
+      // more room than the read-only aggregation endpoints.
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch (err) {
+    console.error("admin: retrigger fetch threw", err);
+    return new Response("upstream unreachable", { status: 502 });
+  }
+  if (upstream.status === 400) {
+    return new Response("invalid URL", { status: 400 });
+  }
+  if (!upstream.ok) {
+    console.error("admin: retrigger upstream non-ok", upstream.status);
+    return new Response(`upstream ${upstream.status}`, { status: 502 });
+  }
+  try {
+    return (await upstream.json()) as RetriggerResult;
+  } catch (err) {
+    console.error("admin: retrigger response not JSON", err);
+    return new Response("upstream malformed", { status: 502 });
+  }
+}
+
+/**
+ * Handles the "Retrigger" button's form POST from the Usage row list.
+ * Runs the retrigger synchronously and redirects back to the same page of
+ * the Usage table with the outcome passed as flash query params — the admin
+ * host is server-rendered with no client-side JS, so a redirect-with-flash
+ * is the plain-HTML equivalent of a toast.
+ */
+async function handleRetrigger(req: Request, env: AdminEnv, email: string): Promise<Response> {
+  const origin = new URL(req.url).origin;
+  const form = await req.formData();
+  const targetUrl = String(form.get("url") ?? "").trim();
+  const days = String(form.get("days") ?? "30");
+  const limit = String(form.get("limit") ?? "50");
+  const offset = String(form.get("offset") ?? "0");
+  const redirectBase = `${origin}/usage?days=${encodeURIComponent(days)}&limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`;
+
+  if (!targetUrl) {
+    return Response.redirect(`${redirectBase}&retriggered=error&retriggered_message=missing+url`, 303);
+  }
+
+  console.log(`admin: ${email} retriggered ${targetUrl}`);
+  const result = await postRetrigger(env, targetUrl);
+  if (result instanceof Response) {
+    return Response.redirect(`${redirectBase}&retriggered=error&retriggered_message=${encodeURIComponent("request failed")}`, 303);
+  }
+
+  const message = result.status === "ok"
+    ? `${result.title || targetUrl} — ${result.verdict ?? "ok"}`
+    : `${result.error_code ?? "error"}: ${result.message ?? ""}`;
+  return Response.redirect(
+    `${redirectBase}&retriggered=${result.status}&retriggered_url=${encodeURIComponent(targetUrl)}&retriggered_message=${encodeURIComponent(message)}`,
+    303,
+  );
+}
+
+function renderRetriggerFlash(url: URL): string {
+  const status = url.searchParams.get("retriggered");
+  if (status !== "ok" && status !== "error") return "";
+  const message = url.searchParams.get("retriggered_message") || "";
+  const cls = status === "ok" ? "flash-ok" : "flash-err";
+  return `<div class="flash ${cls}">Retrigger ${status === "ok" ? "succeeded" : "still failing"}: ${escapeHtml(message)}</div>`;
+}
+
 async function renderUsageOverview(req: Request, env: AdminEnv, email: string): Promise<Response> {
   const url = new URL(req.url);
   const daysParam = Number(url.searchParams.get("days") ?? "30");
@@ -627,6 +730,7 @@ async function renderUsageOverview(req: Request, env: AdminEnv, email: string): 
     </nav>
   </header>
   <main>
+    ${renderRetriggerFlash(url)}
     ${renderUsageKpis(data.kpis)}
     ${renderTranscriptSources(data.transcript_sources)}
     ${renderUsageBySourceType(data.by_source_type)}
@@ -735,11 +839,24 @@ function renderProcessedUrlList(
       ? `<span class="status-ok">ok</span>`
       : `<span class="err" title="${escapeHtml(r.error_code)}">${escapeHtml(r.error_code || "error")}</span>`;
     const titleOrUrl = r.title || r.url;
+    // Pasted-text submissions are recorded with a placeholder, non-fetchable
+    // "url" — retrigger only makes sense for a real URL to re-fetch.
+    const isRetriggerable = /^https?:\/\//.test(r.url);
+    const retriggerCell = isRetriggerable
+      ? `<form method="POST" action="/usage/retrigger" class="retrigger-form">
+          <input type="hidden" name="url" value="${escapeHtml(r.url)}">
+          <input type="hidden" name="days" value="${days}">
+          <input type="hidden" name="limit" value="${limit}">
+          <input type="hidden" name="offset" value="${offset}">
+          <button type="submit" class="retrigger-btn" title="Re-fetch and re-analyse, bypassing cache">↻ retrigger</button>
+        </form>`
+      : `<span class="muted">—</span>`;
     return `<tr>
       <td class="ts">${escapeHtml(r.ts.replace("T", " "))}</td>
       <td class="title"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(titleOrUrl)}</a><br><span class="muted">${escapeHtml(r.source_type || "?")}${r.transcript_source ? ` · ${escapeHtml(r.transcript_source)}` : ""}</span></td>
       <td>${who}</td>
       <td>${statusCell}</td>
+      <td>${retriggerCell}</td>
     </tr>`;
   }).join("");
 
@@ -755,7 +872,7 @@ function renderProcessedUrlList(
     <h2>Recent URLs</h2>
     <p class="sub">Showing ${formatInt(start)}–${formatInt(end)} of ${formatInt(data.total_rows)}</p>
     <table class="url-list">
-      <thead><tr><th>When (UTC)</th><th>Title / source</th><th>Who</th><th>Status</th></tr></thead>
+      <thead><tr><th>When (UTC)</th><th>Title / source</th><th>Who</th><th>Status</th><th></th></tr></thead>
       <tbody>${body}</tbody>
     </table>
     <nav class="paginator">
@@ -862,5 +979,11 @@ const ADMIN_CSS = `
   table.url-list .muted { font-size: .75rem; }
   nav.paginator { margin-top: .75rem; display: flex; gap: 1rem; font-size: .85rem; }
   nav.paginator .paginator-disabled { color: var(--muted); }
+  .retrigger-form { margin: 0; }
+  .retrigger-btn { font: inherit; font-size: .75rem; padding: .2rem .5rem; border-radius: 4px; border: 1px solid var(--line); background: var(--tile-bg); color: var(--fg); cursor: pointer; white-space: nowrap; }
+  .retrigger-btn:hover { background: var(--bar); color: #fff; border-color: var(--bar); }
+  .flash { border-radius: 6px; padding: .6rem .9rem; margin-bottom: 1.25rem; font-size: .85rem; }
+  .flash-ok { background: rgba(44,138,61,.12); color: #2c8a3d; }
+  .flash-err { background: rgba(211,84,84,.12); color: var(--bar-err); }
   @media (max-width: 520px) { .identity-cards { grid-template-columns: 1fr; } }
 `;
