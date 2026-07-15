@@ -609,6 +609,8 @@ interface RetriggerResult {
   verdict?: string;
   error_code?: string;
   message?: string;
+  item_updated?: boolean;
+  item_id?: number | null;
 }
 
 /**
@@ -617,8 +619,20 @@ interface RetriggerResult {
  * fetcher fix actually took effect on a URL whose cached result predates it
  * (see #103) — resubmitting the same URL normally would just replay the
  * stale cache entry until its TTL expires.
+ *
+ * `userId`/`anonId` identify who originally submitted the URL (carried by
+ * the Usage row the admin is acting on). The backend uses these to run the
+ * retrigger under that person's own attribution and, for a signed-in user,
+ * refresh their existing library item in place — without them, the backend
+ * falls back to a synthetic admin identity and never touches anyone's
+ * saved item.
  */
-async function postRetrigger(env: AdminEnv, targetUrl: string): Promise<RetriggerResult | Response> {
+async function postRetrigger(
+  env: AdminEnv,
+  targetUrl: string,
+  userId: number | null,
+  anonId: string | null,
+): Promise<RetriggerResult | Response> {
   if (!env.BOT_API_URL || !env.BOT_ADMIN_KEY) {
     console.error("admin: BOT_API_URL or BOT_ADMIN_KEY not configured");
     return new Response("admin backend not configured", { status: 503 });
@@ -632,7 +646,7 @@ async function postRetrigger(env: AdminEnv, targetUrl: string): Promise<Retrigge
         "content-type": "application/json",
         "x-filter-fyi-admin-secret": env.BOT_ADMIN_KEY,
       },
-      body: JSON.stringify({ url: targetUrl }),
+      body: JSON.stringify({ url: targetUrl, user_id: userId, anon_id: anonId }),
       // Retrigger runs the full fetch+summarize+analyse chain synchronously
       // (Whisper transcription in particular can be slow) — give it much
       // more room than the read-only aggregation endpoints.
@@ -668,6 +682,9 @@ async function handleRetrigger(req: Request, env: AdminEnv, email: string): Prom
   const origin = new URL(req.url).origin;
   const form = await req.formData();
   const targetUrl = String(form.get("url") ?? "").trim();
+  const userIdRaw = String(form.get("user_id") ?? "").trim();
+  const userId = userIdRaw && Number.isFinite(Number(userIdRaw)) ? Number(userIdRaw) : null;
+  const anonId = String(form.get("anon_id") ?? "").trim() || null;
   const days = String(form.get("days") ?? "30");
   const limit = String(form.get("limit") ?? "50");
   const offset = String(form.get("offset") ?? "0");
@@ -677,14 +694,14 @@ async function handleRetrigger(req: Request, env: AdminEnv, email: string): Prom
     return Response.redirect(`${redirectBase}&retriggered=error&retriggered_message=missing+url`, 303);
   }
 
-  console.log(`admin: ${email} retriggered ${targetUrl}`);
-  const result = await postRetrigger(env, targetUrl);
+  console.log(`admin: ${email} retriggered ${targetUrl} (user_id=${userId ?? "-"}, anon_id=${anonId ?? "-"})`);
+  const result = await postRetrigger(env, targetUrl, userId, anonId);
   if (result instanceof Response) {
     return Response.redirect(`${redirectBase}&retriggered=error&retriggered_message=${encodeURIComponent("request failed")}`, 303);
   }
 
   const message = result.status === "ok"
-    ? `${result.title || targetUrl} — ${result.verdict ?? "ok"}`
+    ? `${result.title || targetUrl} — ${result.verdict ?? "ok"}${result.item_updated ? " (library item updated)" : ""}`
     : `${result.error_code ?? "error"}: ${result.message ?? ""}`;
   return Response.redirect(
     `${redirectBase}&retriggered=${result.status}&retriggered_url=${encodeURIComponent(targetUrl)}&retriggered_message=${encodeURIComponent(message)}`,
@@ -842,13 +859,19 @@ function renderProcessedUrlList(
     // Pasted-text submissions are recorded with a placeholder, non-fetchable
     // "url" — retrigger only makes sense for a real URL to re-fetch.
     const isRetriggerable = /^https?:\/\//.test(r.url);
+    // Carrying user_id/anon_id lets the backend run the retrigger under the
+    // original submitter's own attribution and, for a signed-in user,
+    // refresh their existing library item in place rather than under a
+    // synthetic admin identity that touches nobody's saved item.
     const retriggerCell = isRetriggerable
       ? `<form method="POST" action="/usage/retrigger" class="retrigger-form">
           <input type="hidden" name="url" value="${escapeHtml(r.url)}">
+          ${r.user_id !== null ? `<input type="hidden" name="user_id" value="${r.user_id}">` : ""}
+          ${r.anon_id ? `<input type="hidden" name="anon_id" value="${escapeHtml(r.anon_id)}">` : ""}
           <input type="hidden" name="days" value="${days}">
           <input type="hidden" name="limit" value="${limit}">
           <input type="hidden" name="offset" value="${offset}">
-          <button type="submit" class="retrigger-btn" title="Re-fetch and re-analyse, bypassing cache">↻ retrigger</button>
+          <button type="submit" class="retrigger-btn" title="Re-fetch and re-analyse, bypassing cache, attributed to ${r.user_id !== null ? `user ${r.user_id}` : r.anon_id ? "the original visitor" : "admin"}">↻ retrigger</button>
         </form>`
       : `<span class="muted">—</span>`;
     return `<tr>
