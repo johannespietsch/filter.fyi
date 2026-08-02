@@ -137,8 +137,13 @@ export async function handleAdminRequest(
     return adminHeaders(await renderUsageOverview(req, env, identity));
   }
 
-  if (pathname === "/usage/retrigger" && req.method === "POST") {
-    return adminHeaders(await handleRetrigger(req, env, identity));
+  if (pathname === "/usage/retrigger/start" && req.method === "POST") {
+    return adminHeaders(await handleRetriggerStart(req, env, identity));
+  }
+
+  if (pathname.startsWith("/usage/retrigger/status/") && req.method === "GET") {
+    const jobId = pathname.slice("/usage/retrigger/status/".length);
+    return adminHeaders(await handleRetriggerStatus(env, jobId));
   }
 
   return adminHeaders(new Response("Not Found", { status: 404 }));
@@ -601,7 +606,7 @@ async function fetchUsageOverview(
   }
 }
 
-interface RetriggerResult {
+interface RetriggerJobResult {
   status: "ok" | "error";
   url: string;
   title?: string;
@@ -613,9 +618,15 @@ interface RetriggerResult {
   item_id?: number | null;
 }
 
+type RetriggerStatusPayload =
+  | { status: "pending" }
+  | { status: "done"; result: RetriggerJobResult | null }
+  | { status: "error"; error?: string; message?: string };
+
 /**
- * POST a URL to the backend's retrigger endpoint, which re-runs the fetch +
- * analyse pipeline for it past url_cache/llm_cache. Used to confirm a
+ * POST a URL to the backend's retrigger endpoint, which kicks off a
+ * background re-run of the fetch + analyse pipeline for it past
+ * url_cache/llm_cache and returns a job_id immediately. Used to confirm a
  * fetcher fix actually took effect on a URL whose cached result predates it
  * (see #103) — resubmitting the same URL normally would just replay the
  * stale cache entry until its TTL expires.
@@ -626,13 +637,21 @@ interface RetriggerResult {
  * refresh their existing library item in place — without them, the backend
  * falls back to a synthetic admin identity and never touches anyone's
  * saved item.
+ *
+ * The call itself just creates the job row, so it returns in well under a
+ * second — the browser polls `GET /usage/retrigger/status/:jobId` (backed by
+ * `pollRetrigger` below) for the actual outcome. This replaced a synchronous
+ * version that blocked the whole HTTP round trip on the pipeline finishing
+ * (#108): a long video's Whisper transcription + summary routinely took
+ * several minutes, well past any reasonable request timeout, so the admin
+ * saw the button "do nothing" and the item never got updated.
  */
 async function postRetrigger(
   env: AdminEnv,
   targetUrl: string,
   userId: number | null,
   anonId: string | null,
-): Promise<RetriggerResult | Response> {
+): Promise<{ job_id: string } | Response> {
   if (!env.BOT_API_URL || !env.BOT_ADMIN_KEY) {
     console.error("admin: BOT_API_URL or BOT_ADMIN_KEY not configured");
     return new Response("admin backend not configured", { status: 503 });
@@ -647,10 +666,9 @@ async function postRetrigger(
         "x-filter-fyi-admin-secret": env.BOT_ADMIN_KEY,
       },
       body: JSON.stringify({ url: targetUrl, user_id: userId, anon_id: anonId }),
-      // Retrigger runs the full fetch+summarize+analyse chain synchronously
-      // (Whisper transcription in particular can be slow) — give it much
-      // more room than the read-only aggregation endpoints.
-      signal: AbortSignal.timeout(120_000),
+      // Just creates the job row now — near-instant, so a short timeout is
+      // plenty (the pipeline itself runs in the background on the backend).
+      signal: AbortSignal.timeout(10_000),
     });
   } catch (err) {
     console.error("admin: retrigger fetch threw", err);
@@ -664,57 +682,84 @@ async function postRetrigger(
     return new Response(`upstream ${upstream.status}`, { status: 502 });
   }
   try {
-    return (await upstream.json()) as RetriggerResult;
+    return (await upstream.json()) as { job_id: string };
   } catch (err) {
     console.error("admin: retrigger response not JSON", err);
     return new Response("upstream malformed", { status: 502 });
   }
 }
 
-/**
- * Handles the "Retrigger" button's form POST from the Usage row list.
- * Runs the retrigger synchronously and redirects back to the same page of
- * the Usage table with the outcome passed as flash query params — the admin
- * host is server-rendered with no client-side JS, so a redirect-with-flash
- * is the plain-HTML equivalent of a toast.
- */
-async function handleRetrigger(req: Request, env: AdminEnv, email: string): Promise<Response> {
-  const origin = new URL(req.url).origin;
-  const form = await req.formData();
-  const targetUrl = String(form.get("url") ?? "").trim();
-  const userIdRaw = String(form.get("user_id") ?? "").trim();
-  const userId = userIdRaw && Number.isFinite(Number(userIdRaw)) ? Number(userIdRaw) : null;
-  const anonId = String(form.get("anon_id") ?? "").trim() || null;
-  const days = String(form.get("days") ?? "30");
-  const limit = String(form.get("limit") ?? "50");
-  const offset = String(form.get("offset") ?? "0");
-  const redirectBase = `${origin}/usage?days=${encodeURIComponent(days)}&limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}`;
+/** GET a retrigger job's status/result from the backend. */
+async function pollRetrigger(env: AdminEnv, jobId: string): Promise<RetriggerStatusPayload | Response> {
+  if (!env.BOT_API_URL || !env.BOT_ADMIN_KEY) {
+    console.error("admin: BOT_API_URL or BOT_ADMIN_KEY not configured");
+    return new Response("admin backend not configured", { status: 503 });
+  }
+  const url = `${backendBase(env.BOT_API_URL)}/api/admin/retrigger/${encodeURIComponent(jobId)}`;
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      headers: { "x-filter-fyi-admin-secret": env.BOT_ADMIN_KEY },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    console.error("admin: retrigger status fetch threw", err);
+    return new Response("upstream unreachable", { status: 502 });
+  }
+  if (upstream.status === 404) {
+    return new Response("not found", { status: 404 });
+  }
+  if (!upstream.ok) {
+    console.error("admin: retrigger status upstream non-ok", upstream.status);
+    return new Response(`upstream ${upstream.status}`, { status: 502 });
+  }
+  try {
+    return (await upstream.json()) as RetriggerStatusPayload;
+  } catch (err) {
+    console.error("admin: retrigger status response not JSON", err);
+    return new Response("upstream malformed", { status: 502 });
+  }
+}
 
+/**
+ * JSON endpoint the retrigger button's client-side JS (see the `<script>` in
+ * `renderUsageOverview`) POSTs to. Body: `{url, user_id, anon_id}`. Returns
+ * `{job_id}` for the browser to start polling.
+ */
+async function handleRetriggerStart(req: Request, env: AdminEnv, email: string): Promise<Response> {
+  let body: { url?: unknown; user_id?: unknown; anon_id?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "invalid-json" }), {
+      status: 400, headers: { "content-type": "application/json" },
+    });
+  }
+  const targetUrl = String(body.url ?? "").trim();
+  const userId = typeof body.user_id === "number" && Number.isFinite(body.user_id) ? body.user_id : null;
+  const anonId = typeof body.anon_id === "string" && body.anon_id.trim() ? body.anon_id.trim() : null;
   if (!targetUrl) {
-    return Response.redirect(`${redirectBase}&retriggered=error&retriggered_message=missing+url`, 303);
+    return new Response(JSON.stringify({ error: "missing-url" }), {
+      status: 400, headers: { "content-type": "application/json" },
+    });
   }
 
   console.log(`admin: ${email} retriggered ${targetUrl} (user_id=${userId ?? "-"}, anon_id=${anonId ?? "-"})`);
   const result = await postRetrigger(env, targetUrl, userId, anonId);
-  if (result instanceof Response) {
-    return Response.redirect(`${redirectBase}&retriggered=error&retriggered_message=${encodeURIComponent("request failed")}`, 303);
-  }
-
-  const message = result.status === "ok"
-    ? `${result.title || targetUrl} — ${result.verdict ?? "ok"}${result.item_updated ? " (library item updated)" : ""}`
-    : `${result.error_code ?? "error"}: ${result.message ?? ""}`;
-  return Response.redirect(
-    `${redirectBase}&retriggered=${result.status}&retriggered_url=${encodeURIComponent(targetUrl)}&retriggered_message=${encodeURIComponent(message)}`,
-    303,
-  );
+  if (result instanceof Response) return result;
+  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
 }
 
-function renderRetriggerFlash(url: URL): string {
-  const status = url.searchParams.get("retriggered");
-  if (status !== "ok" && status !== "error") return "";
-  const message = url.searchParams.get("retriggered_message") || "";
-  const cls = status === "ok" ? "flash-ok" : "flash-err";
-  return `<div class="flash ${cls}">Retrigger ${status === "ok" ? "succeeded" : "still failing"}: ${escapeHtml(message)}</div>`;
+/** JSON endpoint the client-side poller hits every ~2s until a job settles. */
+async function handleRetriggerStatus(env: AdminEnv, jobId: string): Promise<Response> {
+  if (!jobId) {
+    return new Response(JSON.stringify({ error: "missing-job-id" }), {
+      status: 400, headers: { "content-type": "application/json" },
+    });
+  }
+  const result = await pollRetrigger(env, jobId);
+  if (result instanceof Response) return result;
+  return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
 }
 
 async function renderUsageOverview(req: Request, env: AdminEnv, email: string): Promise<Response> {
@@ -747,17 +792,97 @@ async function renderUsageOverview(req: Request, env: AdminEnv, email: string): 
     </nav>
   </header>
   <main>
-    ${renderRetriggerFlash(url)}
     ${renderUsageKpis(data.kpis)}
     ${renderTranscriptSources(data.transcript_sources)}
     ${renderUsageBySourceType(data.by_source_type)}
     ${renderUsageByErrorCode(data.by_error_code)}
     ${renderProcessedUrlList(data, days, limit, offset)}
   </main>
+  <script>${RETRIGGER_JS}</script>
 </body>
 </html>`;
   return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
 }
+
+// The Usage page's only client-side JS: drives the per-row "retrigger"
+// button. Retrigger can take several minutes on the backend (Whisper
+// transcription + a long summary for video sources), so a plain form POST
+// blocked the whole page load with zero feedback until it either finished or
+// the browser/edge gave up (#108). This instead starts a background job
+// (`/usage/retrigger/start`) and polls its status
+// (`/usage/retrigger/status/:id`) every 2s, updating the button's row in
+// place — the one place on this otherwise server-rendered page that needs it.
+const RETRIGGER_JS = `
+(function () {
+  function setStatus(el, text, cls) {
+    el.textContent = text;
+    el.className = "retrigger-status" + (cls ? " " + cls : "");
+  }
+
+  function poll(jobId, statusEl, btn, attempt) {
+    if (attempt > 150) { // ~5 min ceiling at a 2s interval
+      setStatus(statusEl, "still running — check back later", "muted");
+      btn.disabled = false;
+      return;
+    }
+    fetch("/usage/retrigger/status/" + encodeURIComponent(jobId), { credentials: "same-origin" })
+      .then(function (res) { return res.json(); })
+      .then(function (payload) {
+        if (payload.status === "pending") {
+          setTimeout(function () { poll(jobId, statusEl, btn, attempt + 1); }, 2000);
+          return;
+        }
+        btn.disabled = false;
+        if (payload.status === "done" && payload.result) {
+          var r = payload.result;
+          if (r.status === "ok") {
+            var extra = r.item_updated ? " (library item updated)" : "";
+            setStatus(statusEl, (r.title || r.url || "done") + " — " + (r.verdict || "ok") + extra, "status-ok");
+          } else {
+            setStatus(statusEl, (r.error_code || "error") + ": " + (r.message || ""), "err");
+          }
+        } else {
+          setStatus(statusEl, (payload.error || "error") + ": " + (payload.message || ""), "err");
+        }
+      })
+      .catch(function () {
+        // Network blip — keep polling rather than giving up on one failed tick.
+        setTimeout(function () { poll(jobId, statusEl, btn, attempt + 1); }, 2000);
+      });
+  }
+
+  document.querySelectorAll(".retrigger-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var statusEl = btn.parentElement.querySelector(".retrigger-status");
+      btn.disabled = true;
+      setStatus(statusEl, "retriggering…", "muted");
+      fetch("/usage/retrigger/start", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: btn.dataset.url,
+          user_id: btn.dataset.userId ? Number(btn.dataset.userId) : null,
+          anon_id: btn.dataset.anonId || null,
+        }),
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (payload) {
+          if (!payload.job_id) {
+            btn.disabled = false;
+            setStatus(statusEl, "failed to start", "err");
+            return;
+          }
+          poll(payload.job_id, statusEl, btn, 0);
+        })
+        .catch(function () {
+          btn.disabled = false;
+          setStatus(statusEl, "failed to start", "err");
+        });
+    });
+  });
+})();
+`;
 
 function renderUsageKpis(k: UsageKpis): string {
   return `<section class="kpis">
@@ -864,15 +989,14 @@ function renderProcessedUrlList(
     // refresh their existing library item in place rather than under a
     // synthetic admin identity that touches nobody's saved item.
     const retriggerCell = isRetriggerable
-      ? `<form method="POST" action="/usage/retrigger" class="retrigger-form">
-          <input type="hidden" name="url" value="${escapeHtml(r.url)}">
-          ${r.user_id !== null ? `<input type="hidden" name="user_id" value="${r.user_id}">` : ""}
-          ${r.anon_id ? `<input type="hidden" name="anon_id" value="${escapeHtml(r.anon_id)}">` : ""}
-          <input type="hidden" name="days" value="${days}">
-          <input type="hidden" name="limit" value="${limit}">
-          <input type="hidden" name="offset" value="${offset}">
-          <button type="submit" class="retrigger-btn" title="Re-fetch and re-analyse, bypassing cache, attributed to ${r.user_id !== null ? `user ${r.user_id}` : r.anon_id ? "the original visitor" : "admin"}">↻ retrigger</button>
-        </form>`
+      ? `<span class="retrigger-cell">
+          <button type="button" class="retrigger-btn"
+            data-url="${escapeHtml(r.url)}"
+            ${r.user_id !== null ? `data-user-id="${r.user_id}"` : ""}
+            ${r.anon_id ? `data-anon-id="${escapeHtml(r.anon_id)}"` : ""}
+            title="Re-fetch and re-analyse, bypassing cache, attributed to ${r.user_id !== null ? `user ${r.user_id}` : r.anon_id ? "the original visitor" : "admin"}">↻ retrigger</button>
+          <span class="retrigger-status"></span>
+        </span>`
       : `<span class="muted">—</span>`;
     return `<tr>
       <td class="ts">${escapeHtml(r.ts.replace("T", " "))}</td>
@@ -1002,11 +1126,13 @@ const ADMIN_CSS = `
   table.url-list .muted { font-size: .75rem; }
   nav.paginator { margin-top: .75rem; display: flex; gap: 1rem; font-size: .85rem; }
   nav.paginator .paginator-disabled { color: var(--muted); }
-  .retrigger-form { margin: 0; }
+  .retrigger-cell { display: flex; align-items: center; gap: .5rem; }
   .retrigger-btn { font: inherit; font-size: .75rem; padding: .2rem .5rem; border-radius: 4px; border: 1px solid var(--line); background: var(--tile-bg); color: var(--fg); cursor: pointer; white-space: nowrap; }
-  .retrigger-btn:hover { background: var(--bar); color: #fff; border-color: var(--bar); }
-  .flash { border-radius: 6px; padding: .6rem .9rem; margin-bottom: 1.25rem; font-size: .85rem; }
-  .flash-ok { background: rgba(44,138,61,.12); color: #2c8a3d; }
-  .flash-err { background: rgba(211,84,84,.12); color: var(--bar-err); }
+  .retrigger-btn:hover:not(:disabled) { background: var(--bar); color: #fff; border-color: var(--bar); }
+  .retrigger-btn:disabled { opacity: .6; cursor: default; }
+  .retrigger-status { font-size: .75rem; }
+  .retrigger-status.status-ok { color: #2c8a3d; font-weight: 600; }
+  .retrigger-status.err { color: var(--bar-err); font-weight: 600; }
+  .retrigger-status.muted { color: var(--muted); }
   @media (max-width: 520px) { .identity-cards { grid-template-columns: 1fr; } }
 `;
