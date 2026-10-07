@@ -545,6 +545,13 @@ interface UsageTranscriptSource {
   count: number;
 }
 
+// Which route a YouTube fetch took (#128): via the home-Mac exit node, or
+// direct after the proxy probe failed (or no proxy configured).
+interface UsageYoutubeEgress {
+  egress: string;
+  count: number;
+}
+
 interface UsageRow {
   id: number;
   ts: string;
@@ -557,6 +564,7 @@ interface UsageRow {
   error_code: string;
   transcript_source: string;
   latency_ms: number;
+  egress?: string;
 }
 
 interface UsageOverview {
@@ -566,6 +574,7 @@ interface UsageOverview {
   by_source_type: UsageBySourceType[];
   by_error_code: UsageByErrorCode[];
   transcript_sources: UsageTranscriptSource[];
+  youtube_egress?: UsageYoutubeEgress[];
   rows: UsageRow[];
   total_rows: number;
   limit: number;
@@ -794,6 +803,7 @@ async function renderUsageOverview(req: Request, env: AdminEnv, email: string): 
   <main>
     ${renderUsageKpis(data.kpis)}
     ${renderTranscriptSources(data.transcript_sources)}
+    ${renderYoutubeEgress(data.youtube_egress ?? [])}
     ${renderUsageBySourceType(data.by_source_type)}
     ${renderUsageByErrorCode(data.by_error_code)}
     ${renderProcessedUrlList(data, days, limit, offset)}
@@ -926,6 +936,37 @@ function renderTranscriptSources(rows: UsageTranscriptSource[]): string {
   </section>`;
 }
 
+function renderYoutubeEgress(rows: UsageYoutubeEgress[]): string {
+  if (rows.length === 0) {
+    return `<section class="tile">
+      <h2>YouTube route</h2>
+      <p class="empty">No YouTube fetches in range — this tile populates once someone scans a YouTube URL (cache hits don't count).</p>
+    </section>`;
+  }
+  const total = rows.reduce((acc, r) => acc + r.count, 0);
+  const EGRESS_LABELS: Record<string, string> = {
+    proxy: "Via home Mac (exit node)",
+    "direct-fallback": "Direct — Mac unreachable",
+    direct: "Direct — no proxy configured",
+  };
+  const body = rows.map(r => {
+    const pct = total > 0 ? (r.count / total) * 100 : 0;
+    return `<tr>
+      <td>${escapeHtml(EGRESS_LABELS[r.egress] ?? r.egress)}</td>
+      <td class="num">${formatInt(r.count)}</td>
+      <td class="bar-cell"><span class="bar-track"><span class="bar-fill" style="width:${pct.toFixed(1)}%"></span></span><span class="pct">${pct.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join("");
+  return `<section class="tile">
+    <h2>YouTube route</h2>
+    <table>
+      <thead><tr><th>Route</th><th class="num">Count</th><th>Share</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <p class="sub">YouTube blocks Fly's IP, so a direct fetch usually ends in no-transcript. Any "Mac unreachable" rows mean the home exit node was down at the time.</p>
+  </section>`;
+}
+
 function renderUsageBySourceType(rows: UsageBySourceType[]): string {
   if (rows.length === 0) {
     return `<section class="tile"><h2>By source type</h2><p class="empty">Nothing yet.</p></section>`;
@@ -1000,7 +1041,7 @@ function renderProcessedUrlList(
       : `<span class="muted">—</span>`;
     return `<tr>
       <td class="ts">${escapeHtml(r.ts.replace("T", " "))}</td>
-      <td class="title"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(titleOrUrl)}</a><br><span class="muted">${escapeHtml(r.source_type || "?")}${r.transcript_source ? ` · ${escapeHtml(r.transcript_source)}` : ""}</span></td>
+      <td class="title"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(titleOrUrl)}</a><br><span class="muted">${escapeHtml(r.source_type || "?")}${r.transcript_source ? ` · ${escapeHtml(r.transcript_source)}` : ""}${r.egress ? ` · ${escapeHtml(r.egress)}` : ""}</span></td>
       <td>${who}</td>
       <td>${statusCell}</td>
       <td>${retriggerCell}</td>
