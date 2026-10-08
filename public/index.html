@@ -17,6 +17,7 @@
   <!-- Safe-subset Markdown renderer (module — attaches window.renderMarkdown).
        Renders the stored "what we read" brief, which is Markdown. -->
   <script type="module" src="/md.js"></script>
+  <script type="module" src="/brief-label.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     /* The [hidden] attribute must win over class display rules (e.g. the
@@ -418,7 +419,7 @@
         <div class="result-actions" id="actions"></div>
         <div class="result-meta" id="result-meta"></div>
         <details class="result-brief" id="result-brief" hidden>
-          <summary id="brief-toggle">show what we read</summary>
+          <summary id="brief-toggle">show our brief</summary>
           <div class="brief-meta" id="brief-meta"></div>
           <div class="brief-body md" id="brief-body"></div>
         </details>

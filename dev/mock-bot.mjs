@@ -144,7 +144,7 @@ function buildSuccess(url, sourceType) {
       "quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo " +
       "consequat. (This is mock content_preview — real backend returns ~2000 chars.)",
     // `content` is the full stored brief — the result page exposes it in the
-    // "what we read" disclosure. Pad with repeated lorem so the local UI shows
+    // "show our brief" disclosure. Pad with repeated lorem so the local UI shows
     // a realistic word count and the scroll behaviour kicks in.
     content: Array.from({ length: 18 }, (_, i) =>
       `Section ${i + 1}. Lorem ipsum dolor sit amet, consectetur adipiscing elit. ` +
@@ -152,6 +152,9 @@ function buildSuccess(url, sourceType) {
       "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi " +
       "ut aliquip ex ea commodo consequat."
     ).join("\n\n"),
+    // Word count of the source the brief was condensed from (null for items
+    // saved before the backend tracked it).
+    source_words: sourceType === "youtube" ? 8185 : 2400,
     verdict: a.verdict,
     analysis: {
       main_idea: a.main_idea,
