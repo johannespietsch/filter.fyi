@@ -122,6 +122,12 @@
 
       // Markdown → HTML for the "what we read" brief (same renderer as /me).
       // Falls back to escaped text if the md.js module hasn't loaded yet.
+      // Fallback if brief-label.js (a module) hasn't attached yet.
+      function briefLabel(brief, sourceWords, sourceType) {
+        if (typeof window.briefLabel === 'function') return window.briefLabel(brief, sourceWords, sourceType);
+        return `show our brief · ${(brief.match(/\S+/g) || []).length.toLocaleString()} words`;
+      }
+
       function md(text) {
         const t = (text == null ? '' : String(text)).trim();
         if (!t) return '';
@@ -478,9 +484,8 @@
         const brief = typeof summary.content === 'string' ? summary.content.trim() : '';
         const briefEl = document.getElementById('result-brief');
         if (brief) {
-          const words = (brief.match(/\S+/g) || []).length;
           document.getElementById('brief-toggle').textContent =
-            `show what we read · ${words.toLocaleString()} words`;
+            briefLabel(brief, summary.source_words, summary.source_type);
           const metaParts = [];
           if (summary.source_type) metaParts.push(summary.source_type);
           if (host) metaParts.push(host);

@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="/try.css">
   <!-- Safe-subset Markdown renderer (attaches window.renderMarkdown for the brief). -->
   <script type="module" src="/md.js"></script>
+  <script type="module" src="/brief-label.js"></script>
   <style>
     /* Page-specific layout — the shell is /brand.css and the try-it widget is
        /try.css + /try.js. Only /for/ai's marketing sections live here. */
@@ -151,7 +152,7 @@
         <div class="result-actions" id="actions"></div>
         <div class="result-meta" id="result-meta"></div>
         <details class="result-brief" id="result-brief" hidden>
-          <summary id="brief-toggle">show what we read</summary>
+          <summary id="brief-toggle">show our brief</summary>
           <div class="brief-meta" id="brief-meta"></div>
           <div class="brief-body md" id="brief-body"></div>
         </details>

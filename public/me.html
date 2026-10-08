@@ -12,6 +12,7 @@
   <!-- Safe-subset Markdown renderer (module — attaches window.renderMarkdown).
        Used by the detail view to format the stored brief + suggestion text. -->
   <script type="module" src="/md.js"></script>
+  <script type="module" src="/brief-label.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     /* The [hidden] attribute must win over class display rules (.grid uses
@@ -568,6 +569,12 @@
 
       // Markdown → HTML for the brief + suggestion detail. Falls back to escaped
       // text if the module hasn't loaded (it's a separate <script type=module>).
+      // Fallback if brief-label.js (a module) hasn't attached yet.
+      function briefLabel(brief, sourceWords, sourceType) {
+        if (typeof window.briefLabel === 'function') return window.briefLabel(brief, sourceWords, sourceType);
+        return `show our brief · ${(brief.match(/\S+/g) || []).length.toLocaleString()} words`;
+      }
+
       function md(text) {
         const t = (text == null ? '' : String(text)).trim();
         if (!t) return '';
@@ -757,8 +764,8 @@
         const brief = typeof briefText === 'string' ? briefText.trim() : '';
         let briefBlock = '';
         if (brief) {
-          const words = (brief.match(/\S+/g) || []).length;
-          briefBlock = `<details class="brief"><summary>show what we read · ${words.toLocaleString()} words</summary>`
+          const label = briefLabel(brief, row && row.sourceWords, row && row.sourceType);
+          briefBlock = `<details class="brief"><summary>${escapeHtml(label)}</summary>`
                      + `<div class="brief-body md">${md(brief)}</div></details>`;
         }
         bodyEl.innerHTML = mainIdea || why || grounded || exp || briefBlock
@@ -995,6 +1002,8 @@
             url: (art && art.dataset.url) || item.source || '',
             title: (art && art.dataset.title) || '',
             itemId: id,
+            sourceWords: item.source_words,
+            sourceType: item.source_type,
           });
         } catch {
           body.textContent = 'Could not load analysis.';
