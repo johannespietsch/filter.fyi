@@ -759,7 +759,10 @@ async function handleJobStatus(req: Request, env: Env, jobId: string): Promise<R
         {
           status: "error",
           error: "unsupported-source",
-          message: "This video doesn't have a transcript yet — full video support is coming in the product.",
+          // The backend knows *why* (channel URL, too long, no captions, …).
+          message:
+            statusPayload.message ||
+            "This video doesn't have a transcript yet — full video support is coming in the product.",
         }
       );
     }
