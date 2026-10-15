@@ -1227,6 +1227,7 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
     source: string | null;
     verdict: string | null;
     title: string | null;
+    author: string | null;
     created_at: string;
   };
   type UserInfo = { telegram_chat_id: number | null; profile?: string };
@@ -1274,6 +1275,7 @@ async function handleMe(req: Request, env: Env): Promise<Response> {
       url: row.source ?? "",
       source_type: row.source_type,
       title: row.title,
+      author: row.author,
       verdict: row.verdict,
       created_at: row.created_at,
       // No `summary` field — me.html lazy-fetches from /api/library/:id.

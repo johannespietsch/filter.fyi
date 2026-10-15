@@ -15,8 +15,8 @@
   <script type="module" src="/brief-label.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* The [hidden] attribute must win over class display rules (.grid uses
-       display:grid, .side-nav a uses display:block). Without this, toggling
+    /* The [hidden] attribute must win over class display rules (.list uses
+       display:flex, .side-nav a uses display:block). Without this, toggling
        el.hidden = true does nothing for them — equal specificity, and author
        styles beat the UA stylesheet's [hidden] rule. */
     [hidden] { display: none !important; }
@@ -103,21 +103,25 @@
     .empty h2 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
     .empty a { color: var(--green); }
 
-    /* ---- Library tile grid --------------------------------------------- */
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 12px; margin-top: 22px; }
-    .tile { display: flex; flex-direction: column; gap: 8px; text-decoration: none;
-            background: var(--bg-2); border: 1px solid var(--ink); padding: 14px 15px;
-            min-height: 116px; transition: 0.12s; }
-    .tile:hover { background: #fffdf7; color: var(--ink); transform: translateY(-1px);
-                  box-shadow: 3px 3px 0 var(--ink); }
-    .tile-head { display: flex; align-items: center; gap: 8px; }
-    .tile-date { margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-                 color: var(--ink-3); }
-    .tile-title { font-size: 14px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em;
-                  color: var(--ink); text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3;
-                  -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-    .tile-host { margin-top: auto; font-size: 11px; color: var(--ink-3); }
+    /* ---- Library list ---------------------------------------------------
+       A single column, not a tile grid: a 2-up grid of small cards forced
+       constant back-and-forth eye movement between columns and gave
+       title/byline/date no room to breathe. One row per item, read top to
+       bottom, each field gets its own line. */
+    .list { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+    .row { display: flex; flex-direction: column; gap: 6px; text-decoration: none;
+           background: var(--bg-2); border: 1px solid var(--ink); padding: 14px 16px;
+           transition: 0.12s; }
+    .row:hover { background: #fffdf7; color: var(--ink); transform: translateY(-1px);
+                 box-shadow: 3px 3px 0 var(--ink); }
+    .row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .row-type { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+                color: var(--ink-2); }
+    .row-date { margin-left: auto; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+                color: var(--ink-3); }
+    .row-title { font-size: 15px; font-weight: 700; line-height: 1.35; letter-spacing: -0.01em;
+                 color: var(--ink); text-wrap: balance; overflow-wrap: anywhere; }
+    .row-meta { font-size: 11px; color: var(--ink-3); }
 
     /* shared verdict badge */
     .badge { display: inline-block; padding: 2px 7px; font-size: 10.5px; font-weight: 700;
@@ -377,7 +381,6 @@
       body.nav-open .backdrop { display: block; position: fixed; inset: 0;
                                 background: rgba(0,0,0,0.34); z-index: 30; }
       .content { padding: 18px 18px 32px; }
-      .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     }
   </style>
 </head>
@@ -430,7 +433,7 @@
             <p><a href="/">Paste a URL on the home page</a> — anything you submit while signed in will land here.</p>
           </div>
 
-          <div class="grid" id="grid" hidden></div>
+          <div class="list" id="grid" hidden></div>
           <div class="detail" id="detail" hidden></div>
         </section>
 
@@ -555,6 +558,13 @@
       const shortlistLoading = document.getElementById('shortlist-loading');
       // Spell out the call so the colour isn't carrying the meaning alone.
       const VERDICT_LABELS = { watch: 'yes, watch', skim: 'hm, skim', skip: 'no, skip' };
+      // Human labels for source_type, shown in each row's meta line so it's
+      // clear at a glance what kind of thing this is.
+      const SOURCE_TYPE_LABELS = {
+        article: 'Article', youtube: 'YouTube', video: 'Video', pdf: 'PDF',
+        social: 'Post', text: 'Note', note: 'Note', voice_memo: 'Voice memo',
+        audio: 'Audio', document: 'Document', photo: 'Photo',
+      };
       const SECTIONS = ['library', 'shortlist', 'channels', 'lens', 'telegram', 'account'];
 
       // Lean library rows from /api/v1/me, keyed by id — the detail header
@@ -600,16 +610,23 @@
         return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
       }
 
-      // A library tile — a link to the in-page detail route (#item/:id). Kept
-      // deliberately lean: verdict, title, host, date. No inline expand.
-      function renderTile(row) {
+      // A library row — a link to the in-page detail route (#item/:id). Kept
+      // deliberately lean: verdict, type, title, byline/host, date. No inline
+      // expand. The byline (e.g. a YouTube channel or X handle) beats a bare
+      // host when we have one — every YouTube video otherwise shows the same
+      // generic "youtube.com", which tells you nothing about who made it.
+      function renderRow(row) {
         const title = row.title || row.url;
         const host = hostOf(row.url);
+        const byline = row.author || host;
+        const typeLabel = SOURCE_TYPE_LABELS[row.source_type] || '';
+        const meta = [typeLabel && `<span class="row-type">${escapeHtml(typeLabel)}</span>`, escapeHtml(byline)]
+          .filter(Boolean).join(' · ');
         return `
-          <a class="tile" href="#item/${encodeURIComponent(row.id)}" data-id="${escapeHtml(row.id)}">
-            <div class="tile-head">${badgeFor(row.verdict)}<span class="tile-date">${escapeHtml(fmtDate(row.created_at))}</span></div>
-            <div class="tile-title">${escapeHtml(title)}</div>
-            <div class="tile-host">${escapeHtml(host)}</div>
+          <a class="row" href="#item/${encodeURIComponent(row.id)}" data-id="${escapeHtml(row.id)}">
+            <div class="row-head">${badgeFor(row.verdict)}<span class="row-date">${escapeHtml(fmtDate(row.created_at))}</span></div>
+            <div class="row-title">${escapeHtml(title)}</div>
+            <div class="row-meta">${meta}</div>
           </a>`;
       }
 
@@ -790,9 +807,9 @@
         detail.hidden = true;
         detail.innerHTML = '';
         hero.hidden = false;
-        const hasTiles = !!grid.querySelector('.tile');
-        grid.hidden = !hasTiles;
-        empty.hidden = hasTiles;
+        const hasRows = !!grid.querySelector('.row');
+        grid.hidden = !hasRows;
+        empty.hidden = hasRows;
       }
 
       function closeDrawer() {
@@ -1015,9 +1032,10 @@
         const url = (row && row.url) || '';
         const title = (row && (row.title || row.url)) || 'Saved item';
         const host = hostOf(url);
-        const meta = host
-          ? `<b>source</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`
-          : '';
+        const meta = [
+          row && row.author ? `<b>by</b> ${escapeHtml(row.author)}` : '',
+          host ? `<b>source</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>` : '',
+        ].filter(Boolean).join(' · ');
         const sourceType = (row && row.source_type) || '';
         const date = row ? fmtDate(row.created_at) : '';
         return `
@@ -1057,8 +1075,11 @@
         if (titleEl) { titleEl.textContent = title; titleEl.href = url || '#'; }
         const host = hostOf(url);
         const metaEl = art.querySelector('.item-meta');
-        if (metaEl && host) {
-          metaEl.innerHTML = `<b>source</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>`;
+        if (metaEl && (item.author || host)) {
+          metaEl.innerHTML = [
+            item.author ? `<b>by</b> ${escapeHtml(item.author)}` : '',
+            host ? `<b>source</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>` : '',
+          ].filter(Boolean).join(' · ');
         }
       }
 
@@ -1148,7 +1169,7 @@
         const rows = Array.isArray(payload.summaries) ? payload.summaries : [];
         rows.forEach((row) => { rowsById[row.id] = row; });
         if (rows.length) {
-          grid.innerHTML = rows.map(renderTile).join('');
+          grid.innerHTML = rows.map(renderRow).join('');
         }
 
         boot.hidden = true;
@@ -1434,9 +1455,9 @@
           });
           if (!res.ok) throw new Error('delete-failed');
           delete rowsById[id];
-          const tile = grid.querySelector(`.tile[data-id="${CSS.escape(String(id))}"]`);
-          if (tile) tile.remove();
-          location.hash = 'library'; // back to the grid (route() handles empty)
+          const row = grid.querySelector(`.row[data-id="${CSS.escape(String(id))}"]`);
+          if (row) row.remove();
+          location.hash = 'library'; // back to the list (route() handles empty)
         } catch {
           btn.disabled = false;
           btn.dataset.armed = '0';

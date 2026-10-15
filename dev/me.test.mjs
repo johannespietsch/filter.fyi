@@ -44,12 +44,13 @@ async function boot(opts = {}) {
           return ok({
             ok: true,
             user: { email: "x@y.z", telegram_linked: false, profile: opts.profile ?? "" },
-            summaries: [{ id: 7, url: "https://example.com/a", source_type: "article", title: "First", verdict: "watch", created_at: "2026-06-01T10:00:00" }],
+            summaries: opts.summaries ?? [{ id: 7, url: "https://example.com/a", source_type: "article", title: "First", verdict: "watch", created_at: "2026-06-01T10:00:00" }],
           });
         if (/\/api\/v1\/library\/\d+/.test(url))
           return ok({
             source: "https://example.com/a",
             title: opts.libraryItemTitle ?? "Real Title",
+            author: opts.libraryItemAuthor ?? "",
             content: "## H\n- b",
             analysis: JSON.stringify({ verdict: "watch", main_idea: "M", suggestions: [{ title: "Do X", detail: "Detail", effort: "a weekend", first_step: "step" }] }),
           });
@@ -94,6 +95,43 @@ test("nav lists Shortlist and Channels between Library and Lens", async () => {
   const { doc } = await boot();
   const order = [...doc.querySelectorAll("#side-nav a")].map((a) => a.dataset.section);
   assert.deepEqual(order, ["library", "shortlist", "channels", "lens", "telegram", "account"]);
+});
+
+test("the library renders as a single-column list of rows, not a tile grid", async () => {
+  const { doc } = await boot();
+  assert.equal(doc.querySelectorAll("#grid > .row").length, 1);
+  assert.ok(doc.getElementById("grid").classList.contains("list"));
+});
+
+test("a row's byline prefers the fetched author (e.g. a YouTube channel) over the bare host", async () => {
+  const { doc } = await boot({
+    summaries: [{
+      id: 7, url: "https://youtube.com/watch?v=abc", source_type: "youtube",
+      title: "A Talk", author: "Some Channel", verdict: "watch", created_at: "2026-06-01T10:00:00",
+    }],
+  });
+  const row = doc.querySelector("#grid .row");
+  assert.match(row.querySelector(".row-meta").textContent, /Some Channel/);
+  assert.doesNotMatch(row.querySelector(".row-meta").textContent, /youtube\.com/);
+  assert.match(row.querySelector(".row-meta").textContent, /YouTube/);
+});
+
+test("a row without an author falls back to the host", async () => {
+  const { doc } = await boot({
+    summaries: [{
+      id: 7, url: "https://example.com/a", source_type: "article",
+      title: "An Article", verdict: "watch", created_at: "2026-06-01T10:00:00",
+    }],
+  });
+  const row = doc.querySelector("#grid .row");
+  assert.match(row.querySelector(".row-meta").textContent, /example\.com/);
+});
+
+test("deep-linking cold shows the author in the detail view's meta line", async () => {
+  const { window, doc } = await boot({ libraryItemAuthor: "Some Channel" });
+  window.location.hash = "#item/999";
+  await sleep(120);
+  assert.match(doc.querySelector(".item-meta").textContent, /Some Channel/);
 });
 
 test("opening an item shows a suggestion box in the decide state", async () => {
