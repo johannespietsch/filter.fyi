@@ -995,7 +995,8 @@
           if (!res.ok) { body.textContent = 'Could not load analysis.'; return; }
           const item = await res.json();
           // Deep-linked before the list loaded? Backfill the header from the
-          // analysis JSON (verdict + main_idea live inside it).
+          // full item (title + verdict; falls back into the analysis JSON's
+          // main_idea for rows saved before items.title existed).
           if (!row) patchDetailHeader(item);
           const art = detail.querySelector('article.item');
           renderAnalysisInto(body, item.analysis, item.content, {
@@ -1036,16 +1037,17 @@
 
       // Fill in verdict/title/source for a deep-linked item whose lean row we
       // never loaded (e.g. opening /me#item/5 cold). The single-item endpoint
-      // returns the raw row, so verdict + main_idea come out of analysis JSON.
+      // returns the raw row (title lives on it directly); verdict comes out
+      // of the analysis JSON.
       function patchDetailHeader(item) {
         let a = {};
         try { a = JSON.parse(item.analysis || '{}') || {}; } catch {}
         const art = detail.querySelector('article.item');
         if (!art) return;
         const url = item.source || '';
-        const title = a.main_idea || url || 'Saved item';
+        const title = item.title || a.main_idea || url || 'Saved item';
         art.dataset.url = url;
-        art.dataset.title = a.main_idea || '';
+        art.dataset.title = item.title || a.main_idea || '';
         const head = art.querySelector('.item-head');
         if (head) {
           const badge = head.querySelector('.badge');
