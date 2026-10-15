@@ -49,6 +49,7 @@ async function boot(opts = {}) {
         if (/\/api\/v1\/library\/\d+/.test(url))
           return ok({
             source: "https://example.com/a",
+            title: opts.libraryItemTitle ?? "Real Title",
             content: "## H\n- b",
             analysis: JSON.stringify({ verdict: "watch", main_idea: "M", suggestions: [{ title: "Do X", detail: "Detail", effort: "a weekend", first_step: "step" }] }),
           });
@@ -103,6 +104,26 @@ test("opening an item shows a suggestion box in the decide state", async () => {
   assert.ok(box, "suggestion box rendered");
   assert.equal(box.querySelector(".sug-decide").hidden, false);
   assert.equal(box.querySelector(".sug-saved").hidden, true);
+});
+
+test("deep-linking to an item cold (not yet in the lean list) shows its real title, not main_idea", async () => {
+  const { window, doc } = await boot();
+  // #item/999 isn't in /api/v1/me's summaries, so showDetail() has no cached
+  // row and must backfill the header from the single-item fetch via
+  // patchDetailHeader() — that's the path that used to show main_idea ("M")
+  // instead of the stored title.
+  window.location.hash = "#item/999";
+  await sleep(120);
+  const titleEl = doc.querySelector(".detail-title a");
+  assert.equal(titleEl.textContent, "Real Title");
+});
+
+test("deep-linking cold still falls back to main_idea for a legacy item with no stored title", async () => {
+  const { window, doc } = await boot({ libraryItemTitle: "" });
+  window.location.hash = "#item/999";
+  await sleep(120);
+  const titleEl = doc.querySelector(".detail-title a");
+  assert.equal(titleEl.textContent, "M");
 });
 
 test("later parks the suggestion and flips to the follow-up state", async () => {
