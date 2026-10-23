@@ -1,0 +1,11 @@
+# Cloudflare's managed robots.txt prepends its Content-Signals preamble to
+# this file at the edge; the rules below are ours.
+
+User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no
+Allow: /
+Disallow: /api/
+Disallow: /me
+Disallow: /login
+
+Sitemap: https://filter.fyi/sitemap.xml
