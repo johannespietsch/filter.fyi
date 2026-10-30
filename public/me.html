@@ -161,6 +161,8 @@
                       border-left: 2px solid var(--ink-3); padding-left: 8px; }
     /* 0–5 suggestion boxes */
     .sug { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--green); background: var(--green-soft); }
+    .trunc-note { margin: 12px 0 0; padding: 8px 10px; font-size: 12px; color: var(--amber);
+                  border: 1px solid var(--amber); background: var(--amber-soft); }
     .sug-empty { margin-top: 10px; padding: 12px; border: 1px dashed var(--ink-3);
                        background: var(--bg-2); font-size: 13px; color: var(--ink-2); }
     .sug-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -580,9 +582,13 @@
       // Markdown → HTML for the brief + suggestion detail. Falls back to escaped
       // text if the module hasn't loaded (it's a separate <script type=module>).
       // Fallback if brief-label.js (a module) hasn't attached yet.
-      function briefLabel(brief, sourceWords, sourceType) {
-        if (typeof window.briefLabel === 'function') return window.briefLabel(brief, sourceWords, sourceType);
+      function briefLabel(brief, sourceWords, sourceType, totalWords) {
+        if (typeof window.briefLabel === 'function') return window.briefLabel(brief, sourceWords, sourceType, totalWords);
         return `show our brief · ${(brief.match(/\S+/g) || []).length.toLocaleString()} words`;
+      }
+      function truncationNotice(sourceWords, totalWords, sourceType) {
+        return typeof window.truncationNotice === 'function'
+          ? window.truncationNotice(sourceWords, totalWords, sourceType) : '';
       }
 
       function md(text) {
@@ -781,8 +787,10 @@
         const brief = typeof briefText === 'string' ? briefText.trim() : '';
         let briefBlock = '';
         if (brief) {
-          const label = briefLabel(brief, row && row.sourceWords, row && row.sourceType);
-          briefBlock = `<details class="brief"><summary>${escapeHtml(label)}</summary>`
+          const label = briefLabel(brief, row && row.sourceWords, row && row.sourceType, row && row.sourceTotalWords);
+          const cut = truncationNotice(row && row.sourceWords, row && row.sourceTotalWords, row && row.sourceType);
+          if (cut) briefBlock += `<p class="trunc-note" role="note">${escapeHtml(cut)}</p>`;
+          briefBlock += `<details class="brief"><summary>${escapeHtml(label)}</summary>`
                      + `<div class="brief-body md">${md(brief)}</div></details>`;
         }
         bodyEl.innerHTML = mainIdea || why || grounded || exp || briefBlock
@@ -1021,6 +1029,7 @@
             title: (art && art.dataset.title) || '',
             itemId: id,
             sourceWords: item.source_words,
+            sourceTotalWords: item.source_total_words,
             sourceType: item.source_type,
           });
         } catch {
