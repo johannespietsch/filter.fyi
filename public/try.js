@@ -123,8 +123,8 @@
       // Markdown → HTML for the "what we read" brief (same renderer as /me).
       // Falls back to escaped text if the md.js module hasn't loaded yet.
       // Fallback if brief-label.js (a module) hasn't attached yet.
-      function briefLabel(brief, sourceWords, sourceType) {
-        if (typeof window.briefLabel === 'function') return window.briefLabel(brief, sourceWords, sourceType);
+      function briefLabel(brief, sourceWords, sourceType, totalWords) {
+        if (typeof window.briefLabel === 'function') return window.briefLabel(brief, sourceWords, sourceType, totalWords);
         return `show our brief · ${(brief.match(/\S+/g) || []).length.toLocaleString()} words`;
       }
 
@@ -483,9 +483,15 @@
         // default; the brief can be long (up to ~32k chars).
         const brief = typeof summary.content === 'string' ? summary.content.trim() : '';
         const briefEl = document.getElementById('result-brief');
+        const truncEl = document.getElementById('result-truncated');
+        const cut = typeof window.truncationNotice === 'function'
+          ? window.truncationNotice(summary.source_words, summary.source_total_words, summary.source_type)
+          : '';
+        truncEl.textContent = cut;
+        truncEl.hidden = !cut;
         if (brief) {
           document.getElementById('brief-toggle').textContent =
-            briefLabel(brief, summary.source_words, summary.source_type);
+            briefLabel(brief, summary.source_words, summary.source_type, summary.source_total_words);
           const metaParts = [];
           if (summary.source_type) metaParts.push(summary.source_type);
           if (host) metaParts.push(host);

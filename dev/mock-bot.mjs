@@ -155,6 +155,8 @@ function buildSuccess(url, sourceType) {
     // Word count of the source the brief was condensed from (null for items
     // saved before the backend tracked it).
     source_words: sourceType === "youtube" ? 8185 : 2400,
+    // Set only when the source was cut to a size limit (then > source_words).
+    source_total_words: null,
     verdict: a.verdict,
     analysis: {
       main_idea: a.main_idea,
