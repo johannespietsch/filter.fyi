@@ -213,6 +213,7 @@
     .body .brief > summary::before { content: '+ '; color: var(--green); font-weight: 700; }
     .body .brief[open] > summary::before { content: '− '; }
     .body .brief > summary:hover { color: var(--green); }
+    .body .brief-copy { margin-top: 8px; }
     .body .brief-body { margin-top: 8px; max-height: 360px; overflow: auto;
                         padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--ink);
                         font-size: 13px; line-height: 1.6; color: var(--ink); }
@@ -783,11 +784,16 @@
         if (brief) {
           const label = briefLabel(brief, row && row.sourceWords, row && row.sourceType);
           briefBlock = `<details class="brief"><summary>${escapeHtml(label)}</summary>`
+                     + `<button type="button" class="tryit-copy brief-copy">📋 copy markdown</button>`
                      + `<div class="brief-body md">${md(brief)}</div></details>`;
         }
         bodyEl.innerHTML = mainIdea || why || grounded || exp || briefBlock
           ? `${mainIdea}${why}${grounded}${exp}${briefBlock}`
           : '<p><i>(no analysis stored)</i></p>';
+        // Raw Markdown for the copy button (kept off the DOM so it isn't
+        // stashed in an attribute); pasting rendered HTML loses tables.
+        const briefDetails = bodyEl.querySelector('.brief');
+        if (briefDetails) briefDetails._md = brief;
       }
 
       // ---- In-page routing: sections + #item/:id detail ------------------
@@ -1295,6 +1301,18 @@
         if (box) logSuggestion(box, 'copy');
       }
 
+      function copyBriefMarkdown(btn) {
+        const det = btn.closest('.brief');
+        if (!det || !det._md) return;
+        const done = () => {
+          btn.textContent = '✓ copied';
+          setTimeout(() => { btn.textContent = '📋 copy markdown'; }, 1600);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(det._md).then(done).catch(() => {});
+        }
+      }
+
       // "now ▾" — toggle the AI hand-off panel (copy / open-in).
       function toggleHandoff(sopen) {
         const box = sopen.closest('.sug');
@@ -1417,6 +1435,8 @@
         if (sstatus) { setSuggestionStatus(sstatus.closest('.sug'), sstatus.dataset.status); return true; }
         const sremove = e.target.closest('.sug-remove');
         if (sremove) { removeSuggestion(sremove.closest('.sug')); return true; }
+        const bcopy = e.target.closest('.brief-copy');
+        if (bcopy) { copyBriefMarkdown(bcopy); return true; }
         const copy = e.target.closest('.tryit-copy');
         if (copy) { copyBrief(copy); return true; }
         const openLink = e.target.closest('.tryit-open');
