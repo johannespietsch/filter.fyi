@@ -492,6 +492,27 @@
           document.getElementById('brief-meta').textContent =
             metaParts.length ? metaParts.join(' · ') : '';
           document.getElementById('brief-body').innerHTML = md(brief);
+          // Copy the raw Markdown: selecting the rendered HTML loses tables
+          // and formatting when pasted into other apps.
+          let copyMd = document.getElementById('brief-copy');
+          if (!copyMd) {
+            copyMd = document.createElement('button');
+            copyMd.id = 'brief-copy';
+            copyMd.type = 'button';
+            copyMd.className = 'action-btn';
+            copyMd.style.marginBottom = '8px';
+            document.getElementById('brief-body').before(copyMd);
+          }
+          copyMd.textContent = '📋 copy markdown';
+          copyMd.onclick = function() {
+            const done = function() {
+              copyMd.textContent = '✓ copied';
+              setTimeout(function() { copyMd.textContent = '📋 copy markdown'; }, 1600);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(brief).then(done).catch(function() {});
+            }
+          };
           briefEl.hidden = false;
           briefEl.open = false;
         } else {
