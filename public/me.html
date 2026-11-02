@@ -793,7 +793,7 @@
         // Raw Markdown for the copy button (kept off the DOM so it isn't
         // stashed in an attribute); pasting rendered HTML loses tables.
         const briefDetails = bodyEl.querySelector('.brief');
-        if (briefDetails) briefDetails.dataset.hasMd = '1', briefDetails._md = brief;
+        if (briefDetails) briefDetails._md = brief;
       }
 
       // ---- In-page routing: sections + #item/:id detail ------------------
