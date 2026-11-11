@@ -181,6 +181,13 @@ export default {
       return handleSubscriptions(req, env);
     }
 
+    if (url.pathname === "/api/v1/subscriptions/paused") {
+      if (req.method !== "GET" && req.method !== "PUT") {
+        return json({ error: "method-not-allowed" }, 405);
+      }
+      return handleChannelsPaused(req, env);
+    }
+
     const subscriptionMatch = url.pathname.match(/^\/api\/v1\/subscriptions\/(\d+)$/);
     if (subscriptionMatch) {
       if (req.method !== "DELETE") return json({ error: "method-not-allowed" }, 405);
@@ -1692,6 +1699,52 @@ async function handleSubscriptions(req: Request, env: Env): Promise<Response> {
     return json(await res.json(), 201);
   } catch (err) {
     console.error("subscription create failed", err);
+    return json({ error: "upstream-unreachable" }, 502);
+  }
+}
+
+// Master switch for channel monitoring: GET reads, PUT {paused: bool} sets.
+// While paused the backend keeps tracking feeds but spends nothing analyzing.
+async function handleChannelsPaused(req: Request, env: Env): Promise<Response> {
+  const cookies = parseCookies(req.headers.get("cookie"));
+  const session = await loadSession(cookies[SESSION_COOKIE], env);
+  if (!session) return json({ error: "unauthorized" }, 401);
+  if (!env.BOT_API_URL || !env.BOT_API_KEY) {
+    console.error("backend not configured");
+    return json({ error: "service-unavailable" }, 503);
+  }
+  const base = backendBase(env.BOT_API_URL);
+  let init: RequestInit;
+  let query = "";
+  if (req.method === "GET") {
+    query = `?user_id=${session.userId}`;
+    init = { headers: { "x-filter-fyi-secret": env.BOT_API_KEY } };
+  } else {
+    let body: Record<string, unknown>;
+    try {
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return json({ error: "invalid-json" }, 400);
+    }
+    if (typeof body.paused !== "boolean") return json({ error: "invalid-input" }, 400);
+    init = {
+      method: "PUT",
+      headers: { "content-type": "application/json", "x-filter-fyi-secret": env.BOT_API_KEY },
+      body: JSON.stringify({ user_id: session.userId, paused: body.paused }),
+    };
+  }
+  try {
+    const res = await fetch(`${base}/api/subscriptions/paused${query}`, {
+      ...init,
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) {
+      console.error("channels paused upstream non-ok", res.status);
+      return json({ error: "upstream-error" }, 502);
+    }
+    return json(await res.json());
+  } catch (err) {
+    console.error("channels paused failed", err);
     return json({ error: "upstream-unreachable" }, 502);
   }
 }

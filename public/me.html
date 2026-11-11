@@ -269,6 +269,13 @@
               border: none; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
     .ch-add:hover:not(:disabled) { background: var(--green); }
     .ch-add:disabled { opacity: 0.5; cursor: default; }
+    .ch-pause { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 12px; color: var(--ink-2); }
+    .ch-pause-btn { background: none; border: 1px solid var(--ink); color: var(--ink); font: inherit;
+                    font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+                    padding: 3px 8px; cursor: pointer; flex-shrink: 0; }
+    .ch-pause-btn:hover:not(:disabled) { background: var(--ink); color: var(--bg-2); }
+    .ch-pause-btn:disabled { opacity: 0.5; cursor: default; }
+    .ch-list.paused .ch-row { opacity: 0.5; }
     .ch-error { font-size: 12px; color: var(--red); margin-bottom: 12px; }
     .ch-list { display: flex; flex-direction: column; margin-top: 10px; }
     .ch-row { display: flex; align-items: baseline; gap: 10px; padding: 10px 2px;
@@ -459,6 +466,10 @@
                    placeholder="https://youtube.com/@channel · https://blog.example/feed.xml" />
             <button class="ch-add" id="ch-add" type="submit">follow</button>
           </form>
+          <div class="ch-pause" id="ch-pause-bar" hidden>
+            <button type="button" class="ch-pause-btn" id="ch-pause-btn">pause all</button>
+            <span id="ch-pause-note">Watching — new drops are analyzed automatically.</span>
+          </div>
           <div class="ch-error" id="ch-error" hidden></div>
           <div class="loading" id="ch-loading" hidden><span class="loading-dot"></span>Loading your channels…</div>
           <div class="empty" id="ch-empty" hidden>
@@ -854,6 +865,38 @@
       const chInput = document.getElementById('ch-input');
       const chAdd = document.getElementById('ch-add');
 
+      const chPauseBar = document.getElementById('ch-pause-bar');
+      const chPauseBtn = document.getElementById('ch-pause-btn');
+      const chPauseNote = document.getElementById('ch-pause-note');
+      let chPaused = false;
+
+      function renderChPaused() {
+        chPauseBtn.textContent = chPaused ? 'resume all' : 'pause all';
+        chPauseNote.textContent = chPaused
+          ? "Paused — nothing is analyzed (and nothing is charged) until you resume. Drops published meanwhile are skipped."
+          : 'Watching — new drops are analyzed automatically.';
+        chList.classList.toggle('paused', chPaused);
+      }
+
+      chPauseBtn.addEventListener('click', async () => {
+        chError.hidden = true;
+        chPauseBtn.disabled = true;
+        try {
+          const res = await fetch('/api/v1/subscriptions/paused', {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ paused: !chPaused }),
+          });
+          if (!res.ok) throw new Error('pause-failed');
+          chPaused = !!(await res.json()).paused;
+          renderChPaused();
+        } catch {
+          showChError("Couldn't change the pause setting — try again.");
+        } finally {
+          chPauseBtn.disabled = false;
+        }
+      });
+
       function showChError(msg) {
         chError.textContent = msg;
         chError.hidden = false;
@@ -876,15 +919,21 @@
         chList.hidden = true;
         let rows = [];
         try {
-          const res = await fetch('/api/v1/subscriptions', { credentials: 'same-origin' });
+          const [res, pausedRes] = await Promise.all([
+            fetch('/api/v1/subscriptions', { credentials: 'same-origin' }),
+            fetch('/api/v1/subscriptions/paused', { credentials: 'same-origin' }),
+          ]);
           if (!res.ok) throw new Error('load-failed');
           rows = await res.json();
+          chPaused = pausedRes.ok && !!(await pausedRes.json()).paused;
         } catch {
           chLoading.hidden = true;
           showChError("Couldn't load your channels — refresh to retry.");
           return;
         }
         chLoading.hidden = true;
+        renderChPaused();
+        chPauseBar.hidden = !Array.isArray(rows) || !rows.length;
         if (!Array.isArray(rows) || !rows.length) {
           chEmpty.hidden = false;
           return;
@@ -940,6 +989,7 @@
           if (!chList.querySelector('.ch-row')) {
             chList.hidden = true;
             chEmpty.hidden = false;
+            chPauseBar.hidden = true;
           }
         } catch {
           btn.disabled = false;

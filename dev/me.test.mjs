@@ -31,6 +31,7 @@ async function boot(opts = {}) {
   const subs = opts.subs ?? [
     { id: 5, feed_url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCx", title: "Some Creator", source_kind: "youtube", last_polled_at: "", created_at: "2026-06-10T10:00:00" },
   ];
+  let paused = opts.paused ?? false;
   const dom = new JSDOM(html, {
     runScripts: "dangerously",
     url: "http://localhost/me",
@@ -62,6 +63,12 @@ async function boot(opts = {}) {
           subs.push(created);
           return { status: 201, ok: true, json: async () => created };
         }
+        if (url === "/api/v1/subscriptions/paused" && method === "PUT") {
+          paused = JSON.parse(init.body).paused;
+          return ok({ paused });
+        }
+        if (url === "/api/v1/subscriptions/paused")
+          return ok({ paused });
         if (url === "/api/v1/subscriptions")
           return ok(subs.slice());
         if (/\/api\/v1\/subscriptions\/\d+/.test(url) && method === "DELETE") {
@@ -326,6 +333,31 @@ test("unfollow deletes and falls back to the empty state", async () => {
   assert.ok(calls.some((c) => c.startsWith("DELETE /api/v1/subscriptions/5")));
   assert.equal(doc.querySelector("#ch-list .ch-row"), null);
   assert.equal(doc.getElementById("ch-empty").hidden, false);
+});
+
+test("pause toggle flips all channels and reflects initial state", async () => {
+  const { window, doc, calls } = await boot({ profile: "set" });
+  window.location.hash = "#channels";
+  await sleep(120);
+  const btn = doc.getElementById("ch-pause-btn");
+  assert.equal(doc.getElementById("ch-pause-bar").hidden, false);
+  assert.equal(btn.textContent, "pause all");
+  btn.click();
+  await sleep(80);
+  assert.ok(calls.includes("PUT /api/v1/subscriptions/paused"));
+  assert.equal(btn.textContent, "resume all");
+  assert.ok(doc.getElementById("ch-list").classList.contains("paused"));
+});
+
+test("channels pane loads in the paused state and hides the toggle when empty", async () => {
+  const a = await boot({ profile: "set", paused: true });
+  a.window.location.hash = "#channels";
+  await sleep(120);
+  assert.equal(a.doc.getElementById("ch-pause-btn").textContent, "resume all");
+  const b = await boot({ profile: "set", subs: [] });
+  b.window.location.hash = "#channels";
+  await sleep(120);
+  assert.equal(b.doc.getElementById("ch-pause-bar").hidden, true);
 });
 
 // --- ROI strip (#53) ---
