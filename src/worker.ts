@@ -29,7 +29,7 @@ interface Signup {
 }
 
 const ALLOWED_CHALLENGES = new Set(["volume", "relevance", "fragmentation", "action"]);
-const ALLOWED_SOURCES = new Set(["hero", "final-cta"]);
+const ALLOWED_SOURCES = new Set(["hero", "final-cta", "pricing"]);
 
 const CHALLENGE_LABELS: Record<string, string> = {
   volume: "Too much content, not enough time",
